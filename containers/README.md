@@ -48,6 +48,15 @@ Planned follow-up work:
 - optional private CA trust injection for corporate environments
 - more tool definitions beyond `tenv`
 
+## Devcontainer Targets
+
+VS Code should see two devcontainer definitions under `.devcontainer/`:
+
+- `.devcontainer/ubuntu/devcontainer.json`
+- `.devcontainer/alpine/devcontainer.json`
+
+Each stays a thin wrapper over the matching Dockerfile and only runs a lightweight `ft plan` validation in `postCreate`.
+
 ## Local Build
 
 Use Docker Buildx for local validation:

@@ -73,10 +73,11 @@ That means they should:
 
 ## Devcontainer Contract
 
-- `devcontainer/` should remain a thin wrapper around the container target.
-- The devcontainer should use the same runtime user as the container image.
-- Post-create behavior should validate or lightly bootstrap the environment, not
-  duplicate the core image provisioning logic.
+- `.devcontainer/` should remain a thin wrapper around the container target.
+- The repository may expose multiple devcontainer definitions when it supports multiple container targets.
+- The current standard definitions are `.devcontainer/ubuntu/devcontainer.json` and `.devcontainer/alpine/devcontainer.json`.
+- Each devcontainer should use the same runtime user as its container image.
+- Post-create behavior should validate or lightly bootstrap the environment, not duplicate the core image provisioning logic.
 
 ## Portability Contract
 

@@ -29,7 +29,7 @@ dev-container-fortress/
 ├── ansible/
 ├── brew/
 ├── containers/
-├── devcontainer/
+├── .devcontainer/
 └── docs/
 ```
 
@@ -90,13 +90,14 @@ The container strategy is intentionally different from the host strategy:
 The first container-managed DevOps tool is `tenv`, which then manages Terraform
 and OpenTofu versions inside the environment.
 
-### `devcontainer/`
+### `.devcontainer/`
 
-VS Code wrapping for the container image, including:
+VS Code wrapping for the container images, including:
 
-- `devcontainer.json`
+- `ubuntu/devcontainer.json`
+- `alpine/devcontainer.json`
 - extension recommendations
-- container-specific mounts and post-create steps
+- lightweight post-create validation
 
 ## Planned Bootstrap Flow
 
@@ -131,9 +132,10 @@ VS Code wrapping for the container image, including:
 
 ### VS Code dev container
 
-1. Reuse the Docker image or Dockerfile
-2. Apply VS Code-specific configuration and extensions
-3. Run post-create bootstrap steps
+1. Choose either `.devcontainer/ubuntu/devcontainer.json` or `.devcontainer/alpine/devcontainer.json`
+2. Reuse the matching Dockerfile from `containers/`
+3. Apply VS Code-specific configuration and extensions
+4. Run a lightweight post-create validation step
 
 ## Current Status
 
@@ -149,7 +151,7 @@ The first pass provides:
 - Brew bundle scaffolding
 - Dockerfile scaffolding for Ubuntu and Alpine
 - the first real container-side tool definition for `tenv`
-- initial VS Code devcontainer scaffolding
+- initial VS Code devcontainer scaffolding for Ubuntu and Alpine
 
 ## Next Steps
 
