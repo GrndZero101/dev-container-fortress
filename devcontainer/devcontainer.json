@@ -4,7 +4,7 @@
     "dockerfile": "../containers/ubuntu/Dockerfile",
     "context": ".."
   },
-  "remoteUser": "root",
+  "remoteUser": "vscode",
   "customizations": {
     "vscode": {
       "settings": {
@@ -18,5 +18,5 @@
       ]
     }
   },
-  "postCreateCommand": "uv run --with /opt/dev-container-fortress/ft ft --manifest /opt/dev-container-fortress/ft/tools/tools.toml --target ubuntu plan --tool tenv"
+  "postCreateCommand": "ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/tools.toml --target ubuntu --tool tenv"
 }
