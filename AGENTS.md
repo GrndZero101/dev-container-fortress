@@ -56,6 +56,7 @@
 * Keep top-level documentation high-level and architectural.
 * Keep component documentation operational and close to the relevant directory when practical.
 * Update `docs/architecture.md` whenever layering, orchestration boundaries, or tool-selection strategy materially changes.
+* Update `docs/container-standards.md` whenever significant container design choices change. Examples: XDG layout, runtime user model, bootstrap strategy, privilege model, or container tool-install contract.
 * Update component README files when setup steps, supported targets, inputs, or outputs change.
 
 # Shell Script Guidance
@@ -91,6 +92,7 @@
 * Avoid introducing Homebrew into container targets unless explicitly requested.
 * Prefer deterministic downloads, pinned versions, and checksum verification for externally fetched tools.
 * Keep image size and build complexity in mind, but do not sacrifice auditability for minor optimizations.
+* Treat `docs/container-standards.md` as the operational contract for container targets and keep it in sync with significant design changes.
 
 # Devcontainer Guidance
 

@@ -31,6 +31,10 @@ Use:
 - Dockerfiles for image construction
 - Python + `uv` for pinned userland tool installation
 - `tenv` as the first packaged DevOps tool
+- a non-root runtime user for interactive development
+
+See [Container Standards](./container-standards.md) for the current runtime
+contract and design rules that Ubuntu and Alpine should follow.
 
 ### Devcontainer target
 
@@ -44,5 +48,6 @@ Use:
 - Ansible gives idempotent machine provisioning.
 - Brew reduces maintenance burden on real machines.
 - Containers benefit from pinned binary installs more than Brew.
+- Running the final container as a non-root user keeps devcontainer behavior closer to a workstation.
 - `tenv` keeps Terraform and OpenTofu version management out of the base image design.
 - Keeping `shell-config` separate preserves modularity and reuse.

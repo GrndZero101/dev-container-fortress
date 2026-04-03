@@ -123,7 +123,7 @@ VS Code wrapping for the container image, including:
 
 ### Docker build
 
-1. Build the base image from `containers/<target>/Dockerfile`
+1. Build the base image from `containers/<target>/Dockerfile` with `docker buildx build`
 2. Install pinned CLI tools with the Python + `uv` tool installer package
 3. Install `tenv`
 4. Install and bootstrap `shell-config`
