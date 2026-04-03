@@ -11,6 +11,7 @@ Each tool definition lives under `[tools.<name>]` and should declare:
 - `enabled`
 - `install_root`
 - `healthcheck`
+- optional `variables`
 - `integrity`
 - one or more `assets`
 
@@ -18,10 +19,26 @@ Each asset should declare:
 
 - `os`
 - `arch`
-- `url`
+- optional `target` when a tool needs target-specific assets such as Ubuntu versus Alpine
+- either `url` or `url_template`
+- optional `filename`
 - `archive`
 - `binary_path`
-- `checksum_asset` when checksum verification is enabled
+- optional `variables`
+- optional `checksum_asset`
+
+## Reuse Strategy
+
+Prefer config-driven manifests over installer-specific code.
+
+A good default is to keep the installer generic and express tool differences through:
+
+- tool-level `variables`
+- asset-level `variables`
+- optional `target` matching for distro-specific assets
+- renderable fields like `url_template`, `filename`, and integrity URL templates
+
+That lets future GitHub-style tools reuse the same installer behavior while only changing manifest data.
 
 ## Environment Variables
 
@@ -39,8 +56,9 @@ Runtime defaults can be supplied through environment variables:
 Prefer upstream checksum manifests whenever they exist.
 
 > [!IMPORTANT]
-> If a tool declares `integrity.checksum_url`, each asset should also declare
-> `checksum_asset` so the installer can fail closed on mismatches.
+> If a tool declares integrity metadata, keep the manifest specific enough that the
+> installer can fail closed on mismatches.
 
-Signature metadata is modeled in the manifest now and can be enforced in a
-follow-up step as more tools are added.
+Some upstream projects only expose integrity data in human-readable release notes.
+For those tools, it is acceptable to omit integrity metadata until a reliable
+machine-consumable source exists.

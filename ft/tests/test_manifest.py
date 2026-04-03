@@ -10,17 +10,15 @@ from ft.installer import build_plan
 from ft.manifest import load_manifest
 
 
-def test_load_manifest_reads_tenv_definition() -> None:
-    """Manifest loading should expose the configured tenv tool."""
+def test_load_manifest_reads_multiple_tool_definitions() -> None:
+    """Manifest loading should expose the configured core tools."""
     manifest_path = Path(__file__).resolve().parents[1] / "tools" / "tools.toml"
     manifest = load_manifest(manifest_path)
 
-    tool = manifest.tools["tenv"]
-    asset = tool.asset_for(os_name="linux", architecture="amd64")
-
-    assert tool.version == "4.8.3"
-    assert asset.archive == "tar.gz"
-    assert asset.checksum_asset == "tenv_v4.8.3_Linux_x86_64.tar.gz"
+    assert {"tenv", "starship", "zoxide", "atuin"}.issubset(manifest.tools)
+    assert manifest.tools["starship"].version == "1.24.2"
+    assert manifest.tools["zoxide"].version == "0.9.8"
+    assert manifest.tools["atuin"].version == "18.13.6"
 
 
 def test_load_manifest_rejects_missing_tools(tmp_path: Path) -> None:
@@ -28,7 +26,7 @@ def test_load_manifest_rejects_missing_tools(tmp_path: Path) -> None:
     manifest_path = tmp_path / "tools.toml"
     manifest_path.write_text("", encoding="utf-8")
 
-    with pytest.raises(ValueError, match="non-empty \\[tools\\] table"):
+    with pytest.raises(ValueError, match=r"non-empty \[tools\] table"):
         load_manifest(manifest_path)
 
 
@@ -42,6 +40,35 @@ def test_build_plan_selects_arm64_asset() -> None:
         manifest.tools["tenv"],
         os_name="linux",
         architecture="arm64",
+        target="ubuntu",
     )
 
-    assert plan.asset.checksum_asset == "tenv_v4.8.3_Linux_arm64.tar.gz"
+    assert plan.asset.filename == "tenv_v4.8.3_Linux_arm64.tar.gz"
+    assert plan.asset.url.endswith("/tenv_v4.8.3_Linux_arm64.tar.gz")
+    assert plan.integrity.checksum_url.endswith("/tenv_v4.8.3_checksums.txt")
+
+
+def test_build_plan_prefers_target_specific_asset() -> None:
+    """Target-specific assets should let Ubuntu and Alpine diverge cleanly."""
+    manifest_path = Path(__file__).resolve().parents[1] / "tools" / "tools.toml"
+    manifest = load_manifest(manifest_path)
+
+    ubuntu_plan = build_plan(
+        "atuin",
+        manifest.tools["atuin"],
+        os_name="linux",
+        architecture="amd64",
+        target="ubuntu",
+    )
+    alpine_plan = build_plan(
+        "atuin",
+        manifest.tools["atuin"],
+        os_name="linux",
+        architecture="amd64",
+        target="alpine",
+    )
+
+    assert ubuntu_plan.asset.filename == "atuin-x86_64-unknown-linux-gnu.tar.gz"
+    assert alpine_plan.asset.filename == "atuin-x86_64-unknown-linux-musl.tar.gz"
+    assert ubuntu_plan.asset.binary_path == "atuin-x86_64-unknown-linux-gnu/atuin"
+    assert alpine_plan.asset.binary_path == "atuin-x86_64-unknown-linux-musl/atuin"

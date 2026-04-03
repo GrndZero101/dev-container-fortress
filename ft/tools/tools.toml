@@ -4,25 +4,132 @@ version = "4.8.3"
 enabled = true
 install_root = "/usr/local/bin"
 healthcheck = ["tenv", "--version"]
+variables = { github_repo = "tofuutils/tenv", release_tag = "v4.8.3", asset_prefix = "tenv_v4.8.3" }
 
 [tools.tenv.integrity]
-checksum_url = "https://github.com/tofuutils/tenv/releases/download/v4.8.3/tenv_v4.8.3_checksums.txt"
+checksum_url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{asset_prefix}_checksums.txt"
 checksum_format = "sha256sum"
-signature_url = "https://github.com/tofuutils/tenv/releases/download/v4.8.3/tenv_v4.8.3_checksums.txt.sig"
-certificate_url = "https://github.com/tofuutils/tenv/releases/download/v4.8.3/tenv_v4.8.3_checksums.txt.pem"
+signature_url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{asset_prefix}_checksums.txt.sig"
+certificate_url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{asset_prefix}_checksums.txt.pem"
 
 [[tools.tenv.assets]]
 os = "linux"
 arch = "amd64"
-url = "https://github.com/tofuutils/tenv/releases/download/v4.8.3/tenv_v4.8.3_Linux_x86_64.tar.gz"
+filename = "{asset_prefix}_Linux_x86_64.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
 archive = "tar.gz"
 binary_path = "tenv"
-checksum_asset = "tenv_v4.8.3_Linux_x86_64.tar.gz"
 
 [[tools.tenv.assets]]
 os = "linux"
 arch = "arm64"
-url = "https://github.com/tofuutils/tenv/releases/download/v4.8.3/tenv_v4.8.3_Linux_arm64.tar.gz"
+filename = "{asset_prefix}_Linux_arm64.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
 archive = "tar.gz"
 binary_path = "tenv"
-checksum_asset = "tenv_v4.8.3_Linux_arm64.tar.gz"
+
+[tools.starship]
+description = "Cross-shell prompt renderer."
+version = "1.24.2"
+enabled = true
+install_root = "/usr/local/bin"
+healthcheck = ["starship", "--version"]
+variables = { github_repo = "starship/starship", release_tag = "v1.24.2", asset_prefix = "starship" }
+
+[tools.starship.integrity]
+checksum_url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}.sha256"
+checksum_format = "sha256sum"
+
+[[tools.starship.assets]]
+os = "linux"
+arch = "amd64"
+filename = "{asset_prefix}-x86_64-unknown-linux-musl.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "starship"
+checksum_asset = "{filename}"
+
+[[tools.starship.assets]]
+os = "linux"
+arch = "arm64"
+filename = "{asset_prefix}-aarch64-unknown-linux-musl.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "starship"
+checksum_asset = "{filename}"
+
+[tools.zoxide]
+description = "Smarter cd command with shell integrations."
+version = "0.9.8"
+enabled = true
+install_root = "/usr/local/bin"
+healthcheck = ["zoxide", "--version"]
+variables = { github_repo = "ajeetdsouza/zoxide", release_tag = "v0.9.8", asset_prefix = "zoxide-0.9.8" }
+
+[[tools.zoxide.assets]]
+os = "linux"
+arch = "amd64"
+filename = "{asset_prefix}-x86_64-unknown-linux-musl.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "zoxide"
+
+[[tools.zoxide.assets]]
+os = "linux"
+arch = "arm64"
+filename = "{asset_prefix}-aarch64-unknown-linux-musl.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "zoxide"
+
+[tools.atuin]
+description = "Shell history and search tool."
+version = "18.13.6"
+enabled = true
+install_root = "/usr/local/bin"
+healthcheck = ["atuin", "--version"]
+variables = { github_repo = "atuinsh/atuin", release_tag = "v18.13.6", asset_prefix = "atuin" }
+
+[tools.atuin.integrity]
+checksum_url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}.sha256"
+checksum_format = "sha256sum"
+
+[[tools.atuin.assets]]
+os = "linux"
+arch = "amd64"
+target = "ubuntu"
+filename = "{asset_prefix}-x86_64-unknown-linux-gnu.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "atuin-x86_64-unknown-linux-gnu/atuin"
+checksum_asset = "{filename}"
+
+[[tools.atuin.assets]]
+os = "linux"
+arch = "arm64"
+target = "ubuntu"
+filename = "{asset_prefix}-aarch64-unknown-linux-gnu.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "atuin-aarch64-unknown-linux-gnu/atuin"
+checksum_asset = "{filename}"
+
+[[tools.atuin.assets]]
+os = "linux"
+arch = "amd64"
+target = "alpine"
+filename = "{asset_prefix}-x86_64-unknown-linux-musl.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "atuin-x86_64-unknown-linux-musl/atuin"
+checksum_asset = "{filename}"
+
+[[tools.atuin.assets]]
+os = "linux"
+arch = "arm64"
+target = "alpine"
+filename = "{asset_prefix}-aarch64-unknown-linux-musl.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "atuin-aarch64-unknown-linux-musl/atuin"
+checksum_asset = "{filename}"
