@@ -1,0 +1,131 @@
+# General Implementation Guidance
+
+* Use KISS, DRY, and YAGNI principles.
+* Keep code clean, well-documented, and maintainable.
+* Prefer small, composable changes over broad framework-heavy abstractions.
+* Follow XDG standards for user-facing configuration where that applies.
+* Review and update `README.md` whenever repository behavior, bootstrap flow, or supported targets change.
+
+# Repository Intent
+
+* This repository is for provisioning and packaging developer environments.
+* Keep shell UX and shell behavior in the external `shell-config` repository rather than reimplementing them here.
+* Prefer the thinnest layer that fits the job:
+  * Ansible for host orchestration
+  * Homebrew for host package bundles
+  * Dockerfiles for container image construction
+  * Python plus `uv` for pinned container-side userland tool installation
+  * VS Code devcontainer metadata as a light wrapper around the container target
+* Avoid introducing overlapping bootstrap paths unless there is a clear target-specific need.
+
+# Python Guidance
+
+* Use Python 3.14+.
+* Prefer the standard library unless a dependency clearly reduces maintenance or improves correctness.
+* Use `uv` for Python environment and dependency management.
+* Keep Python utilities small, explicit, and oriented around provisioning tasks rather than general application architecture.
+* Prefer simple typed data structures and straightforward parsing over framework-driven designs.
+* If introducing a new Python dependency, document why it is needed in the relevant README or architecture docs when the reason is not obvious.
+* all functions/classes/modules should have docstrings as we may want to document with Sphinx in the future. Should be in **google** style.
+
+# Python Packages
+
+* Prefer the following Python packages for the purposes outlined.
+
+| Purpose         | Package        |
+| --------------- | -------------- |
+| API             | FastAPI        |
+| CLI             | Typer, Rich    |
+| data structures | Pydantic       |
+| date/time       | pendulum       |
+| logging         | loguru         |
+| natural output  | humanize       |
+| TUI             | Textual, Richd |
+| SQL             | sqlmodel       |
+
+# Python Tooling
+
+* Use `UV` for Python project bootstrapping, package management and anything it can handle natively. 
+* Use `ruff` for linting. Configuration should be defined in `pyproject.toml`
+* Use `rumdl` for markdown linting and formatting. Configuration should be defined in `pyproject.toml`
+
+# Markdown Documents
+
+* Use GitHub or GitLab admonition callouts where they improve clarity, especially for caveats, platform differences, and carve-outs.
+* Use supported emoticons sparingly when they improve scanability without adding noise.
+* Keep top-level documentation high-level and architectural.
+* Keep component documentation operational and close to the relevant directory when practical.
+* Update `docs/architecture.md` whenever layering, orchestration boundaries, or tool-selection strategy materially changes.
+* Update component README files when setup steps, supported targets, inputs, or outputs change.
+
+# Shell Script Guidance
+
+* Shell code in this repository may use Zsh when it is clearly repo-owned bootstrap or helper logic intended for the managed developer environment.
+* Do not assume every shell entrypoint in this repository can be Zsh-only if it may run under Docker, devcontainer hooks, CI, or other non-interactive execution contexts.
+* When choosing shell for a script, prefer the narrowest compatible option required by where that script executes.
+* For Zsh scripts, use a lightweight shell docblock style instead of Python-style docstrings.
+* Add a short file header describing purpose and constraints.
+* Add a concise comment block above each function covering:
+  * purpose
+  * arguments
+  * returns
+  * side effects when relevant
+* Keep inline comments rare and focused on non-obvious shell behavior, safety checks, parser quirks, or important invariants.
+* Review and update comments when the script behavior changes.
+* Assume terminals may support Nerd Fonts and richer themes, but keep output concise and functional first.
+
+# Ansible Guidance
+
+* Keep playbooks and roles idempotent.
+* Prefer declarative Ansible modules over shell commands when practical.
+* Use shell or command tasks only when there is no clean module-based alternative.
+* Keep host-specific behavior explicit and easy to audit.
+* Document required variables, defaults, and assumptions near the relevant role or inventory files.
+* Avoid embedding large amounts of business logic in YAML when a small helper script would be clearer and easier to test.
+
+# Container Guidance
+
+* Keep Dockerfiles focused on reproducible builds and a clear layer structure.
+* Use distro packages for low-level system prerequisites inside containers.
+* Use Python plus `uv` tooling for pinned userland tool installation inside containers.
+* Avoid introducing Homebrew into container targets unless explicitly requested.
+* Prefer deterministic downloads, pinned versions, and checksum verification for externally fetched tools.
+* Keep image size and build complexity in mind, but do not sacrifice auditability for minor optimizations.
+
+# Devcontainer Guidance
+
+* Treat `devcontainer/` as a thin VS Code integration layer over the container target.
+* Keep devcontainer-specific customization scoped to editor integration, mounts, extensions, and post-create behavior.
+* Do not duplicate core environment provisioning logic in `devcontainer.json` when it can live in the underlying container or bootstrap flow.
+
+# Multi-Platform and Architecture Support
+
+* Build explicit detection logic for:
+  * macOS
+  * Ubuntu
+  * Alpine Linux
+  * WSL where relevant
+  * Intel and ARM architectures
+* Keep platform branching centralized and easy to inspect.
+* Prefer data-driven mappings for platform-specific package names, URLs, checksums, and installation rules.
+* If a target is unsupported or partially supported, fail clearly and document the limitation.
+
+# Bootstrapping
+
+* Bootstrap flows must be idempotent or safely retryable.
+* Bootstrap flows should support non-interactive execution by default.
+* Keep bootstrap entrypoints small and delegate target-specific work to the appropriate layer:
+  * host provisioning to Ansible and Brew
+  * container provisioning to Dockerfiles and Python tooling
+  * shell setup to `shell-config`
+* Allow the install location of `shell-config` to be user-configurable, but keep the default aligned with XDG conventions when possible.
+* Validate prerequisites early and fail with actionable error messages.
+* Do not silently continue after partial bootstrap failures that would leave the environment in an ambiguous state.
+* Prefer explicit logging for major bootstrap phases so failures are easy to diagnose.
+* Document bootstrap assumptions, required inputs, and side effects in the relevant README files.
+
+# Change Management
+
+* Keep changes scoped to the relevant layer instead of solving problems in multiple places.
+* If a change affects architecture, bootstrap flow, supported targets, or directory responsibilities, update the corresponding documentation in the same change.
+* When adding a new helper, script, or installer path, document why it belongs in this repository instead of `shell-config`.

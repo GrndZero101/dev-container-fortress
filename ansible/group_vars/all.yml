@@ -1,0 +1,6 @@
+---
+dev_container_fortress_shell_config_repo: "https://github.com/GrndZero101/shell-config.git"
+dev_container_fortress_shell_config_branch: "main"
+dev_container_fortress_shell_config_dir: "{{ ansible_env.HOME }}/.config/shell-config"
+dev_container_fortress_shell_config_profile: "zsh-tll-citadel-dev-fortress"
+
