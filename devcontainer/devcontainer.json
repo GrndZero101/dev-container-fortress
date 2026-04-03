@@ -1,0 +1,22 @@
+{
+  "name": "Dev Container Fortress",
+  "build": {
+    "dockerfile": "../containers/ubuntu/Dockerfile",
+    "context": ".."
+  },
+  "remoteUser": "root",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh"
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-azuretools.vscode-docker",
+        "hashicorp.terraform",
+        "tamasfe.even-better-toml"
+      ]
+    }
+  },
+  "postCreateCommand": "zsh --version"
+}

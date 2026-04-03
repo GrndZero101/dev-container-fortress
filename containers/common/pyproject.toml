@@ -1,0 +1,10 @@
+[project]
+name = "dev-container-fortress-tools"
+version = "0.1.0"
+description = "Pinned tool installer for dev-container-fortress container targets."
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv]
+package = false
+
