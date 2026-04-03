@@ -4,11 +4,10 @@ Planned roles:
 
 - `homebrew`
 - `python_uv`
-- `terraform`
+- `tenv`
 - `shell_config`
 - `tmux`
 - `git`
 - `editors`
 
 These roles are intentionally kept small and composable.
-
