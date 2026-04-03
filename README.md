@@ -135,7 +135,16 @@ VS Code wrapping for the container images, including:
 1. Choose either `.devcontainer/ubuntu/devcontainer.json` or `.devcontainer/alpine/devcontainer.json`
 2. Reuse the matching Dockerfile from `containers/`
 3. Apply VS Code-specific configuration and extensions
-4. Run a lightweight post-create validation step
+4. Optionally pass a corporate CA certificate directory through `DEV_CONTAINER_FORTRESS_CA_CERT_DIR` when your network requires custom trust
+5. Run a lightweight post-create validation step
+
+## Usage Guides
+
+Use the mode-specific guides for operational instructions:
+
+- [Workstation Usage](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md)
+- [Container Usage](/home/timl/projects/tboss/dev-container-fortress/docs/container-usage.md)
+- [Devcontainer Usage](/home/timl/projects/tboss/dev-container-fortress/docs/devcontainer-usage.md)
 
 ## Current Status
 
@@ -150,13 +159,23 @@ The first pass provides:
 - Ansible role and playbook scaffolding
 - Brew bundle scaffolding
 - Dockerfile scaffolding for Ubuntu and Alpine
+- opt-in corporate CA bundle support for container and devcontainer builds
 - the first real container-side tool definition for `tenv`
 - initial VS Code devcontainer scaffolding for Ubuntu and Alpine
 
-## Next Steps
+## Major Tasks
 
-1. Implement the Ansible roles
-2. Add optional corporate CA support for local and container builds
-3. Add SSH-enabled disposable container scaffolding for Ansible testing
-4. Decide the tmux component structure
-5. Integrate `shell-config` bootstrap end to end
+1. Integrate `shell-config` cloning and bootstrap into the environment flows
+2. Add SSH-enabled disposable container scaffolding for repeatable remote testing
+3. Refactor Ansible for dual local and SSH execution
+4. Implement the first real Ansible roles for workstation provisioning
+5. Extend optional corporate CA support into the host-side Ansible flow
+6. Integrate tmux and related user-environment components
+7. Expand downloader integrity features and additional tool definitions
+
+Why this order:
+
+- `shell-config` is part of the actual user experience, so we should wire it in before we go much deeper on provisioning details.
+- SSH disposable targets unlock repeatable clean-room testing for Ansible and future verification loops.
+- Dual-mode Ansible should be settled before we invest heavily in more workstation roles.
+- Host-side CA support fits naturally once the host provisioning path is real instead of mostly scaffolded.

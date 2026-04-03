@@ -6,6 +6,8 @@ environment.
 See [Container Standards](../docs/container-standards.md) for the shared
 runtime contract that container targets should follow.
 
+For user-facing build and run instructions, see [Container Usage](/home/timl/projects/tboss/dev-container-fortress/docs/container-usage.md).
+
 ## Strategy
 
 - Use the distro package manager for base system dependencies
@@ -45,7 +47,7 @@ The Python tool installer currently provides:
 Planned follow-up work:
 
 - optional signature verification where upstream supports it
-- optional private CA trust injection for corporate environments
+- host-side corporate CA support through Ansible
 - more tool definitions beyond `tenv`
 
 ## Devcontainer Targets
@@ -65,3 +67,29 @@ Use Docker Buildx for local validation:
 docker buildx build --load -f containers/ubuntu/Dockerfile -t dev-container-fortress:ubuntu-test .
 docker buildx build --load -f containers/alpine/Dockerfile -t dev-container-fortress:alpine-test .
 ```
+
+## Optional Corporate CA Support
+
+Corporate CA trust is now available as an explicit opt-in for container and devcontainer builds.
+
+To use it with direct Docker builds, place one or more PEM-formatted `.crt` files in a directory under the repo root, for example `.local/certs/`, and pass that repo-relative directory path:
+
+```zsh
+docker buildx build --load \
+  --build-arg CORPORATE_CA_CERT_DIR=.local/certs \
+  -f containers/ubuntu/Dockerfile \
+  -t dev-container-fortress:ubuntu-test .
+```
+
+The same pattern works for Alpine by swapping the Dockerfile path.
+
+For VS Code devcontainers, export the same repo-relative directory path before you reopen in container:
+
+```zsh
+export DEV_CONTAINER_FORTRESS_CA_CERT_DIR=.local/certs
+```
+
+If the variable is unset or empty, the CA installation step is skipped and the build behaves exactly as before. If the variable is set, the build requires the directory to exist and to contain at least one valid PEM `.crt` file.
+
+> [!IMPORTANT]
+> This feature is active only when you opt in. Certificates are loaded as individual `.crt` files and copied into the distro trust setup. On Ubuntu this matches Canonical's documented `/usr/local/share/ca-certificates` plus `update-ca-certificates` flow. On Alpine we use the same `update-ca-certificates` integration as an implementation choice based on Alpine examples. Keep the directory inside the Docker build context, and do not commit private cert material. Add it under an ignored path such as `.local/certs/`.

@@ -53,6 +53,9 @@ That means they should:
   user can use `uv` as intended inside a persistent environment.
 - Managed Python versions required by repo-owned tools should be installed via
   `uv`, not assumed from the distro Python version.
+- Optional corporate CA trust should be an explicit opt-in, not a default behavior.
+- When enabled, corporate CA material should come from an explicitly provided directory of PEM-formatted `.crt` files.
+- The build should validate those `.crt` files before installation and install them into the distro trust store before repo-managed network fetches such as the Astral installer or downloader-managed tool downloads.
 
 ## Tool Installation Contract
 
@@ -78,6 +81,7 @@ That means they should:
 - The current standard definitions are `.devcontainer/ubuntu/devcontainer.json` and `.devcontainer/alpine/devcontainer.json`.
 - Each devcontainer should use the same runtime user as its container image.
 - Post-create behavior should validate or lightly bootstrap the environment, not duplicate the core image provisioning logic.
+- Devcontainer build args may expose opt-in environment hooks such as `DEV_CONTAINER_FORTRESS_CA_CERT_DIR` when they are needed for corporate networks.
 
 ## Portability Contract
 

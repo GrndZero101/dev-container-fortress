@@ -2,7 +2,10 @@
   "name": "Dev Container Fortress (Alpine)",
   "build": {
     "dockerfile": "../../containers/alpine/Dockerfile",
-    "context": "../.."
+    "context": "../..",
+    "args": {
+      "CORPORATE_CA_CERT_DIR": "${localEnv:DEV_CONTAINER_FORTRESS_CA_CERT_DIR}"
+    }
   },
   "remoteUser": "vscode",
   "containerUser": "vscode",
