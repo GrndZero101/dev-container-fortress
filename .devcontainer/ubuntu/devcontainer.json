@@ -1,10 +1,11 @@
 {
-  "name": "Dev Container Fortress",
+  "name": "Dev Container Fortress (Ubuntu)",
   "build": {
-    "dockerfile": "../containers/ubuntu/Dockerfile",
-    "context": ".."
+    "dockerfile": "../../containers/ubuntu/Dockerfile",
+    "context": "../.."
   },
   "remoteUser": "vscode",
+  "containerUser": "vscode",
   "customizations": {
     "vscode": {
       "settings": {
