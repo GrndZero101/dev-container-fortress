@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.table import Table
 import typer
 
-from ft.installer import build_plan, install_tool
+from ft.installer import InstallPlan, build_plan, install_tool
 from ft.manifest import load_manifest
 from ft.models import ToolDefinition, ToolManifest
 from ft.platforms import detect_architecture, detect_system
@@ -18,7 +18,7 @@ from ft.settings import FtSettings
 
 app = typer.Typer(
     add_completion=False,
-    help="Install pinned tooling for dev-container-fortress targets.",
+    help="Install pinned tooling from a reusable manifest.",
 )
 
 console = Console()
@@ -82,31 +82,27 @@ def _selected_tools(
 
 
 def _render_plan(
-    name: str,
-    tool: ToolDefinition,
+    plan: InstallPlan,
     *,
     target: str,
-    system_name: str,
-    architecture: str,
     install_root: Path | None,
 ) -> None:
     """Render one resolved plan to the console."""
-    plan = build_plan(name, tool, os_name=system_name, architecture=architecture)
-    effective_install_root = _effective_install_root(tool.install_root, install_root)
+    effective_install_root = _effective_install_root(plan.tool.install_root, install_root)
 
-    table = Table(title=f"{name} plan", show_header=False)
+    table = Table(title=f"{plan.name} plan", show_header=False)
     table.add_column("key", style="cyan")
     table.add_column("value", style="white")
     table.add_row("target", target)
-    table.add_row("version", tool.version)
+    table.add_row("version", plan.tool.version)
     table.add_row("platform", f"{plan.os_name}/{plan.architecture}")
     table.add_row("url", plan.asset.url)
     table.add_row("archive", plan.asset.archive)
     table.add_row("install_root", str(effective_install_root))
-    if tool.integrity.checksum_url:
-        table.add_row("checksums", tool.integrity.checksum_url)
-    if tool.integrity.signature_url:
-        table.add_row("signature", tool.integrity.signature_url)
+    if plan.integrity.checksum_url:
+        table.add_row("checksums", plan.integrity.checksum_url)
+    if plan.integrity.signature_url:
+        table.add_row("signature", plan.integrity.signature_url)
 
     console.print(table)
 
@@ -120,7 +116,7 @@ def plan(
     ] = None,
     target: Annotated[
         str | None,
-        typer.Option(help="Container target being built."),
+        typer.Option(help="Named target context for the current build or host."),
     ] = None,
     system_name: Annotated[
         str | None,
@@ -147,12 +143,16 @@ def plan(
     manifest_model = load_manifest(Path(runtime["manifest"]))
 
     for name, tool_definition in _selected_tools(manifest_model, tool):
-        _render_plan(
+        plan_model = build_plan(
             name,
             tool_definition,
-            target=str(runtime["target"]),
-            system_name=str(runtime["system_name"]),
+            os_name=str(runtime["system_name"]),
             architecture=str(runtime["architecture"]),
+            target=str(runtime["target"]),
+        )
+        _render_plan(
+            plan_model,
+            target=str(runtime["target"]),
             install_root=runtime["install_root"],
         )
 
@@ -166,7 +166,7 @@ def install(
     ] = None,
     target: Annotated[
         str | None,
-        typer.Option(help="Container target being built."),
+        typer.Option(help="Named target context for the current build or host."),
     ] = None,
     system_name: Annotated[
         str | None,
@@ -205,6 +205,7 @@ def install(
             tool_definition,
             os_name=str(runtime["system_name"]),
             architecture=str(runtime["architecture"]),
+            target=str(runtime["target"]),
         )
         effective_install_root = _effective_install_root(
             tool_definition.install_root,

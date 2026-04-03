@@ -127,8 +127,9 @@ VS Code wrapping for the container images, including:
 1. Build the base image from `containers/<target>/Dockerfile` with `docker buildx build`
 2. Install pinned CLI tools with the Python + `uv` tool installer package
 3. Install `tenv`
-4. Install and bootstrap `shell-config`
-5. Install tmux and environment-level configuration
+4. Clone and bootstrap `shell-config`
+5. Install fortress shell extras such as `zinit` when enabled
+6. Install tmux and environment-level configuration
 
 ### VS Code dev container
 
@@ -159,19 +160,22 @@ The first pass provides:
 - Ansible role and playbook scaffolding
 - Brew bundle scaffolding
 - Dockerfile scaffolding for Ubuntu and Alpine
+- configurable `shell-config` integration for container and devcontainer flows
 - opt-in corporate CA bundle support for container and devcontainer builds
-- the first real container-side tool definition for `tenv`
+- reusable container-side tool definitions for `tenv`, `starship`, `zoxide`, and `atuin`
+- distro-installed `fzf` in Ubuntu and Alpine images
 - initial VS Code devcontainer scaffolding for Ubuntu and Alpine
 
 ## Major Tasks
 
-1. Integrate `shell-config` cloning and bootstrap into the environment flows
+1. Finish `shell-config` integration across the remaining workstation flow
 2. Add SSH-enabled disposable container scaffolding for repeatable remote testing
 3. Refactor Ansible for dual local and SSH execution
 4. Implement the first real Ansible roles for workstation provisioning
 5. Extend optional corporate CA support into the host-side Ansible flow
 6. Integrate tmux and related user-environment components
-7. Expand downloader integrity features and additional tool definitions
+7. Re-assess the container and workstation tool download strategy, including whether Brew builder stages, distro packages, or other higher-level installers should replace some bespoke `ft` downloads
+8. Expand downloader integrity features and additional tool definitions
 
 Why this order:
 

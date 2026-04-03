@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -13,7 +12,7 @@ class FtSettings(BaseSettings):
 
     Attributes:
         manifest: Default manifest path.
-        target: Default build target.
+        target: Optional named target context.
         system: Optional system override.
         architecture: Optional architecture override.
         install_root: Optional install root override.
@@ -26,7 +25,7 @@ class FtSettings(BaseSettings):
     )
 
     manifest: Path = Path("ft/tools/tools.toml")
-    target: Literal["ubuntu", "alpine"] = "ubuntu"
+    target: str = "ubuntu"
     system: str | None = None
     architecture: str | None = None
     install_root: Path | None = None

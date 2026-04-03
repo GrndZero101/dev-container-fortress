@@ -4,7 +4,13 @@
     "dockerfile": "../../containers/alpine/Dockerfile",
     "context": "../..",
     "args": {
-      "CORPORATE_CA_CERT_DIR": "${localEnv:DEV_CONTAINER_FORTRESS_CA_CERT_DIR}"
+      "CORPORATE_CA_CERT_DIR": "${localEnv:DEV_CONTAINER_FORTRESS_CA_CERT_DIR}",
+      "SHELL_CONFIG_SOURCE": "${localEnv:DEV_CONTAINER_FORTRESS_SHELL_CONFIG_SOURCE}",
+      "SHELL_CONFIG_REPO_URL": "${localEnv:DEV_CONTAINER_FORTRESS_SHELL_CONFIG_REPO_URL}",
+      "SHELL_CONFIG_BRANCH": "${localEnv:DEV_CONTAINER_FORTRESS_SHELL_CONFIG_BRANCH}",
+      "SHELL_CONFIG_LOCAL_DIR": "${localEnv:DEV_CONTAINER_FORTRESS_SHELL_CONFIG_LOCAL_DIR}",
+      "SHELL_CONFIG_PROFILE_DEFAULT": "${localEnv:DEV_CONTAINER_FORTRESS_SHELL_CONFIG_PROFILE_DEFAULT}",
+      "SHELL_CONFIG_INSTALL_ZINIT": "${localEnv:DEV_CONTAINER_FORTRESS_SHELL_CONFIG_INSTALL_ZINIT}"
     }
   },
   "remoteUser": "vscode",
@@ -22,5 +28,5 @@
       ]
     }
   },
-  "postCreateCommand": "ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/tools.toml --target alpine --tool tenv"
+  "postCreateCommand": "ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/tools.toml --target alpine"
 }

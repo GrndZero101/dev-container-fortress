@@ -30,10 +30,12 @@ The Ubuntu and Alpine Dockerfiles now use a shared split bootstrap strategy:
 - install the `ft` CLI with `uv tool install` into the runtime user's XDG-managed tool directories
 - keep runtime state under the user's home directory rather than a custom `/opt` tree
 - run the final container as a non-root `vscode` user with `sudo`
+- clone or copy `shell-config` into the runtime user's XDG config tree and run `csm bootstrap`
+- set the default shell profile to `zsh-tll-citadel-dev-fortress` unless a different build-time default is requested
+- install fortress `zinit` support by default so the richer shell profile is ready on first launch
 - pre-create minimal Zsh startup files so the container shell is non-interactive on first launch
 
-The Dockerfiles now resolve and install `tenv` through the packaged downloader
-entrypoint.
+The Dockerfiles now resolve and install `tenv`, `starship`, `zoxide`, and `atuin` through the packaged downloader entrypoint, while `fzf` comes from the distro package manager.
 
 The Python tool installer currently provides:
 
@@ -42,13 +44,14 @@ The Python tool installer currently provides:
 - installation planning
 - archive download and extraction
 - checksum verification from upstream checksum manifests
-- `tenv` installation for Linux `amd64` and `arm64`
+- `tenv`, `starship`, `zoxide`, and `atuin` installation for Linux `amd64` and `arm64`
+- target-specific asset selection for Ubuntu versus Alpine where needed
 
 Planned follow-up work:
 
 - optional signature verification where upstream supports it
 - host-side corporate CA support through Ansible
-- more tool definitions beyond `tenv`
+- broader tool coverage beyond the current interaction baseline
 
 ## Devcontainer Targets
 
@@ -93,3 +96,24 @@ If the variable is unset or empty, the CA installation step is skipped and the b
 
 > [!IMPORTANT]
 > This feature is active only when you opt in. Certificates are loaded as individual `.crt` files and copied into the distro trust setup. On Ubuntu this matches Canonical's documented `/usr/local/share/ca-certificates` plus `update-ca-certificates` flow. On Alpine we use the same `update-ca-certificates` integration as an implementation choice based on Alpine examples. Keep the directory inside the Docker build context, and do not commit private cert material. Add it under an ignored path such as `.local/certs/`.
+
+## Shell-Config Source Options
+
+Container builds now support two `shell-config` source modes:
+
+- `github` (default): clone from `SHELL_CONFIG_REPO_URL` and `SHELL_CONFIG_BRANCH`
+- `local`: copy from a repo-relative directory inside the Docker build context via `SHELL_CONFIG_LOCAL_DIR`
+
+Build args:
+
+- `SHELL_CONFIG_SOURCE`
+- `SHELL_CONFIG_REPO_URL`
+- `SHELL_CONFIG_BRANCH`
+- `SHELL_CONFIG_LOCAL_DIR`
+- `SHELL_CONFIG_PROFILE_DEFAULT`
+- `SHELL_CONFIG_INSTALL_ZINIT`
+
+> [!NOTE]
+> Runtime shells can still override the selected profile with `SHELL_CONFIG_PROFILE`. The build-time default only determines the saved initial profile and the default exported environment inside the image.
+
+For local-source testing from an existing absolute host path, stage it into the build context with [`scripts/stage-shell-config.zsh`](/home/timl/projects/tboss/dev-container-fortress/scripts/stage-shell-config.zsh).
