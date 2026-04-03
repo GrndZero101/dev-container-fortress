@@ -58,6 +58,7 @@
 * Update `docs/architecture.md` whenever layering, orchestration boundaries, or tool-selection strategy materially changes.
 * Update `docs/container-standards.md` whenever significant container design choices change. Examples: XDG layout, runtime user model, bootstrap strategy, privilege model, or container tool-install contract.
 * Update component README files when setup steps, supported targets, inputs, or outputs change.
+* Update user-facing usage docs under `docs/` whenever features, supported flows, setup steps, or caveats change. Keep workstation, container, and devcontainer instructions in sync with the real implementation.
 
 # Shell Script Guidance
 

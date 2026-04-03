@@ -217,3 +217,5 @@ __marimo__/
 
 # Coding AI tasks (don't commit to repo)
 docs/coding_ai_tasks/**
+# Local private certificate material for opt-in corporate CA builds
+.local/certs/

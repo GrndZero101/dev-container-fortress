@@ -15,3 +15,6 @@ Examples:
 - tmux config should own tmux behavior
 - this layer installs and wires those components together
 
+
+
+For current user-facing status of the workstation path, see [Workstation Usage](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md).

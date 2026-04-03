@@ -1,4 +1,5 @@
 ARG UV_DISTROLESS_IMAGE=ghcr.io/astral-sh/uv:latest
+ARG CORPORATE_CA_CERT_DIR=""
 
 FROM ${UV_DISTROLESS_IMAGE} AS uv-distroless
 
@@ -8,6 +9,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    openssl \
     curl \
     git \
     gzip \
@@ -32,6 +34,7 @@ ARG USER_UID=1000
 ARG USER_GID=1000
 
 COPY --from=uv-distroless /uv /uvx /usr/local/bin/
+COPY containers/common/install-corporate-ca.sh /usr/local/bin/install-corporate-ca
 
 RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
       groupmod --gid ${USER_GID} ${USERNAME}; \
@@ -57,6 +60,10 @@ RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
   && chown ${USER_UID}:${USER_GID} /home/${USERNAME}/.zshenv /home/${USERNAME}/.zshrc \
   && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-${USERNAME} \
   && chmod 0440 /etc/sudoers.d/90-${USERNAME}
+
+RUN chmod 0755 /usr/local/bin/install-corporate-ca
+RUN --mount=type=bind,source=.,target=/tmp/build-context,readonly \
+    /usr/local/bin/install-corporate-ca /tmp/build-context "${CORPORATE_CA_CERT_DIR}"
 
 ENV HOME=/home/${USERNAME}
 ENV XDG_CACHE_HOME=${HOME}/.cache
