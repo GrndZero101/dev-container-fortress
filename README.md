@@ -48,7 +48,7 @@ Responsibilities:
 - install Homebrew when appropriate
 - install host packages
 - install `uv`
-- install `terraform`
+- install `tenv`
 - install and bootstrap `shell-config`
 - install tmux and related user config
 
@@ -72,7 +72,7 @@ Use Brew as the main source of truth for host-side CLI tooling such as:
 - `yq`
 - `direnv`
 - `uv`
-- `terraform`
+- `tenv`
 
 ### `containers/`
 
@@ -87,6 +87,9 @@ The container strategy is intentionally different from the host strategy:
 - use a Python + `uv` installer for pinned userland binaries
 - avoid running Homebrew inside containers
 
+The first container-managed DevOps tool is `tenv`, which then manages Terraform
+and OpenTofu versions inside the environment.
+
 ### `devcontainer/`
 
 VS Code wrapping for the container image, including:
@@ -97,21 +100,34 @@ VS Code wrapping for the container image, including:
 
 ## Planned Bootstrap Flow
 
+### Local workspace bootstrap
+
+1. Run `zsh ./bootstrap.zsh`
+2. Let the bootstrap install `uv` automatically if it is missing
+3. Use the synced environment for tests, linting, and local tooling work
+
+> [!NOTE]
+> Local `ft install` runs now prefer the manifest install root when it is
+> writable, but automatically fall back to `~/.local/bin` for non-root local
+> testing when paths such as `/usr/local/bin` are not writable.
+
 ### Direct host install
 
 1. Install Ansible prerequisites
 2. Run the host playbook
 3. Install Homebrew where needed
 4. Install the Brew bundle
-5. Install and bootstrap `shell-config`
-6. Install tmux and other user tools
+5. Install `tenv`
+6. Install and bootstrap `shell-config`
+7. Install tmux and other user tools
 
 ### Docker build
 
 1. Build the base image from `containers/<target>/Dockerfile`
-2. Install pinned CLI tools with the Python + `uv` tool installer
-3. Install and bootstrap `shell-config`
-4. Install tmux and environment-level configuration
+2. Install pinned CLI tools with the Python + `uv` tool installer package
+3. Install `tenv`
+4. Install and bootstrap `shell-config`
+5. Install tmux and environment-level configuration
 
 ### VS Code dev container
 
@@ -126,17 +142,19 @@ This repository is currently in scaffold phase.
 The first pass provides:
 
 - the initial repository structure
+- local `uv` bootstrap scaffolding
+- an installable `ft` Python package
+- downloader tests and reusable tool configuration
 - Ansible role and playbook scaffolding
 - Brew bundle scaffolding
 - Dockerfile scaffolding for Ubuntu and Alpine
-- a Python + `uv` tool installer skeleton
+- the first real container-side tool definition for `tenv`
 - initial VS Code devcontainer scaffolding
 
 ## Next Steps
 
 1. Implement the Ansible roles
-2. Fill out the Brew bundles
-3. Implement real binary download and checksum verification in the tool installer
+2. Add optional corporate CA support for local and container builds
+3. Add SSH-enabled disposable container scaffolding for Ansible testing
 4. Decide the tmux component structure
 5. Integrate `shell-config` bootstrap end to end
-

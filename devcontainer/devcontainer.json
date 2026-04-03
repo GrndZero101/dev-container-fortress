@@ -18,5 +18,5 @@
       ]
     }
   },
-  "postCreateCommand": "zsh --version"
+  "postCreateCommand": "uv run --with /opt/dev-container-fortress/ft ft --manifest /opt/dev-container-fortress/ft/tools/tools.toml --target ubuntu plan --tool tenv"
 }

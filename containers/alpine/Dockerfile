@@ -15,9 +15,13 @@ RUN apk add --no-cache \
 
 WORKDIR /opt/dev-container-fortress
 
-COPY containers/common/pyproject.toml ./pyproject.toml
-COPY containers/common/tools ./tools
+COPY ft/pyproject.toml ./ft/pyproject.toml
+COPY ft/src ./ft/src
+COPY ft/tools ./ft/tools
 
 RUN python3 -m pip install --no-cache-dir uv
-RUN uv run python tools/install_tools.py --target alpine --manifest tools/tools.toml
-
+RUN uv run --with ./ft ft \
+    --manifest ft/tools/tools.toml \
+    --target alpine \
+    install \
+    --tool tenv

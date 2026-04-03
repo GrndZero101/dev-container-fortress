@@ -1,0 +1,21 @@
+[project]
+name = "ft"
+version = "0.1.0"
+description = "Provisioning helper CLI for dev-container-fortress."
+authors = [
+  { name = "Tim Longbottom", email = "tim.longbottom@gmail.com" },
+]
+requires-python = ">=3.14"
+dependencies = [
+  "pydantic>=2.11.0",
+  "pydantic-settings>=2.8.0",
+  "rich>=14.0.0",
+  "typer>=0.16.0",
+]
+
+[project.scripts]
+ft = "ft:main"
+
+[build-system]
+requires = ["uv_build>=0.11.3,<0.12.0"]
+build-backend = "uv_build"

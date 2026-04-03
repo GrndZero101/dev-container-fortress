@@ -15,5 +15,4 @@ brew "jq"
 brew "yq"
 brew "direnv"
 brew "uv"
-brew "terraform"
-
+brew "tenv"

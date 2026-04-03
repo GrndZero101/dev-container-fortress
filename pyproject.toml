@@ -1,0 +1,28 @@
+[project]
+name = "dev-container-fortress"
+version = "0.1.0"
+description = "Provisioning and packaging workspace for portable developer environments."
+requires-python = ">=3.14"
+dependencies = [
+  "ft",
+]
+
+[dependency-groups]
+dev = [
+  "ansible>=11.4.0",
+  "pytest>=8.3.5",
+  "ruff>=0.11.4",
+]
+
+[tool.uv.sources]
+ft = { workspace = true }
+
+[tool.uv.workspace]
+members = ["ft"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py314"
+
+[tool.pytest.ini_options]
+testpaths = ["ft/tests"]

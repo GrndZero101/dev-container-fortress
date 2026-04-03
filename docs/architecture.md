@@ -22,6 +22,7 @@ Use:
 
 - Ansible for orchestration
 - Homebrew for packages and userland tools
+- `tenv` for Terraform and OpenTofu version selection
 
 ### Container targets
 
@@ -29,6 +30,7 @@ Use:
 
 - Dockerfiles for image construction
 - Python + `uv` for pinned userland tool installation
+- `tenv` as the first packaged DevOps tool
 
 ### Devcontainer target
 
@@ -42,5 +44,5 @@ Use:
 - Ansible gives idempotent machine provisioning.
 - Brew reduces maintenance burden on real machines.
 - Containers benefit from pinned binary installs more than Brew.
+- `tenv` keeps Terraform and OpenTofu version management out of the base image design.
 - Keeping `shell-config` separate preserves modularity and reuse.
-
