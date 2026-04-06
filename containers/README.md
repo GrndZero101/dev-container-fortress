@@ -28,12 +28,16 @@ The Ubuntu and Alpine Dockerfiles now use a shared split bootstrap strategy:
 - install `uv` again with Astral's shell installer for the final runtime user
 - install managed Python 3.14 with `uv` so the `ft` package runs without depending on distro Python versions
 - install the `ft` CLI with `uv tool install` into the runtime user's XDG-managed tool directories
+- install the `ft` zsh completion artifact into the user's XDG-managed data tree so shell-config can load it without vendoring cross-repo files
 - keep runtime state under the user's home directory rather than a custom `/opt` tree
+- pre-create the user-owned XDG state directory so first-login shell startup can write state safely
 - run the final container as a non-root `vscode` user with `sudo`
 - clone or copy `shell-config` into the runtime user's XDG config tree and run `csm bootstrap`
 - set the default shell profile to `zsh-tll-citadel-dev-fortress` unless a different build-time default is requested
 - install fortress `zinit` support by default so the richer shell profile is ready on first launch
 - pre-create minimal Zsh startup files so the container shell is non-interactive on first launch
+- install Alpine's split `zsh-vcs` package so native zsh prompt fallback can still use `vcs_info`
+- on Alpine, restore user-local bin discovery through `/etc/profile.d` because login shells source `/etc/profile`, which otherwise resets `PATH` to system directories only
 
 The Dockerfiles now resolve and install `tenv`, `starship`, `zoxide`, and `atuin` through the packaged downloader entrypoint, while `fzf` comes from the distro package manager.
 
@@ -70,6 +74,38 @@ Use Docker Buildx for local validation:
 docker buildx build --load -f containers/ubuntu/Dockerfile -t dev-container-fortress:ubuntu-test .
 docker buildx build --load -f containers/alpine/Dockerfile -t dev-container-fortress:alpine-test .
 ```
+
+## Local Human Testing Loop
+
+The repository now includes a deterministic local test harness for disposable
+container validation:
+
+- helper: [`scripts/test-container.zsh`](/home/timl/projects/tboss/dev-container-fortress/scripts/test-container.zsh)
+- task runner front door: [`justfile`](/home/timl/projects/tboss/dev-container-fortress/justfile)
+
+This workflow is meant to support both:
+
+- human validation during day-to-day development
+- future agentic validation using the same stable target names and commands
+
+Current commands cover:
+
+- image build
+- detached container startup
+- status inspection
+- logs
+- non-interactive `exec`
+- interactive shell entry
+- teardown and reset
+- managed SSH key generation and probe flows for the Ubuntu disposable target
+
+The Ubuntu disposable target now starts an SSH daemon on host port `2222` when
+launched through `ft container up ubuntu`. If the managed public key for the
+default host target `dev-fortress-ubuntu` already exists in the Dev Fortress
+state tree, container startup mounts and authorizes it automatically so the
+same target can be exercised through `ft host ...`. Disposable SSH trust now
+flows through a Dev Fortress-managed known-hosts file rather than discarding
+host-key state entirely on every command.
 
 ## Optional Corporate CA Support
 

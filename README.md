@@ -1,185 +1,222 @@
 # Dev Container Fortress
 
-`dev-container-fortress` is the higher-level developer environment project that
-orchestrates a portable workstation setup across laptops, containers, and VS Code
-dev containers.
+## Overview
+
+`dev-container-fortress` is a developer-environment orchestration repo for:
+
+- host bootstrap and provisioning
+- disposable Docker-based test targets
+- VS Code devcontainers
+- a shared operator CLI named `ft`
+
+The project is intentionally split across layers:
+
+- `ft` is the operator surface
+- Ansible handles host orchestration
+- Dockerfiles handle container construction
+- `shell-config` owns shell UX rather than this repo reimplementing it
+
+> [!IMPORTANT]
+> This project is still in active buildout.
+> The container and operator loops are already useful day to day, while the
+> direct workstation path is still maturing.
 
 > [!NOTE]
-> This repository is intended to consume [`shell-config`](../shell-config/README.md)
-> as a component rather than reimplement shell behavior itself.
+> `just` still exists, but it is now a thin compatibility shim.
+> Treat `ft` as the primary interface.
 
-## Targets
+## Associated Projects
 
-- Direct installation on macOS, Linux, and WSL using Ansible plus Homebrew
-- Docker container images for Ubuntu and Alpine
-- VS Code dev containers layered on top of the Docker image
+| Project | Role |
+| --- | --- |
+| [`shell-config`](https://github.com/GrndZero101/shell-config) | Shell UX, profile behavior, and interactive environment shaping consumed by Dev Fortress |
 
-## Design Goals
+## Quick Start
 
-- Fast bootstrap on a new machine
-- Repeatable and auditable setup
-- Shared environment shape across laptops and containers
-- Clear separation between shell UX and full environment provisioning
-- Support for both Intel and ARM hosts where practical
+The fastest way to get running locally is the one-liner installer.
 
-## Repository Layout
+> [!IMPORTANT]
+> Baseline prerequisites:
+> `git` and `zsh`.
+> For the container validation loop below, you also need Docker with `buildx`.
+> `install.sh` checks the required baseline tools and warns if Docker or
+> `buildx` are not available yet.
 
-```text
-dev-container-fortress/
-├── ansible/
-├── brew/
-├── containers/
-├── .devcontainer/
-└── docs/
+**Install with the one-liner**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
+  DEV_CONTAINER_FORTRESS_DIR="$HOME/projects/dev-container-fortress" sh
 ```
 
-## Components
-
-### `ansible/`
-
-Host-oriented provisioning for:
-
-- macOS
-- Ubuntu
-- WSL
-
-Responsibilities:
-
-- install Homebrew when appropriate
-- install host packages
-- install `uv`
-- install `tenv`
-- install and bootstrap `shell-config`
-- install tmux and related user config
-
-### `brew/`
-
-Homebrew bundle definitions for direct host installs.
-
-Use Brew as the main source of truth for host-side CLI tooling such as:
-
-- `zsh`
-- `tmux`
-- `git`
-- `fzf`
-- `fd`
-- `ripgrep`
-- `eza`
-- `bat`
-- `zoxide`
-- `starship`
-- `jq`
-- `yq`
-- `direnv`
-- `uv`
-- `tenv`
-
-### `containers/`
-
-Container build logic for:
-
-- Ubuntu
-- Alpine
-
-The container strategy is intentionally different from the host strategy:
-
-- use distro packages for low-level system prerequisites
-- use a Python + `uv` installer for pinned userland binaries
-- avoid running Homebrew inside containers
-
-The first container-managed DevOps tool is `tenv`, which then manages Terraform
-and OpenTofu versions inside the environment.
-
-### `.devcontainer/`
-
-VS Code wrapping for the container images, including:
-
-- `ubuntu/devcontainer.json`
-- `alpine/devcontainer.json`
-- extension recommendations
-- lightweight post-create validation
-
-## Planned Bootstrap Flow
-
-### Local workspace bootstrap
-
-1. Run `zsh ./bootstrap.zsh`
-2. Let the bootstrap install `uv` automatically if it is missing
-3. Use the synced environment for tests, linting, and local tooling work
+This clones or refreshes the repo, ensures `uv` exists, and then hands off to
+the repo bootstrap, which provisions a uv-managed Python 3.14 runtime for the
+project environment.
 
 > [!NOTE]
-> Local `ft install` runs now prefer the manifest install root when it is
-> writable, but automatically fall back to `~/.local/bin` for non-root local
-> testing when paths such as `/usr/local/bin` are not writable.
+> `install.sh` supports a few environment variables for common onboarding
+> overrides.
 
-### Direct host install
+| Variable | Purpose |
+| --- | --- |
+| `DEV_CONTAINER_FORTRESS_DIR` | Choose the local checkout destination |
+| `DEV_CONTAINER_FORTRESS_REF` | Pin a branch, tag, or commit |
+| `DEV_CONTAINER_FORTRESS_REPO` | Use an alternate Git repository URL |
+| `DEV_CONTAINER_FORTRESS_PYTHON_VERSION` | Override the uv-managed Python version used by `bootstrap.zsh` |
 
-1. Install Ansible prerequisites
-2. Run the host playbook
-3. Install Homebrew where needed
-4. Install the Brew bundle
-5. Install `tenv`
-6. Install and bootstrap `shell-config`
-7. Install tmux and other user tools
+Full example with all installer overrides:
 
-### Docker build
+```sh
+curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
+  DEV_CONTAINER_FORTRESS_DIR="$HOME/projects/dev-container-fortress" \
+  DEV_CONTAINER_FORTRESS_REF="main" \
+  DEV_CONTAINER_FORTRESS_REPO="https://github.com/GrndZero101/dev-container-fortress.git" \
+  DEV_CONTAINER_FORTRESS_PYTHON_VERSION="3.14" \
+  sh
+```
 
-1. Build the base image from `containers/<target>/Dockerfile` with `docker buildx build`
-2. Install pinned CLI tools with the Python + `uv` tool installer package
-3. Install `tenv`
-4. Clone and bootstrap `shell-config`
-5. Install fortress shell extras such as `zinit` when enabled
-6. Install tmux and environment-level configuration
+**Manual clone fallback**
 
-### VS Code dev container
+```sh
+git clone https://github.com/GrndZero101/dev-container-fortress.git
+cd dev-container-fortress
+zsh ./bootstrap.zsh
+```
 
-1. Choose either `.devcontainer/ubuntu/devcontainer.json` or `.devcontainer/alpine/devcontainer.json`
-2. Reuse the matching Dockerfile from `containers/`
-3. Apply VS Code-specific configuration and extensions
-4. Optionally pass a corporate CA certificate directory through `DEV_CONTAINER_FORTRESS_CA_CERT_DIR` when your network requires custom trust
-5. Run a lightweight post-create validation step
+Use the manual path when you want to inspect or edit the checkout before
+running the bootstrap.
 
-## Usage Guides
+**Validate the first local loop**
 
-Use the mode-specific guides for operational instructions:
+```sh
+uv run ft doctor
+uv run ft container build ubuntu
+uv run ft container up ubuntu
+uv run ft container validate ubuntu
+```
 
-- [Workstation Usage](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md)
-- [Container Usage](/home/timl/projects/tboss/dev-container-fortress/docs/container-usage.md)
-- [Devcontainer Usage](/home/timl/projects/tboss/dev-container-fortress/docs/devcontainer-usage.md)
+> [!NOTE]
+> For the full contributor workflow, see [DEVELOPMENT.md](/home/timl/projects/tboss/dev-container-fortress/DEVELOPMENT.md).
 
-## Current Status
+## Status
 
-This repository is currently in scaffold phase.
+| Area | Status | Notes |
+| --- | --- | --- |
+| Local repo bootstrap | Working | `uv`-based local setup is in daily-use shape |
+| `ft` CLI | Working | Main operator surface for container and early host workflows |
+| Ubuntu disposable target | Working | End-to-end Docker, SSH, and Ansible check loop is proven |
+| Alpine disposable target | Working | Container workflow is available; SSH host loop focus has been Ubuntu first |
+| VS Code devcontainers | Working | Thin wrappers over the container targets |
+| Host target model | Working foundation | `ft host ...` inventory, key, probe, and bootstrap contract exists |
+| Real host provisioning roles | In progress | Current milestone is `M4 First Real Host Roles` |
+| Full workstation bootstrap | Partial | Still scaffolded beyond the thin host bootstrap contract |
 
-The first pass provides:
+## :wrench: Operator Surface
 
-- the initial repository structure
-- local `uv` bootstrap scaffolding
-- an installable `ft` Python package
-- downloader tests and reusable tool configuration
-- Ansible role and playbook scaffolding
-- Brew bundle scaffolding
-- Dockerfile scaffolding for Ubuntu and Alpine
-- configurable `shell-config` integration for container and devcontainer flows
-- opt-in corporate CA bundle support for container and devcontainer builds
-- reusable container-side tool definitions for `tenv`, `starship`, `zoxide`, and `atuin`
-- distro-installed `fzf` in Ubuntu and Alpine images
-- initial VS Code devcontainer scaffolding for Ubuntu and Alpine
+| Interface | Role | Current guidance |
+| --- | --- | --- |
+| `ft` | Primary human and agent operator surface | Use this first |
+| `just` | Convenience shim | Keep for muscle memory, but do not treat it as the logic home |
+| `ansible/` | Host automation layer | Thin today, expanding during host-role milestones |
+| `containers/` | Disposable target implementation | Use for build/runtime contracts |
+| `.devcontainer/` | VS Code integration | Thin wrapper over the matching container target |
 
-## Major Tasks
+## :world_map: Target Matrix
 
-1. Finish `shell-config` integration across the remaining workstation flow
-2. Add SSH-enabled disposable container scaffolding for repeatable remote testing
-3. Refactor Ansible for dual local and SSH execution
-4. Implement the first real Ansible roles for workstation provisioning
-5. Extend optional corporate CA support into the host-side Ansible flow
-6. Integrate tmux and related user-environment components
-7. Re-assess the container and workstation tool download strategy, including whether Brew builder stages, distro packages, or other higher-level installers should replace some bespoke `ft` downloads
-8. Expand downloader integrity features and additional tool definitions
+| Target type | Current state | Primary docs |
+| --- | --- | --- |
+| Ubuntu container | Supported | [Container Usage](/home/timl/projects/tboss/dev-container-fortress/docs/container-usage.md) |
+| Alpine container | Supported | [Container Usage](/home/timl/projects/tboss/dev-container-fortress/docs/container-usage.md) |
+| Ubuntu disposable SSH host loop | Supported foundation | [Workstation Usage](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md) |
+| macOS workstation | Planned / partial | [Workstation Usage](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md) |
+| Ubuntu workstation | Planned / partial | [Workstation Usage](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md) |
+| WSL workstation | Planned / partial | [Workstation Usage](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md) |
+| VS Code devcontainers | Supported | [Devcontainer Usage](/home/timl/projects/tboss/dev-container-fortress/docs/devcontainer-usage.md) |
 
-Why this order:
+## :compass: Documentation Map
 
-- `shell-config` is part of the actual user experience, so we should wire it in before we go much deeper on provisioning details.
-- SSH disposable targets unlock repeatable clean-room testing for Ansible and future verification loops.
-- Dual-mode Ansible should be settled before we invest heavily in more workstation roles.
-- Host-side CA support fits naturally once the host provisioning path is real instead of mostly scaffolded.
+| Document | Audience | Purpose |
+| --- | --- | --- |
+| [README.md](/home/timl/projects/tboss/dev-container-fortress/README.md) | Everyone | Project overview and quick entry points |
+| [DEVELOPMENT.md](/home/timl/projects/tboss/dev-container-fortress/DEVELOPMENT.md) | Contributors | Local bootstrap, checks, and iteration loops |
+| [docs/container-usage.md](/home/timl/projects/tboss/dev-container-fortress/docs/container-usage.md) | Operators | Docker-based usage and validation |
+| [docs/workstation-usage.md](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md) | Operators | Host-target and workstation flow status |
+| [docs/devcontainer-usage.md](/home/timl/projects/tboss/dev-container-fortress/docs/devcontainer-usage.md) | Operators | VS Code devcontainer usage |
+| [docs/architecture.md](/home/timl/projects/tboss/dev-container-fortress/docs/architecture.md) | Maintainers | Layering and control-plane direction |
+| [docs/container-standards.md](/home/timl/projects/tboss/dev-container-fortress/docs/container-standards.md) | Maintainers | Container runtime/build contract |
+| [docs/ROADMAP.md](/home/timl/projects/tboss/dev-container-fortress/docs/ROADMAP.md) | Maintainers | Milestone ordering and strategic direction |
+| [docs/milestones/README.md](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/README.md) | Maintainers | Active milestone workflow and draft format |
+
+## :building_construction: Repository Layout
+
+| Path | Purpose |
+| --- | --- |
+| `ft/` | Python package for the `ft` CLI, target model, and supporting logic |
+| `ansible/` | Host playbooks, inventory contract, and future roles |
+| `brew/` | Host-side Brew bundle definitions |
+| `containers/` | Ubuntu and Alpine container targets plus shared runtime helpers |
+| `.devcontainer/` | VS Code wrappers for container targets |
+| `docs/` | Usage guides, contracts, roadmap, and milestone drafts |
+
+## :dart: Design Direction
+
+- Keep `ft` as the stable operator front door for both humans and agents
+- Keep shell behavior in [`shell-config`](../shell-config/README.md)
+- Prefer explicit, debuggable contracts over magic
+- Prove transport and bootstrap paths before deepening workstation automation
+- Keep the container and host stories aligned where practical without forcing them to be identical
+
+## :zap: Current Working Surface
+
+Working today:
+
+- local workspace bootstrap with `uv`
+- packaged `ft` CLI with grouped `container`, `host`, and `tool` surfaces
+- Ubuntu and Alpine disposable container flows
+- VS Code devcontainer wrappers
+- host target inventory, managed SSH keys, public-key enrollment, probe, and thin bootstrap
+- disposable Ubuntu end-to-end verification through Docker, SSH, and Ansible check mode
+
+In progress:
+
+- first real host provisioning roles
+- clearer shell-config handoff for host targets
+- smoother milestone-level verification workflow
+
+> [!TIP]
+> For active `shell-config` development, prefer
+> `ft container build <target> --shell-config-source local --shell-config-stage-from /absolute/path/to/shell-config`
+> so you are not fighting stale Docker cache from GitHub-backed clones.
+
+## :rocket: Bootstrap Direction
+
+| Flow | Shape today |
+| --- | --- |
+| Local repo bootstrap | `bootstrap.zsh` installs `uv`, syncs the environment, and enables repo-local tooling |
+| Direct host bootstrap | thin host contract with `ft host doctor`, inventory rendering, SSH key workflow, and Ansible bootstrap |
+| Docker build | Dockerfile plus Python/`uv`-driven userland tooling and `shell-config` integration |
+| Devcontainer bootstrap | thin VS Code wrapper over the matching container target |
+
+## :calendar: Current Milestone
+
+The next implementation focus is
+[M3a One-Liner Installer and Onramp](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M3a-one-liner-installer-and-onramp.md).
+
+Use these planning docs together:
+
+- [docs/ROADMAP.md](/home/timl/projects/tboss/dev-container-fortress/docs/ROADMAP.md) for strategy and milestone ordering
+- [docs/milestones/README.md](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/README.md) for the execution workflow
+- the active milestone draft under [docs/milestones](/home/timl/projects/tboss/dev-container-fortress/docs/milestones)
+
+## Collaboration Model
+
+> [!NOTE]
+> This repository is developed through human-and-AI collaboration.
+> Project direction, design intent, and acceptance decisions are human-led,
+> while much of the implementation, iteration, and documentation work is
+> carried out with agentic coding agents.
+
+## License
+
+Released under the MIT License.
+See [LICENSE](/home/timl/projects/tboss/dev-container-fortress/LICENSE).

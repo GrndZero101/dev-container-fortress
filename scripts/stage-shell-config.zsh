@@ -1,7 +1,8 @@
 #!/usr/bin/env zsh
 
-# Stage a local shell-config checkout into the dev-container-fortress build context.
-# This makes Docker local-source builds work with any absolute host path.
+# Stage a sanitized local shell-config checkout into the dev-container-fortress
+# build context. This keeps local Docker builds truthful without copying host
+# runtime state into the staged source tree.
 
 emulate -LR zsh
 setopt errexit nounset pipefail
@@ -30,6 +31,10 @@ die() {
   exit 1
 }
 
+require_command() {
+  command -v -- "${1}" >/dev/null 2>&1 || die "required command not found: ${1}"
+}
+
 main() {
   local source_path="${1:-}"
   local destination_path="${2:-${DEFAULT_DEST}}"
@@ -42,10 +47,18 @@ main() {
   [[ "${source_path}" == /* ]] || die 'source path must be absolute'
   [[ -d "${source_path}" ]] || die "source path does not exist: ${source_path}"
   [[ -x "${source_path}/scripts/csm" ]] || die "source path does not look like shell-config: ${source_path}"
+  require_command rsync
 
   mkdir -p -- "${destination_path:h}"
   rm -rf -- "${destination_path}"
-  cp -R -- "${source_path}/." "${destination_path}"
+  rsync -a \
+    --exclude '.git' \
+    --exclude '.cache' \
+    --exclude '.local' \
+    --exclude '.zsh_history' \
+    --exclude '.DS_Store' \
+    --exclude '__pycache__' \
+    -- "${source_path}/" "${destination_path}/"
 
   log_info "staged ${source_path} -> ${destination_path}"
 }

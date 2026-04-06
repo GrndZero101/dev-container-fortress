@@ -98,13 +98,19 @@ def _resolve_asset(
     if filename is not None:
         context["filename"] = filename
 
-    url = _render_optional(asset.url_template, context) or _render_optional(asset.url, context)
+    url = _render_optional(asset.url_template, context) or _render_optional(
+        asset.url, context
+    )
     if url is None:
-        raise ValueError(f"tool {name!r} has no downloadable URL for {os_name}/{architecture}")
+        raise ValueError(
+            f"tool {name!r} has no downloadable URL for {os_name}/{architecture}"
+        )
 
     context.setdefault("filename", filename or _default_filename(url))
     binary_path = _render_optional(asset.binary_path, context)
-    checksum_asset = _render_optional(asset.checksum_asset, context) or context["filename"]
+    checksum_asset = (
+        _render_optional(asset.checksum_asset, context) or context["filename"]
+    )
 
     return ResolvedAsset(
         os=os_name,
@@ -224,7 +230,9 @@ def _verify_checksum(plan: InstallPlan, asset_path: Path, workspace: Path) -> No
     checksum_path = workspace / "checksums.txt"
     _download(integrity.checksum_url, checksum_path)
     expected_checksums, standalone_digest = _parse_checksum_manifest(checksum_path)
-    expected_digest = expected_checksums.get(plan.asset.checksum_asset) or standalone_digest
+    expected_digest = (
+        expected_checksums.get(plan.asset.checksum_asset) or standalone_digest
+    )
     if expected_digest is None:
         raise RuntimeError(
             f"checksum manifest does not contain {plan.asset.checksum_asset!r}"
