@@ -17,6 +17,7 @@ class FtSettings(BaseSettings):
         architecture: Optional architecture override.
         install_root: Optional install root override.
         healthcheck: Whether install healthchecks should run.
+        host_config: Optional host-target configuration path.
     """
 
     model_config = SettingsConfigDict(
@@ -30,3 +31,4 @@ class FtSettings(BaseSettings):
     architecture: str | None = None
     install_root: Path | None = None
     healthcheck: bool = True
+    host_config: Path | None = None

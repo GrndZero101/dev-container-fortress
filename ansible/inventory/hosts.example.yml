@@ -1,5 +1,10 @@
 all:
-  hosts:
-    localhost:
-      ansible_connection: local
-
+  children:
+    dev_fortress:
+      hosts:
+        localhost:
+          ansible_connection: local
+          dev_fortress_target_kind: workstation
+          dev_fortress_target_tags:
+            - local
+            - bootstrap

@@ -1,0 +1,31 @@
+# Example Dev Fortress host targets.
+# Copy this file to ${XDG_CONFIG_HOME:-$HOME/.config}/dev-container-fortress/hosts.toml
+# and adjust the values for your local environment.
+
+[[targets]]
+name = "localhost"
+kind = "workstation"
+connection = "local"
+auth_method = "local"
+tags = ["local", "bootstrap", "workstation"]
+
+[[targets]]
+name = "dev-fortress-ubuntu"
+kind = "docker"
+connection = "ssh"
+host = "127.0.0.1"
+port = 2222
+user = "vscode"
+auth_method = "ssh_key"
+ssh_key_name = "dev-fortress-ubuntu"
+tags = ["docker", "ubuntu", "ssh", "test"]
+
+[[targets]]
+name = "workstation-example"
+kind = "workstation"
+connection = "ssh"
+host = "workstation.example.internal"
+user = "devops"
+auth_method = "ssh_key"
+ssh_key_name = "workstation-devops"
+tags = ["ssh", "workstation", "example"]

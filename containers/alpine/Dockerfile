@@ -35,7 +35,21 @@ RUN apk add --no-cache \
     tar \
     tmux \
     unzip \
-    zsh
+    zsh \
+    zsh-vcs
+
+RUN cat > /etc/profile.d/10-dev-container-fortress-path.sh <<'EOF' \
+  && chmod 0644 /etc/profile.d/10-dev-container-fortress-path.sh
+case ":${PATH}:" in
+  *":${XDG_BIN_HOME:-$HOME/.local/bin}:"*) ;;
+  *) export PATH="${XDG_BIN_HOME:-$HOME/.local/bin}:${PATH}" ;;
+esac
+
+case ":${PATH}:" in
+  *":$HOME/bin:"*) ;;
+  *) export PATH="$HOME/bin:${PATH}" ;;
+esac
+EOF
 
 COPY --from=uv-distroless /uv /uvx /usr/local/bin/
 COPY containers/common/install-corporate-ca.sh /usr/local/bin/install-corporate-ca
@@ -55,14 +69,17 @@ RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
       deluser "$(getent passwd ${USER_UID} | cut -d: -f1)"; \
     fi \
   && adduser -D -u ${USER_UID} -G ${USERNAME} -s /bin/zsh ${USERNAME} \
+  && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/bin \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share/dev-container-fortress \
+  && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/state \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.cache \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.config \
   && printf '%s\n' '# Managed by dev-container-fortress.' > /home/${USERNAME}/.zshenv \
   && printf '%s\n' '# Managed by dev-container-fortress.' > /home/${USERNAME}/.zshrc \
   && chown ${USER_UID}:${USER_GID} /home/${USERNAME}/.zshenv /home/${USERNAME}/.zshrc \
+  && chown -R ${USER_UID}:${USER_GID} /home/${USERNAME}/.local /home/${USERNAME}/.cache /home/${USERNAME}/.config \
   && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-${USERNAME} \
   && chmod 0440 /etc/sudoers.d/90-${USERNAME}
 
@@ -74,6 +91,7 @@ ENV HOME=/home/${USERNAME}
 ENV XDG_CACHE_HOME=${HOME}/.cache
 ENV XDG_DATA_HOME=${HOME}/.local/share
 ENV XDG_CONFIG_HOME=${HOME}/.config
+ENV XDG_STATE_HOME=${HOME}/.local/state
 ENV PATH=${HOME}/.local/bin:${PATH}
 ENV SHELL_CONFIG_PROFILE=${SHELL_CONFIG_PROFILE_DEFAULT}
 
@@ -88,11 +106,13 @@ RUN --mount=type=bind,source=.,target=/tmp/build-context,readonly \
 RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh
 RUN uv python install 3.14
 RUN uv tool install --python 3.14 ${XDG_DATA_HOME}/dev-container-fortress/ft
+RUN ft completion install zsh
 RUN ft install \
     --manifest ${XDG_DATA_HOME}/dev-container-fortress/ft/tools/tools.toml \
     --target alpine
 
 RUN uv --version \
+  && test -f ${XDG_DATA_HOME}/dev-container-fortress/completions/zsh/_ft \
   && ft plan --manifest ${XDG_DATA_HOME}/dev-container-fortress/ft/tools/tools.toml --target alpine \
   && tenv --version \
   && starship --version \

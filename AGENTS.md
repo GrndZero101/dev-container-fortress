@@ -45,7 +45,7 @@
 
 # Python Tooling
 
-* Use `UV` for Python project bootstrapping, package management and anything it can handle natively. 
+* Use `UV` for Python project bootstrapping, package management and anything it can handle natively.
 * Use `ruff` for linting. Configuration should be defined in `pyproject.toml`
 * Use `rumdl` for markdown linting and formatting. Configuration should be defined in `pyproject.toml`
 
@@ -132,3 +132,22 @@
 * Keep changes scoped to the relevant layer instead of solving problems in multiple places.
 * If a change affects architecture, bootstrap flow, supported targets, or directory responsibilities, update the corresponding documentation in the same change.
 * When adding a new helper, script, or installer path, document why it belongs in this repository instead of `shell-config`.
+
+# Dogfooding
+
+* Prefer using Dev Fortress itself to develop and validate Dev Fortress whenever the capability already exists.
+* Prefer `ft`, the documented bootstrap flow, and the documented verification loops over ad hoc manual commands when the operator surface is ready.
+* If a workflow is painful when using the repo's own tools, treat that pain as product feedback instead of normalizing the workaround.
+* If a capability does not exist and the manual path is noticeably taxing, suggest that gap as an opportunity to create or extend a milestone in `docs/ROADMAP.md`.
+
+# Planning Workflow
+
+* Treat `docs/ROADMAP.md` as the strategic roadmap and milestone ordering document.
+* Treat `docs/milestones/` as the working planning surface for milestone drafts, issue slices, and checkbox progress.
+* Keep one markdown file per milestone under `docs/milestones/`, and update it as work advances.
+* Use milestone files as the copy/paste source for later GitHub milestones and issues.
+* Name milestone branches after a zero-padded sortable milestone ID and outcome, for example `feat/m0003a-installer-onramp` or `feat/m0004-first-real-host-roles`.
+* Keep the sortable branch ID mapped directly from the roadmap milestone ID, for example `M3a` -> `m0003a` and `M7a` -> `m0007a`.
+* Prefer one feature branch per active milestone unless parallel human work requires smaller branches.
+* Commit freely on the milestone branch at verified checkpoints.
+* Squash-merge milestone branches once exit criteria in the milestone file are satisfied.
