@@ -18,4 +18,3 @@ Extend the shared SSH and bootstrap model to non-container remote targets.
 ## Non-Goals
 
 - [ ] Cloud-specific control planes before the SSH and Ansible model is stable
-

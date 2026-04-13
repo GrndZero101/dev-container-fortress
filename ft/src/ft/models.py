@@ -126,6 +126,7 @@ class HostTargetDefinition(BaseModel):
     port: int = 22
     auth_method: str = "ssh_key"
     ssh_key_name: str | None = None
+    ansible_python_interpreter: str | None = None
     tags: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")

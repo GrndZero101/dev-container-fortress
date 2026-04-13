@@ -1,0 +1,22 @@
+aws_region        = "ap-southeast-1"
+name              = "dev-fortress-ec2-dev"
+instance_type     = "t4g.small"
+architecture      = "arm64"
+aws_key_pair_name = "dev-fortress-ec2-dev-ssh"
+
+# Leave ssh_ingress_cidrs empty to auto-detect the current public IP with
+# https://checkip.amazonaws.com/ and convert it to a /32 automatically.
+# Set auto_detect_ssh_ingress_cidr = false if you prefer to provide explicit
+# CIDR values only.
+#
+# auto_detect_ssh_ingress_cidr = true
+# ssh_ingress_cidrs = ["203.0.113.10/32"]
+
+enable_spot       = true
+# spot_max_price  = "0.02"
+enable_session_manager = true
+
+# Paste the contents of your public key here, for example from:
+#   uv run ft host ssh-key dev-fortress-ec2-dev
+#   cat "${XDG_STATE_HOME:-$HOME/.local/state}/dev-container-fortress/ssh/dev-fortress-ec2-dev/dev_fortress_ed25519.pub"
+ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... replace-me"

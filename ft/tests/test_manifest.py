@@ -15,10 +15,15 @@ def test_load_manifest_reads_multiple_tool_definitions() -> None:
     manifest_path = Path(__file__).resolve().parents[1] / "tools" / "tools.toml"
     manifest = load_manifest(manifest_path)
 
-    assert {"tenv", "starship", "zoxide", "atuin"}.issubset(manifest.tools)
+    assert {"tenv", "starship", "zoxide", "atuin", "gum", "glow", "bats"}.issubset(
+        manifest.tools
+    )
     assert manifest.tools["starship"].version == "1.24.2"
     assert manifest.tools["zoxide"].version == "0.9.8"
     assert manifest.tools["atuin"].version == "18.13.6"
+    assert manifest.tools["gum"].version == "0.16.0"
+    assert manifest.tools["glow"].version == "2.1.1"
+    assert manifest.tools["bats"].version == "1.13.0"
 
 
 def test_load_manifest_rejects_missing_tools(tmp_path: Path) -> None:

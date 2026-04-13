@@ -20,7 +20,6 @@ The project is intentionally split across layers:
 > This project is still in active buildout.
 > The container and operator loops are already useful day to day, while the
 > direct workstation path is still maturing.
-
 > [!NOTE]
 > `just` still exists, but it is now a thin compatibility shim.
 > Treat `ft` as the primary interface.
@@ -42,7 +41,7 @@ The fastest way to get running locally is the one-liner installer.
 > `install.sh` checks the required baseline tools and warns if Docker or
 > `buildx` are not available yet.
 
-**Install with the one-liner**
+### Install with the one-liner
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
@@ -75,7 +74,7 @@ curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/
   sh
 ```
 
-**Manual clone fallback**
+### Manual clone fallback
 
 ```sh
 git clone https://github.com/GrndZero101/dev-container-fortress.git
@@ -86,7 +85,7 @@ zsh ./bootstrap.zsh
 Use the manual path when you want to inspect or edit the checkout before
 running the bootstrap.
 
-**Validate the first local loop**
+### Validate the first local loop
 
 ```sh
 uv run ft doctor
@@ -105,7 +104,7 @@ uv run ft container validate ubuntu
 | Local repo bootstrap | Working | `uv`-based local setup is in daily-use shape |
 | `ft` CLI | Working | Main operator surface for container and early host workflows |
 | Ubuntu disposable target | Working | End-to-end Docker, SSH, and Ansible check loop is proven |
-| Alpine disposable target | Working | Container workflow is available; SSH host loop focus has been Ubuntu first |
+| Alpine disposable target | Working | End-to-end Docker, SSH, and Ansible check loop is proven |
 | VS Code devcontainers | Working | Thin wrappers over the container targets |
 | Host target model | Working foundation | `ft host ...` inventory, key, probe, and bootstrap contract exists |
 | Real host provisioning roles | In progress | Current milestone is `M4 First Real Host Roles` |
@@ -155,6 +154,7 @@ uv run ft container validate ubuntu
 | `ansible/` | Host playbooks, inventory contract, and future roles |
 | `brew/` | Host-side Brew bundle definitions |
 | `containers/` | Ubuntu and Alpine container targets plus shared runtime helpers |
+| `infra/` | Terraform-owned infrastructure layer for disposable and future repeatable host targets |
 | `.devcontainer/` | VS Code wrappers for container targets |
 | `docs/` | Usage guides, contracts, roadmap, and milestone drafts |
 
@@ -175,7 +175,7 @@ Working today:
 - Ubuntu and Alpine disposable container flows
 - VS Code devcontainer wrappers
 - host target inventory, managed SSH keys, public-key enrollment, probe, and thin bootstrap
-- disposable Ubuntu end-to-end verification through Docker, SSH, and Ansible check mode
+- disposable Ubuntu and Alpine end-to-end verification through Docker, SSH, and Ansible bootstrap
 
 In progress:
 
@@ -199,8 +199,8 @@ In progress:
 
 ## :calendar: Current Milestone
 
-The next implementation focus is
-[M3a One-Liner Installer and Onramp](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M3a-one-liner-installer-and-onramp.md).
+The current implementation focus is
+[M4 First Real Host Roles](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M4-first-real-host-roles.md).
 
 Use these planning docs together:
 

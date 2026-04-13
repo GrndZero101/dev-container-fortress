@@ -9,6 +9,45 @@ This directory contains host-install automation for:
 The intent is to keep host provisioning idempotent and high level while leaving
 component-specific behavior inside the relevant component repositories.
 
+The deeper design goal is convergence toward a declared Dev Fortress baseline.
+In practice that means this Ansible layer should be safe to rerun on:
+
+- a fresh machine
+- a previously Dev Fortress-managed machine
+- an existing manually prepared machine that is already broadly aligned
+
+The expected behavior is level-setting rather than brittle one-shot setup.
+Roles should move a host toward the intended baseline, adopt compatible
+pre-existing state where reasonable, and make drift or unsupported conditions
+visible instead of quietly depending on snowflake history.
+
+## Design Rules
+
+Preferred implementation style:
+
+- use built-in Ansible modules when they can describe the target state cleanly
+- keep tasks idempotent and rerunnable
+- distinguish Dev Fortress-managed state from user-owned state explicitly
+- document unsupported host differences rather than hiding them in ad hoc task logic
+
+Use `shell` or `command` only when truly justified, such as:
+
+- no suitable built-in module exists
+- the external command is itself the thing being validated or controlled
+- the task stays narrow and auditable
+
+Avoid large shell-script blobs or wrapper-script indirection when a built-in
+module such as `file`, `package`, `apt`, `homebrew`, `git`, `template`,
+`copy`, `lineinfile`, `authorized_key`, or `stat` would express the intent more
+clearly.
+
+Repo validation should reinforce those rules.
+Use the repo-local tooling through `uv run`, including:
+
+- `uv run ansible-playbook --syntax-check ansible/playbooks/host.yml`
+- `uv run ansible-lint ansible`
+- `uv run pre-commit run --all-files`
+
 Examples:
 
 - `shell-config` owns shell behavior
@@ -38,6 +77,7 @@ Current baseline fields:
 - `port`
 - `auth_method`
 - `ssh_key_name`
+- `ansible_python_interpreter`
 - `tags`
 
 Current operator helpers:
@@ -75,10 +115,14 @@ Current bootstrap command shape is now expected to become:
 ```zsh
 uv run ft host doctor localhost
 uv run ft host ssh-key dev-fortress-ubuntu
+uv run ft host ssh-key dev-fortress-alpine
 uv run ft host ssh-key-enroll dev-fortress-ubuntu
+uv run ft host ssh-key-enroll dev-fortress-alpine
 uv run ft host doctor dev-fortress-ubuntu --probe
+uv run ft host doctor dev-fortress-alpine --probe
 uv run ft host bootstrap localhost --check
 uv run ft host bootstrap dev-fortress-ubuntu --ensure-ssh-keys
+uv run ft host bootstrap dev-fortress-alpine --ensure-ssh-keys
 ```
 
 Under the hood, `ft host bootstrap` renders temporary inventory and runs:
@@ -94,12 +138,13 @@ same operator surface can grow from local bootstrap targets into SSH-based
 remote targets later.
 
 For the current thin foundation pass, the host playbook intentionally does not
-yet apply workstation roles such as Homebrew, `shell-config`, or tmux. It
-currently proves the shared contract by:
+yet apply workstation roles such as Homebrew or tmux. It currently proves the
+shared contract by:
 
 - reaching the target through the generated inventory
 - validating basic target metadata and gathered facts
 - ensuring XDG base directories exist for the target user
+- converging a minimal baseline package set on supported Linux targets such as Ubuntu and Alpine
 - checking for baseline tools such as `python3`, `git`, and `zsh`
 - reporting current bootstrap readiness for the target
 
@@ -115,5 +160,25 @@ present.
 > The current policy refreshes that file from `ssh-keyscan` for Docker-style
 > ephemeral targets before probe, enrollment, and bootstrap flows. A richer
 > long-lived workstation host-key policy is still follow-up work.
+
+The disposable Docker host loop is now validated on both:
+
+- Ubuntu, with package convergence via `ansible.builtin.apt`
+- Alpine, with package convergence via `community.general.apk`
+
+For the first real remote-host pass, the recommended operator sequence is:
+
+```zsh
+uv run ft host show dev-fortress-ec2-dev
+uv run ft host ssh-key dev-fortress-ec2-dev
+uv run ft host ssh-key-enroll dev-fortress-ec2-dev
+uv run ft host doctor dev-fortress-ec2-dev --probe
+uv run ft host bootstrap dev-fortress-ec2-dev --check
+uv run ft host bootstrap dev-fortress-ec2-dev
+```
+
+That assumes the target is defined in your user `hosts.toml` and points at a
+reachable Ubuntu host using `connection = "ssh"` and
+`ansible_python_interpreter = "/usr/bin/python3"`.
 
 For current user-facing status of the workstation path, see [Workstation Usage](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md).

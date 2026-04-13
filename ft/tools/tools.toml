@@ -133,3 +133,75 @@ url_template = "https://github.com/{github_repo}/releases/download/{release_tag}
 archive = "tar.gz"
 binary_path = "atuin-aarch64-unknown-linux-musl/atuin"
 checksum_asset = "{filename}"
+
+[tools.gum]
+description = "Human-friendly terminal UI helper for local operator flows."
+version = "0.16.0"
+enabled = false
+install_root = "/usr/local/bin"
+healthcheck = ["gum", "--version"]
+variables = { github_repo = "charmbracelet/gum", release_tag = "v0.16.0", asset_prefix = "gum_0.16.0" }
+
+[[tools.gum.assets]]
+os = "linux"
+arch = "amd64"
+filename = "{asset_prefix}_Linux_x86_64.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "gum"
+
+[[tools.gum.assets]]
+os = "linux"
+arch = "arm64"
+filename = "{asset_prefix}_Linux_arm64.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "gum"
+
+[tools.glow]
+description = "Terminal markdown renderer for operator-facing documentation."
+version = "2.1.1"
+enabled = false
+install_root = "/usr/local/bin"
+healthcheck = ["glow", "--version"]
+variables = { github_repo = "charmbracelet/glow", release_tag = "v2.1.1", asset_prefix = "glow_2.1.1" }
+
+[[tools.glow.assets]]
+os = "linux"
+arch = "amd64"
+filename = "{asset_prefix}_linux_x86_64.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "glow"
+
+[[tools.glow.assets]]
+os = "linux"
+arch = "arm64"
+filename = "{asset_prefix}_linux_arm64.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "glow"
+
+[tools.bats]
+description = "Bash Automated Testing System for shell integration tests."
+version = "1.13.0"
+enabled = false
+install_root = "/usr/local/bin"
+healthcheck = ["bats", "--version"]
+variables = { github_repo = "bats-core/bats-core", release_tag = "v1.13.0", asset_prefix = "bats-core-1.13.0" }
+
+[[tools.bats.assets]]
+os = "linux"
+arch = "amd64"
+filename = "{asset_prefix}.tar.gz"
+url_template = "https://github.com/{github_repo}/archive/refs/tags/{release_tag}.tar.gz"
+archive = "tar.gz"
+binary_path = "{asset_prefix}/bin/bats"
+
+[[tools.bats.assets]]
+os = "linux"
+arch = "arm64"
+filename = "{asset_prefix}.tar.gz"
+url_template = "https://github.com/{github_repo}/archive/refs/tags/{release_tag}.tar.gz"
+archive = "tar.gz"
+binary_path = "{asset_prefix}/bin/bats"

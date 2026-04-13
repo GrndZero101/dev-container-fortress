@@ -206,6 +206,17 @@ def _container_host_ssh_target_name(target: str) -> str | None:
     """Return the default host-target name for one SSH-capable disposable target."""
     if target == "ubuntu":
         return "dev-fortress-ubuntu"
+    if target == "alpine":
+        return "dev-fortress-alpine"
+    return None
+
+
+def _container_host_ssh_port(target: str) -> int | None:
+    """Return the forwarded host SSH port for one SSH-capable disposable target."""
+    if target == "ubuntu":
+        return 2222
+    if target == "alpine":
+        return 2223
     return None
 
 
@@ -214,7 +225,12 @@ def _container_host_ssh_public_key_path(target: str) -> Path | None:
     host_target_name = _container_host_ssh_target_name(target)
     if host_target_name is None:
         return None
-    return _dev_fortress_state_root() / "ssh" / host_target_name / "id_ed25519.pub"
+    return (
+        _dev_fortress_state_root()
+        / "ssh"
+        / host_target_name
+        / f"{_managed_ssh_key_basename()}.pub"
+    )
 
 
 def _dockerfile_for_target(target: str) -> Path:
@@ -230,6 +246,11 @@ def _image_tag_for_target(target: str) -> str:
 def _repo_root() -> Path:
     """Return the repository root that contains the ft package directory."""
     return Path(__file__).resolve().parents[3]
+
+
+def _managed_ssh_key_basename() -> str:
+    """Return the basename used for Dev Fortress-managed SSH keypairs."""
+    return "dev_fortress_ed25519"
 
 
 def _dev_fortress_completion_root() -> Path:
@@ -468,7 +489,7 @@ def _host_ssh_private_key_path(target: HostTargetDefinition) -> Path | None:
         _dev_fortress_state_root()
         / "ssh"
         / target.resolved_ssh_key_name()
-        / "id_ed25519"
+        / _managed_ssh_key_basename()
     )
 
 
@@ -487,12 +508,17 @@ def _host_known_hosts_path(target: HostTargetDefinition) -> Path | None:
     return _dev_fortress_state_root() / "known_hosts" / target.name
 
 
+def _uses_managed_known_hosts(target: HostTargetDefinition) -> bool:
+    """Return whether the target should use the Dev Fortress managed known-hosts file."""
+    return target.kind in {"docker", "cloud"}
+
+
 def _refresh_managed_known_host(target: HostTargetDefinition) -> Path | None:
     """Refresh the managed known-hosts entry for one disposable SSH target."""
     known_hosts_path = _host_known_hosts_path(target)
     if known_hosts_path is None:
         return None
-    if target.kind != "docker":
+    if not _uses_managed_known_hosts(target):
         return known_hosts_path
     if shutil.which("ssh-keyscan") is None:
         console.print("ssh-keyscan not found in PATH")
@@ -528,7 +554,7 @@ def _host_ansible_ssh_common_args(target: HostTargetDefinition) -> str | None:
     known_hosts_path = _host_known_hosts_path(target)
     if target.connection != "ssh" or known_hosts_path is None:
         return None
-    if target.kind == "docker":
+    if _uses_managed_known_hosts(target):
         return f"-o StrictHostKeyChecking=yes -o UserKnownHostsFile={known_hosts_path}"
     return None
 
@@ -536,6 +562,11 @@ def _host_ansible_ssh_common_args(target: HostTargetDefinition) -> str | None:
 def _host_playbook_path() -> Path:
     """Return the repo-local host bootstrap playbook path."""
     return _repo_root() / "ansible" / "playbooks" / "host.yml"
+
+
+def _ansible_config_path() -> Path:
+    """Return the repo-local Ansible configuration path."""
+    return _repo_root() / "ansible" / "ansible.cfg"
 
 
 def _ensure_managed_host_ssh_key(target: HostTargetDefinition) -> tuple[bool, Path]:
@@ -631,8 +662,12 @@ def _bootstrap_host_targets(
 ) -> int:
     """Run the host bootstrap playbook for one or more configured targets."""
     playbook_path = _host_playbook_path()
+    ansible_config_path = _ansible_config_path()
     if not playbook_path.is_file():
         console.print(f"missing playbook: {playbook_path}")
+        return 1
+    if not ansible_config_path.is_file():
+        console.print(f"missing ansible config: {ansible_config_path}")
         return 1
     if shutil.which("ansible-playbook") is None:
         console.print("ansible-playbook not found in PATH")
@@ -664,9 +699,11 @@ def _bootstrap_host_targets(
     command = ["ansible-playbook", "-i", str(inventory_path), str(playbook_path)]
     if check:
         command.append("--check")
+    ansible_env = os.environ.copy()
+    ansible_env["ANSIBLE_CONFIG"] = str(ansible_config_path)
 
     try:
-        return _run_streaming_command(command).returncode
+        return _run_streaming_command(command, env=ansible_env).returncode
     finally:
         inventory_path.unlink(missing_ok=True)
 
@@ -873,6 +910,8 @@ def _host_target_record(target: HostTargetDefinition) -> dict[str, object]:
         record["user"] = target.user
     if target.connection == "ssh":
         record["port"] = target.port
+    if target.ansible_python_interpreter is not None:
+        record["ansible_python_interpreter"] = target.ansible_python_interpreter
     private_path = _host_ssh_private_key_path(target)
     public_path = _host_ssh_public_key_path(target)
     if private_path is not None:
@@ -947,6 +986,10 @@ def _build_host_inventory(targets: list[HostTargetDefinition]) -> dict[str, obje
                     "ansible_user": target.user,
                 }
             )
+            if target.ansible_python_interpreter is not None:
+                host_record["ansible_python_interpreter"] = (
+                    target.ansible_python_interpreter
+                )
             private_path = _host_ssh_private_key_path(target)
             if private_path is not None:
                 host_record["ansible_ssh_private_key_file"] = str(private_path)
@@ -1046,9 +1089,13 @@ def _run_command_with_input(
     )
 
 
-def _run_streaming_command(command: list[str]) -> subprocess.CompletedProcess[str]:
+def _run_streaming_command(
+    command: list[str],
+    *,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     """Run one external command while inheriting the current terminal streams."""
-    return subprocess.run(command, check=False, text=True)
+    return subprocess.run(command, check=False, text=True, env=env)
 
 
 def _resolve_single_container_target(selector: str, *, command_name: str) -> str:
@@ -1498,9 +1545,26 @@ def _shell_single_container_target(target: str) -> int:
     return _exec_single_container_target(target, ["zsh", "-il"])
 
 
-def _refresh_single_container_target(target: str) -> bool:
+def _refresh_single_container_target(
+    target: str,
+    *,
+    shell_config_source: str,
+    shell_config_repo_url: str,
+    shell_config_branch: str,
+    shell_config_local_dir: str | None,
+    shell_config_stage_from: Path | None,
+    no_cache: bool,
+) -> bool:
     """Rebuild one target image and replace its managed disposable container."""
-    if not _build_single_container_target(target):
+    if not _build_single_container_target(
+        target,
+        shell_config_source=shell_config_source,
+        shell_config_repo_url=shell_config_repo_url,
+        shell_config_branch=shell_config_branch,
+        shell_config_local_dir=shell_config_local_dir,
+        shell_config_stage_from=shell_config_stage_from,
+        no_cache=no_cache,
+    ):
         return False
     return _up_single_container_target(target)
 
@@ -1540,9 +1604,11 @@ def _up_single_container_target(target: str) -> bool:
         "--hostname",
         container_name,
     ]
-    if target == "ubuntu":
+    ssh_host_target_name = _container_host_ssh_target_name(target)
+    ssh_host_port = _container_host_ssh_port(target)
+    if ssh_host_target_name is not None and ssh_host_port is not None:
         public_key_path = _container_host_ssh_public_key_path(target)
-        run_command.extend(["--publish", "127.0.0.1:2222:2222"])
+        run_command.extend(["--publish", f"127.0.0.1:{ssh_host_port}:2222"])
         if public_key_path is not None and public_key_path.is_file():
             run_command.extend(
                 [
@@ -1551,13 +1617,11 @@ def _up_single_container_target(target: str) -> bool:
                 ]
             )
         else:
-            host_target_name = _container_host_ssh_target_name(target)
-            if host_target_name is not None:
-                console.print(
-                    "managed SSH public key not present for "
-                    f"{host_target_name}; run `ft host ssh-key {host_target_name}` "
-                    "before starting the disposable SSH target."
-                )
+            console.print(
+                "managed SSH public key not present for "
+                f"{ssh_host_target_name}; run `ft host ssh-key {ssh_host_target_name}` "
+                "before starting the disposable SSH target."
+            )
         run_command.extend(
             [
                 image_tag,
@@ -1841,7 +1905,7 @@ def container_build(
             "--shell-config-branch",
             help="Git branch to clone when using --shell-config-source github.",
         ),
-    ] = "feature-ohmyposh_disble_transient_prompt",
+    ] = "main",
     shell_config_local_dir: Annotated[
         str | None,
         typer.Option(
@@ -2068,10 +2132,76 @@ def container_refresh(
             )
         ),
     ],
+    shell_config_source: Annotated[
+        str,
+        typer.Option(
+            "--shell-config-source",
+            help=(
+                "Choose whether the image installs shell-config from GitHub or "
+                "from a staged repo-local checkout."
+            ),
+        ),
+    ] = "github",
+    shell_config_repo_url: Annotated[
+        str,
+        typer.Option(
+            "--shell-config-repo-url",
+            help="GitHub repository URL to clone when using --shell-config-source github.",
+        ),
+    ] = "https://github.com/GrndZero101/shell-config.git",
+    shell_config_branch: Annotated[
+        str,
+        typer.Option(
+            "--shell-config-branch",
+            help="Git branch to clone when using --shell-config-source github.",
+        ),
+    ] = "main",
+    shell_config_local_dir: Annotated[
+        str | None,
+        typer.Option(
+            "--shell-config-local-dir",
+            help=(
+                "Repo-relative staged shell-config path inside the Docker build "
+                "context when using --shell-config-source local."
+            ),
+        ),
+    ] = None,
+    shell_config_stage_from: Annotated[
+        Path | None,
+        typer.Option(
+            "--shell-config-stage-from",
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+            help=(
+                "Absolute host checkout to stage into the repo build context "
+                "before a local shell-config build."
+            ),
+        ),
+    ] = None,
+    no_cache: Annotated[
+        bool,
+        typer.Option(
+            "--no-cache",
+            help=(
+                "Disable Docker build cache for this refresh. Useful when a "
+                "moving Git branch appears stale under buildx."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Rebuild one target image and replace its managed disposable container."""
     resolved_target = _resolve_single_container_target(target, command_name="refresh")
-    if not _refresh_single_container_target(resolved_target):
+    if not _refresh_single_container_target(
+        resolved_target,
+        shell_config_source=shell_config_source,
+        shell_config_repo_url=shell_config_repo_url,
+        shell_config_branch=shell_config_branch,
+        shell_config_local_dir=shell_config_local_dir,
+        shell_config_stage_from=shell_config_stage_from,
+        no_cache=no_cache,
+    ):
         raise typer.Exit(code=1)
 
 

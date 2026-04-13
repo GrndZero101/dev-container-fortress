@@ -33,4 +33,3 @@ Replace fake workstation-role assumptions with a real thin bootstrap contract.
 
 - [x] Disposable Ubuntu target remained usable
 - [x] Bootstrap check mode became truthful and runnable
-

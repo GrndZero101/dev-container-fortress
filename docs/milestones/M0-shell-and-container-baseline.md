@@ -37,4 +37,3 @@ the first usable `ft` CLI baseline.
 
 - [x] Baseline contributor workflows were established
 - [x] Container targets and CLI scaffolding were proven usable
-
