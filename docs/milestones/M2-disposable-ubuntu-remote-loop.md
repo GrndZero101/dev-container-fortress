@@ -34,4 +34,3 @@ Prove one real end-to-end remote path against a disposable Ubuntu SSH target.
 - [x] Live Docker build completed
 - [x] Live SSH probe completed
 - [x] Live `ft host bootstrap --check` completed
-

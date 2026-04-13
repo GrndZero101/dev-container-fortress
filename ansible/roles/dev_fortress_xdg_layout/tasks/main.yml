@@ -1,0 +1,7 @@
+---
+- name: Ensure XDG base directories exist for the target user
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ dev_container_fortress_required_xdg_dirs }}"

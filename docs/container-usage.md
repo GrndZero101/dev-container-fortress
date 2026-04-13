@@ -227,7 +227,8 @@ Current delegation split:
 > `dev-fortress-ubuntu` already exists, startup mounts it into the container and
 > authorizes it automatically. SSH trust now uses a Dev Fortress-managed
 > known-hosts file under `${XDG_STATE_HOME:-$HOME/.local/state}/dev-container-fortress/known_hosts/`.
-> Alpine remains shell-only for now.
+> The Alpine disposable target is moving toward the same SSH-oriented host loop
+> on `127.0.0.1:2223`.
 
 Recommended disposable SSH loop for Ubuntu:
 
@@ -237,6 +238,16 @@ just test-ssh-key ubuntu
 just test-up ubuntu
 just test-ssh-probe ubuntu
 just test-ssh ubuntu
+```
+
+Recommended disposable SSH loop for Alpine:
+
+```zsh
+uv run ft host ssh-key dev-fortress-alpine --config ft/targets/hosts.example.toml
+uv run ft container up alpine
+uv run ft host doctor dev-fortress-alpine --probe --config ft/targets/hosts.example.toml
+uv run ft host bootstrap dev-fortress-alpine --check --config ft/targets/hosts.example.toml
+uv run ft host bootstrap dev-fortress-alpine --config ft/targets/hosts.example.toml
 ```
 
 ## Validate the Runtime
@@ -333,7 +344,7 @@ By default, `ft container build` and the raw Dockerfiles clone `shell-config` fr
 
 ```zsh
 ft container build ubuntu
-ft container build ubuntu --shell-config-branch feature-ohmyposh_disble_transient_prompt
+ft container build ubuntu --shell-config-branch main
 ```
 
 The equivalent raw Docker form is:
@@ -364,7 +375,6 @@ docker buildx build --load   --build-arg SHELL_CONFIG_SOURCE=local   --build-arg
 
 > [!TIP]
 > Docker cannot see a sibling checkout outside the build context directly. The staging helper copies your chosen host checkout into `.local/sources/shell-config` so the build can consume it.
-
 > [!IMPORTANT]
 > Moving GitHub branch refs are a poor cache key for `docker buildx`. If a GitHub-backed `shell-config` build appears to be one commit behind, prefer either:
 >

@@ -22,4 +22,3 @@ stable enough not to churn underneath it.
 ## Non-Goals
 
 - [ ] Shell UX churn before host and container automation stabilizes
-

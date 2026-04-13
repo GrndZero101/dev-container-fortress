@@ -30,7 +30,9 @@ RUN apk add --no-cache \
     fzf \
     git \
     gzip \
+    openssh-server \
     python3 \
+    rsync \
     sudo \
     tar \
     tmux \
@@ -54,6 +56,7 @@ EOF
 COPY --from=uv-distroless /uv /uvx /usr/local/bin/
 COPY containers/common/install-corporate-ca.sh /usr/local/bin/install-corporate-ca
 COPY containers/common/install-shell-config.sh /usr/local/bin/install-shell-config
+COPY containers/common/start-test-target.sh /usr/local/bin/start-test-target
 
 RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
       delgroup ${USERNAME}; \
@@ -83,7 +86,7 @@ RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
   && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-${USERNAME} \
   && chmod 0440 /etc/sudoers.d/90-${USERNAME}
 
-RUN chmod 0755 /usr/local/bin/install-corporate-ca /usr/local/bin/install-shell-config
+RUN chmod 0755 /usr/local/bin/install-corporate-ca /usr/local/bin/install-shell-config /usr/local/bin/start-test-target
 RUN --mount=type=bind,source=.,target=/tmp/build-context,readonly \
     /usr/local/bin/install-corporate-ca /tmp/build-context "${CORPORATE_CA_CERT_DIR}"
 

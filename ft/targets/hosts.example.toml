@@ -18,7 +18,20 @@ port = 2222
 user = "vscode"
 auth_method = "ssh_key"
 ssh_key_name = "dev-fortress-ubuntu"
+ansible_python_interpreter = "/usr/bin/python3"
 tags = ["docker", "ubuntu", "ssh", "test"]
+
+[[targets]]
+name = "dev-fortress-alpine"
+kind = "docker"
+connection = "ssh"
+host = "127.0.0.1"
+port = 2223
+user = "vscode"
+auth_method = "ssh_key"
+ssh_key_name = "dev-fortress-alpine"
+ansible_python_interpreter = "/usr/bin/python3"
+tags = ["docker", "alpine", "ssh", "test"]
 
 [[targets]]
 name = "workstation-example"
@@ -29,3 +42,15 @@ user = "devops"
 auth_method = "ssh_key"
 ssh_key_name = "workstation-devops"
 tags = ["ssh", "workstation", "example"]
+
+[[targets]]
+name = "ubuntu-remote-example"
+kind = "workstation"
+connection = "ssh"
+host = "ec2-203-0-113-10.compute-1.amazonaws.com"
+port = 22
+user = "ubuntu"
+auth_method = "ssh_key"
+ssh_key_name = "ubuntu-remote-dev-fortress"
+ansible_python_interpreter = "/usr/bin/python3"
+tags = ["ssh", "ubuntu", "remote", "example"]

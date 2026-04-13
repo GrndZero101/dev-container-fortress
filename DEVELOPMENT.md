@@ -11,7 +11,6 @@ It focuses on the current high-value loop:
 
 > [!IMPORTANT]
 > `ft` is the primary interface now. `just` still exists, but treat it as a compatibility shim rather than the main developer workflow.
-
 > [!NOTE]
 > Dev Fortress should increasingly be used to develop and validate itself.
 > When a documented `ft` or bootstrap workflow exists, prefer it over ad hoc
@@ -174,6 +173,7 @@ Run these after a fresh checkout or after significant CLI changes:
 uv run ruff check ft
 uv run pytest ft/tests
 uv run pre-commit run --all-files
+pre-commit run markdownlint-cli2 --all-files
 ```
 
 To install the hooks locally:
@@ -181,6 +181,15 @@ To install the hooks locally:
 ```zsh
 uv run pre-commit install
 ```
+
+The current baseline keeps the hooks intentionally light:
+
+- file hygiene checks for YAML, JSON, merge markers, trailing whitespace, and EOF handling
+- `markdownlint-cli2` for repo Markdown, aligned with the VS Code markdownlint ecosystem
+- `ansible-playbook --syntax-check` for the repo-owned host playbook
+- `ansible-lint` for the Ansible tree under `ansible/`
+- `ruff` lint and format for Python
+- `zsh -n` syntax checks for repo-owned Zsh entrypoints under `scripts/` plus `bootstrap.zsh`
 
 ## Preferred Container Development Loop
 

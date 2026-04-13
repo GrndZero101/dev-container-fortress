@@ -27,4 +27,3 @@ Make `ft` feel like the stable operator surface for humans and agentic tooling.
 
 - [ ] Human help output is reviewed
 - [ ] JSON output is validated against expected shapes
-

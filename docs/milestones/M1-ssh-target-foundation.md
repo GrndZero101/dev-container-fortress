@@ -36,4 +36,3 @@ plane.
 
 - [x] CLI behavior and edge cases were covered in tests
 - [x] Shared SSH control-plane contract was established
-

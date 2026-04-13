@@ -15,8 +15,25 @@ repos:
         args: [--fix]
       - id: ruff-format
 
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.20.0
+    hooks:
+      - id: markdownlint-cli2
+
   - repo: local
     hooks:
+      - id: ansible-playbook-syntax
+        name: ansible playbook syntax
+        entry: zsh -lc 'ANSIBLE_CONFIG="$PWD/ansible/ansible.cfg" ANSIBLE_LOCAL_TEMP=/tmp/dev-fortress-ansible-local ANSIBLE_REMOTE_TEMP=/tmp/dev-fortress-ansible-remote uv run ansible-playbook --syntax-check ansible/playbooks/host.yml'
+        language: system
+        files: ^ansible/.*\.(yml|yaml)$
+        pass_filenames: false
+      - id: ansible-lint
+        name: ansible lint
+        entry: zsh -lc 'ANSIBLE_CONFIG="$PWD/ansible/ansible.cfg" uv run ansible-lint ansible'
+        language: system
+        files: ^ansible/.*\.(yml|yaml)$
+        pass_filenames: false
       - id: zsh-syntax
         name: zsh syntax
         entry: zsh -n
