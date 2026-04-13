@@ -40,7 +40,7 @@
 | date/time       | pendulum       |
 | logging         | loguru         |
 | natural output  | humanize       |
-| TUI             | Textual, Richd |
+| TUI             | Textual, Rich |
 | SQL             | sqlmodel       |
 
 # Python Tooling
@@ -84,6 +84,20 @@
 * Keep host-specific behavior explicit and easy to audit.
 * Document required variables, defaults, and assumptions near the relevant role or inventory files.
 * Avoid embedding large amounts of business logic in YAML when a small helper script would be clearer and easier to test.
+
+# Terraform Guidance
+
+* Use Terraform for infrastructure lifecycle only, not as a substitute for host bootstrap or application configuration.
+* Keep Terraform outputs focused on the minimal data needed to join the existing `ft host ...` and Ansible workflow.
+* Prefer official providers, native resources, and clear module boundaries over wrapper scripts or over-abstracted local modules.
+* Prefer well-maintained public registry modules from the `terraform-aws-modules` namespace when they fit the problem cleanly, but do not force a module when a few native resources would be simpler and easier to audit.
+* Start with the smallest disposable infrastructure that proves the workflow. Avoid broad VPC, DNS, or multi-service sprawl in the first pass.
+* Treat disposable cloud hosts as cattle, not pets. Optimize for cheap creation, clear tagging, and clean teardown.
+* Keep cloud-specific assumptions explicit in variables and docs. Do not hide region, AMI, instance-shape, or SSH-user assumptions in opaque defaults.
+* Prefer a fixed, documented fallback instance shape even if spot-selection helpers exist.
+* Keep Terraform code readable and auditable: small files, clear locals, explicit variable types, and minimal magic.
+* Run `terraform fmt` and `terraform validate` for every meaningful Terraform change. Add `tflint` later when the infra layer is stable enough to justify it.
+* Document how Terraform state, credentials, and teardown are expected to work before expanding the infra surface.
 
 # Container Guidance
 

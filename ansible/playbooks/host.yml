@@ -19,63 +19,34 @@
       - "{{ ansible_facts['env']['HOME'] }}/.local/share"
       - "{{ ansible_facts['env']['HOME'] }}/.local/state"
       - "{{ ansible_facts['env']['HOME'] }}/.cache"
+    dev_container_fortress_ubuntu_baseline_packages:
+      - ca-certificates
+      - curl
+      - git
+      - python3
+      - python3-venv
+      - rsync
+      - zsh
+    dev_container_fortress_alpine_baseline_packages:
+      - ca-certificates
+      - curl
+      - git
+      - python3
+      - rsync
+      - zsh
 
-  tasks:
+  pre_tasks:
     - name: Prove Ansible reachability
       ansible.builtin.ping:
 
-    - name: Validate core target contract variables
-      ansible.builtin.assert:
-        that:
-          - dev_fortress_target_kind is defined
-          - dev_fortress_target_tags is defined
-          - ansible_facts['user_id'] is defined
-          - ansible_facts['env']['HOME'] is defined
-        fail_msg: >-
-          Dev Fortress bootstrap expects the generated inventory contract plus
-          gathered facts for the target user and home directory.
-        success_msg: Target contract and gathered facts look usable.
-
-    - name: Ensure XDG base directories exist for the target user
-      ansible.builtin.file:
-        path: "{{ item }}"
-        state: directory
-        mode: "0755"
-      loop: "{{ dev_container_fortress_required_xdg_dirs }}"
-
-    - name: Check for python3 on the target
-      ansible.builtin.stat:
-        path: /usr/bin/python3
-      register: dev_container_fortress_python3
-
-    - name: Check for git on the target
-      ansible.builtin.stat:
-        path: /usr/bin/git
-      register: dev_container_fortress_git
-
-    - name: Check for zsh on the target
-      ansible.builtin.stat:
-        path: /usr/bin/zsh
-      register: dev_container_fortress_zsh
-
-    - name: Check for shell-config checkout on the target
-      ansible.builtin.stat:
-        path: "{{ dev_container_fortress_shell_config_dir_effective }}"
-      register: dev_container_fortress_shell_config
-
-    - name: Report current bootstrap readiness
-      ansible.builtin.debug:
-        msg:
-          target: "{{ inventory_hostname }}"
-          kind: "{{ dev_fortress_target_kind }}"
-          tags: "{{ dev_fortress_target_tags }}"
-          user: "{{ ansible_facts['user_id'] }}"
-          home: "{{ ansible_facts['env']['HOME'] }}"
-          python3: "{{ dev_container_fortress_python3.stat.exists }}"
-          git: "{{ dev_container_fortress_git.stat.exists }}"
-          zsh: "{{ dev_container_fortress_zsh.stat.exists }}"
-          shell_config_repo: "{{ dev_container_fortress_shell_config_repo_effective }}"
-          shell_config_branch: "{{ dev_container_fortress_shell_config_branch_effective }}"
-          shell_config_dir: "{{ dev_container_fortress_shell_config_dir_effective }}"
-          shell_config_profile: "{{ dev_container_fortress_shell_config_profile_effective }}"
-          shell_config_present: "{{ dev_container_fortress_shell_config.stat.exists }}"
+  roles:
+    - role: dev_fortress_target_contract
+    - role: dev_fortress_xdg_layout
+    - role: dev_fortress_ubuntu_base_packages
+      when:
+        - ansible_facts['os_family'] == 'Debian'
+        - ansible_facts['distribution'] == 'Ubuntu'
+    - role: dev_fortress_alpine_base_packages
+      when:
+        - ansible_facts['os_family'] == 'Alpine'
+    - role: dev_fortress_shell_config_ready

@@ -47,6 +47,7 @@ port = 2222
 user = "vscode"
 auth_method = "ssh_key"
 ssh_key_name = "dev-fortress-ubuntu"
+ansible_python_interpreter = "/usr/bin/python3"
 tags = ["docker", "ubuntu"]
 
 [[targets]]
@@ -58,6 +59,17 @@ user = "devops"
 auth_method = "ssh_key"
 ssh_key_name = "workstation-devops"
 tags = ["ssh", "workstation"]
+
+[[targets]]
+name = "dev-fortress-ec2-dev"
+kind = "cloud"
+connection = "ssh"
+host = "ec2.example.internal"
+user = "ubuntu"
+auth_method = "ssh_key"
+ssh_key_name = "dev-fortress-ec2-dev"
+ansible_python_interpreter = "/usr/bin/python3"
+tags = ["ssh", "ubuntu", "cloud", "disposable"]
 """,
         encoding="utf-8",
     )
@@ -154,6 +166,7 @@ def test_host_inventory_renders_yaml(tmp_path: Path) -> None:
     assert "all:" in result.stdout
     assert "dev_fortress:" in result.stdout
     assert 'ansible_connection: "ssh"' in result.stdout
+    assert 'ansible_python_interpreter: "/usr/bin/python3"' in result.stdout
     assert (
         'ansible_ssh_common_args: "-o StrictHostKeyChecking=yes -o UserKnownHostsFile='
         in result.stdout
@@ -177,7 +190,7 @@ def test_host_ssh_key_path_uses_xdg_state(tmp_path: Path, monkeypatch: object) -
         / "dev-container-fortress"
         / "ssh"
         / "dev-fortress-ubuntu"
-        / "id_ed25519"
+        / "dev_fortress_ed25519"
     )
 
 
@@ -375,7 +388,7 @@ def test_host_doctor_probe_checks_ssh_reachability(
         / "dev-container-fortress"
         / "ssh"
         / "dev-fortress-ubuntu"
-        / "id_ed25519"
+        / "dev_fortress_ed25519"
     )
     key_path.parent.mkdir(parents=True, exist_ok=True)
     key_path.write_text("private\n", encoding="utf-8")
@@ -421,7 +434,7 @@ def test_host_doctor_probe_refreshes_managed_known_hosts(
         / "dev-container-fortress"
         / "ssh"
         / "dev-fortress-ubuntu"
-        / "id_ed25519"
+        / "dev_fortress_ed25519"
     )
     key_path.parent.mkdir(parents=True, exist_ok=True)
     key_path.write_text("private\n", encoding="utf-8")
@@ -466,6 +479,62 @@ def test_host_doctor_probe_refreshes_managed_known_hosts(
     )
 
 
+def test_host_doctor_probe_refreshes_managed_known_hosts_for_cloud_target(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Host probe should refresh the managed known-hosts file for cloud disposable targets."""
+    config_path = _write_host_config(tmp_path)
+    key_path = (
+        tmp_path
+        / "state"
+        / "dev-container-fortress"
+        / "ssh"
+        / "dev-fortress-ec2-dev"
+        / "dev_fortress_ed25519"
+    )
+    key_path.parent.mkdir(parents=True, exist_ok=True)
+    key_path.write_text("private\n", encoding="utf-8")
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    def fake_run(command: list[str]) -> subprocess.CompletedProcess[str]:
+        if command[0] == "ssh-keyscan":
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout="[ec2.example.internal]:22 ssh-ed25519 AAACLOUD\n",
+                stderr="",
+            )
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("ft.cli._run_command", fake_run)
+
+    result = runner.invoke(
+        app,
+        [
+            "host",
+            "doctor",
+            "dev-fortress-ec2-dev",
+            "--probe",
+            "--config",
+            str(config_path),
+        ],
+    )
+
+    known_hosts_path = (
+        tmp_path
+        / "state"
+        / "dev-container-fortress"
+        / "known_hosts"
+        / "dev-fortress-ec2-dev"
+    )
+    assert result.exit_code == 0
+    assert (
+        known_hosts_path.read_text(encoding="utf-8")
+        == "[ec2.example.internal]:22 ssh-ed25519 AAACLOUD\n"
+    )
+
+
 def test_host_ssh_key_generates_managed_key(
     tmp_path: Path, monkeypatch: object
 ) -> None:
@@ -480,11 +549,13 @@ def test_host_ssh_key_generates_managed_key(
             / "dev-container-fortress"
             / "ssh"
             / "dev-fortress-ubuntu"
-            / "id_ed25519"
+            / "dev_fortress_ed25519"
         )
         key_path.parent.mkdir(parents=True, exist_ok=True)
         key_path.write_text("private\n", encoding="utf-8")
-        key_path.with_name("id_ed25519.pub").write_text("public\n", encoding="utf-8")
+        key_path.with_name("dev_fortress_ed25519.pub").write_text(
+            "public\n", encoding="utf-8"
+        )
         return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
     monkeypatch.setattr("ft.cli._run_command", fake_run)
@@ -521,11 +592,11 @@ def test_host_ssh_key_enroll_installs_public_key(
             / "dev-container-fortress"
             / "ssh"
             / "dev-fortress-ubuntu"
-            / "id_ed25519"
+            / "dev_fortress_ed25519"
         )
         key_path.parent.mkdir(parents=True, exist_ok=True)
         key_path.write_text("private\n", encoding="utf-8")
-        key_path.with_name("id_ed25519.pub").write_text(
+        key_path.with_name("dev_fortress_ed25519.pub").write_text(
             "ssh-ed25519 AAAATEST dev-fortress-ubuntu\n",
             encoding="utf-8",
         )
@@ -558,13 +629,17 @@ def test_host_bootstrap_runs_ansible_with_generated_inventory(
 ) -> None:
     """Host bootstrap should render inventory and invoke ansible-playbook."""
     config_path = _write_host_config(tmp_path)
-    calls: list[list[str]] = []
+    calls: list[tuple[list[str], dict[str, str] | None]] = []
     inventories: list[str] = []
 
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
 
-    def fake_stream(command: list[str]) -> subprocess.CompletedProcess[str]:
-        calls.append(command)
+    def fake_stream(
+        command: list[str],
+        *,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append((command, env))
         inventory_path = Path(command[2])
         inventories.append(inventory_path.read_text(encoding="utf-8"))
         return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
@@ -579,7 +654,9 @@ def test_host_bootstrap_runs_ansible_with_generated_inventory(
 
     assert result.exit_code == 0
     assert calls
-    assert calls[0][-1] == "--check"
+    assert calls[0][0][-1] == "--check"
+    assert calls[0][1] is not None
+    assert calls[0][1]["ANSIBLE_CONFIG"].endswith("ansible/ansible.cfg")
     assert "localhost:" in inventories[0]
     assert 'ansible_connection: "local"' in inventories[0]
 
@@ -600,7 +677,7 @@ def test_host_bootstrap_fails_when_ssh_key_is_missing(
     assert result.exit_code == 1
     assert "missing managed ssh key for dev-fortress-ubuntu" in result.stdout
     assert "Run `ft host ssh-key" in result.stdout
-    assert "dev-fortress-ubuntu` or use --ensure-ssh-keys." in result.stdout
+    assert "--ensure-ssh-keys" in result.stdout
 
 
 def test_plan_uses_environment_defaults(monkeypatch: object) -> None:
@@ -943,10 +1020,10 @@ def test_container_shell_runs_for_single_target(monkeypatch: object) -> None:
 
 def test_container_refresh_runs_for_single_target(monkeypatch: object) -> None:
     """Refresh should resolve one target and delegate to the chained helper."""
-    calls: list[str] = []
+    calls: list[tuple[str, dict[str, object]]] = []
 
-    def fake_refresh(target: str) -> bool:
-        calls.append(target)
+    def fake_refresh(target: str, **kwargs: object) -> bool:
+        calls.append((target, kwargs))
         return True
 
     monkeypatch.setattr("ft.cli._refresh_single_container_target", fake_refresh)
@@ -954,7 +1031,19 @@ def test_container_refresh_runs_for_single_target(monkeypatch: object) -> None:
     result = runner.invoke(app, ["container", "refresh", "ubuntu"])
 
     assert result.exit_code == 0
-    assert calls == ["ubuntu"]
+    assert calls == [
+        (
+            "ubuntu",
+            {
+                "shell_config_source": "github",
+                "shell_config_repo_url": "https://github.com/GrndZero101/shell-config.git",
+                "shell_config_branch": "main",
+                "shell_config_local_dir": None,
+                "shell_config_stage_from": None,
+                "no_cache": False,
+            },
+        )
+    ]
 
 
 def test_container_enter_runs_for_single_target(monkeypatch: object) -> None:

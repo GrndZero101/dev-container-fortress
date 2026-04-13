@@ -1,0 +1,13 @@
+---
+- name: Refresh Ubuntu package metadata before baseline package convergence
+  become: true
+  ansible.builtin.apt:
+    update_cache: true
+  check_mode: false
+  changed_when: false
+
+- name: Ensure Ubuntu baseline packages are present
+  become: true
+  ansible.builtin.apt:
+    name: "{{ dev_container_fortress_ubuntu_baseline_packages }}"
+    state: present
