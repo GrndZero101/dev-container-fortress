@@ -222,3 +222,15 @@ docs/coding_ai_tasks/**
 
 # Artifacts from debugging and experimentation
 artifacts/
+
+# Terraform local working state
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+infra/**/terraform.tfvars

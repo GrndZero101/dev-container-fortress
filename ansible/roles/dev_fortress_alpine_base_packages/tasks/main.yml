@@ -1,0 +1,13 @@
+---
+- name: Refresh Alpine package metadata before baseline package convergence
+  become: true
+  community.general.apk:
+    update_cache: true
+  check_mode: false
+  changed_when: false
+
+- name: Ensure Alpine baseline packages are present
+  become: true
+  community.general.apk:
+    name: "{{ dev_container_fortress_alpine_baseline_packages }}"
+    state: present

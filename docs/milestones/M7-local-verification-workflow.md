@@ -25,4 +25,3 @@ Make repeat testing fast, obvious, and reliable for both humans and agents.
 ## Verification Notes
 
 - [ ] A new contributor can run the documented verification loop without guesswork
-

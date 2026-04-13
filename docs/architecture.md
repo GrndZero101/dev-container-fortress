@@ -24,6 +24,42 @@ Use:
 - Homebrew for packages and userland tools
 - `tenv` for Terraform and OpenTofu version selection
 
+Host automation should be designed as a convergent desired-state system rather
+than as a one-shot bootstrap script.
+
+That means repeated runs should safely move a host toward the intended Dev
+Fortress baseline whether that host started as:
+
+- a fresh machine
+- a previously Dev Fortress-managed machine
+- a manually prepared machine that is already broadly aligned
+
+The goal is not to pretend that every workstation can be normalized perfectly.
+The goal is to make drift visible, correction routine, and host state
+reproducible enough that environments do not decay into bespoke snowflakes.
+
+Recommended host-automation rules:
+
+- prefer idempotent tasks that converge state over imperative setup sequences
+- adopt pre-existing compatible host state when it matches policy
+- make managed-versus-user-owned boundaries explicit
+- keep reruns safe on already-configured hosts
+- fail clearly when a host falls outside the supported convergence contract
+- document carve-outs rather than hiding them in role logic
+
+When implementing Ansible roles, prefer built-in Ansible modules over shell
+commands or wrapper scripts whenever a built-in module can express the desired
+state cleanly.
+
+Use shell or command tasks only when:
+
+- no suitable built-in module exists
+- the external tool is itself the contract being exercised
+- the task remains narrow, inspectable, and clearly justified in comments or docs
+
+Avoid letting host provisioning drift into large opaque shell snippets that are
+hard to reason about, hard to diff, and hard to rerun safely.
+
 ### Container targets
 
 Use:
@@ -314,6 +350,16 @@ data needed to join the same SSH and Ansible workflow, for example:
 
 That keeps Terraform useful without making the whole remote-target model depend
 on cloud-specific assumptions.
+
+Recommended early Terraform rules:
+
+- keep Terraform focused on provisioning and teardown, not host bootstrap
+- start with the smallest disposable infrastructure that proves the operator loop
+- prefer official providers and native resources over wrapper shell glue
+- prefer well-maintained `terraform-aws-modules` public registry modules when they clearly reduce boilerplate without obscuring the workflow
+- keep spot-selection helpers optional behind a fixed fallback instance shape
+- optimize for cheap, replaceable hosts with strong tagging and obvious cleanup
+- make state, credentials, and teardown expectations explicit in docs before broadening the infra layer
 
 ### Operator CLI Direction for Hosts
 

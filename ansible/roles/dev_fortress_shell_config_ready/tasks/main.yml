@@ -1,0 +1,86 @@
+---
+- name: Check for python3 on the target
+  ansible.builtin.command:
+    argv:
+      - python3
+      - --version
+  register: dev_fortress_shell_config_ready_python3_check
+  check_mode: false
+  changed_when: false
+  failed_when: false
+
+- name: Check for git on the target
+  ansible.builtin.command:
+    argv:
+      - git
+      - --version
+  register: dev_fortress_shell_config_ready_git_check
+  check_mode: false
+  changed_when: false
+  failed_when: false
+
+- name: Check for zsh on the target
+  ansible.builtin.command:
+    argv:
+      - zsh
+      - --version
+  register: dev_fortress_shell_config_ready_zsh_check
+  check_mode: false
+  changed_when: false
+  failed_when: false
+
+- name: Check for shell-config checkout on the target
+  ansible.builtin.stat:
+    path: "{{ dev_container_fortress_shell_config_dir_effective }}"
+  register: dev_fortress_shell_config_ready_dir_stat
+
+- name: Check for shell-config csm entrypoint on the target
+  ansible.builtin.stat:
+    path: "{{ dev_container_fortress_shell_config_dir_effective }}/scripts/csm"
+  register: dev_fortress_shell_config_ready_csm_stat
+
+- name: Check for installed root zshenv selector
+  ansible.builtin.stat:
+    path: "{{ ansible_facts['env']['HOME'] }}/.zshenv"
+    follow: false
+  register: dev_fortress_shell_config_ready_root_zshenv_stat
+
+- name: Check for installed csm command link
+  ansible.builtin.stat:
+    path: "{{ ansible_facts['env']['HOME'] }}/.local/bin/csm"
+    follow: false
+  register: dev_fortress_shell_config_ready_csm_link_stat
+
+- name: Report current bootstrap readiness
+  ansible.builtin.debug:
+    msg:
+      target: "{{ dev_fortress_target_contract_host.target }}"
+      kind: "{{ dev_fortress_target_contract_host.kind }}"
+      tags: "{{ dev_fortress_target_contract_host.tags }}"
+      user: "{{ dev_fortress_target_contract_host.user }}"
+      home: "{{ dev_fortress_target_contract_host.home }}"
+      platform:
+        system: "{{ ansible_facts['system'] }}"
+        distribution: "{{ ansible_facts['distribution'] | default(ansible_facts['system']) }}"
+        version: "{{ ansible_facts['distribution_version'] | default(ansible_facts['kernel']) }}"
+      tools:
+        python3: "{{ dev_fortress_shell_config_ready_python3_check.rc == 0 }}"
+        git: "{{ dev_fortress_shell_config_ready_git_check.rc == 0 }}"
+        zsh: "{{ dev_fortress_shell_config_ready_zsh_check.rc == 0 }}"
+      shell_config:
+        repo: "{{ dev_container_fortress_shell_config_repo_effective }}"
+        branch: "{{ dev_container_fortress_shell_config_branch_effective }}"
+        dir: "{{ dev_container_fortress_shell_config_dir_effective }}"
+        profile: "{{ dev_container_fortress_shell_config_profile_effective }}"
+        checkout_present: "{{ dev_fortress_shell_config_ready_dir_stat.stat.exists }}"
+        csm_present: "{{ dev_fortress_shell_config_ready_csm_stat.stat.exists }}"
+        root_zshenv_present: "{{ dev_fortress_shell_config_ready_root_zshenv_stat.stat.exists }}"
+        root_zshenv_is_symlink: "{{ dev_fortress_shell_config_ready_root_zshenv_stat.stat.islnk | default(false) }}"
+        csm_link_present: "{{ dev_fortress_shell_config_ready_csm_link_stat.stat.exists }}"
+        csm_link_is_symlink: "{{ dev_fortress_shell_config_ready_csm_link_stat.stat.islnk | default(false) }}"
+        csm_link_target: "{{ dev_fortress_shell_config_ready_csm_link_stat.stat.lnk_target | default('') }}"
+        ready_for_handoff: >-
+          {{
+            dev_fortress_shell_config_ready_dir_stat.stat.exists
+            and dev_fortress_shell_config_ready_csm_stat.stat.exists
+          }}

@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     gzip \
     openssh-server \
+    python3-apt \
     python3 \
     python3-venv \
     sudo \
@@ -43,7 +44,7 @@ ARG USER_GID=1000
 ARG CORPORATE_CA_CERT_DIR=""
 ARG SHELL_CONFIG_SOURCE="github"
 ARG SHELL_CONFIG_REPO_URL="https://github.com/GrndZero101/shell-config.git"
-ARG SHELL_CONFIG_BRANCH="feature-ohmyposh_disble_transient_prompt"
+ARG SHELL_CONFIG_BRANCH="main"
 ARG SHELL_CONFIG_LOCAL_DIR=""
 ARG SHELL_CONFIG_PROFILE_DEFAULT="zsh-tll-citadel-dev-fortress"
 ARG SHELL_CONFIG_INSTALL_ZINIT="1"

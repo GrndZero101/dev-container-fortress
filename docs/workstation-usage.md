@@ -53,6 +53,7 @@ After bootstrap:
 .venv/bin/pytest ft/tests
 .venv/bin/ft plan --manifest /home/timl/projects/tboss/dev-container-fortress/ft/tools/tools.toml --target ubuntu --tool tenv
 uv run pre-commit run --all-files
+pre-commit run markdownlint-cli2 --all-files
 ```
 
 If you want to test installation on your workstation without writing into system paths, either let `ft` fall back to `~/.local/bin` automatically or pass an explicit user-writable install root.
@@ -66,6 +67,9 @@ uv run pre-commit install
 The current baseline keeps the hooks intentionally light:
 
 - file hygiene checks for YAML, JSON, merge markers, trailing whitespace, and EOF handling
+- `markdownlint-cli2` for repo Markdown, aligned with the VS Code markdownlint ecosystem
+- `ansible-playbook --syntax-check` for the repo-owned host playbook
+- `ansible-lint` for the Ansible tree under `ansible/`
 - `ruff` lint and format for Python
 - `zsh -n` syntax checks for repo-owned Zsh entrypoints under `scripts/` plus `bootstrap.zsh`
 
@@ -96,10 +100,14 @@ uv run ft host list
 uv run ft host show localhost
 uv run ft host inventory
 uv run ft host ssh-key-path dev-fortress-ubuntu
+uv run ft host ssh-key-path dev-fortress-alpine
 uv run ft host doctor localhost
 uv run ft host ssh-key dev-fortress-ubuntu
+uv run ft host ssh-key dev-fortress-alpine
 uv run ft host ssh-key-enroll dev-fortress-ubuntu
+uv run ft host ssh-key-enroll dev-fortress-alpine
 uv run ft host doctor dev-fortress-ubuntu --probe
+uv run ft host doctor dev-fortress-alpine --probe
 uv run ft host bootstrap localhost --check
 ```
 
@@ -131,7 +139,8 @@ The long-term intended workstation flow is:
 4. install the Brew bundle
 5. install `tenv`
 6. install and bootstrap `shell-config`
-7. install tmux and other user tools
+7. install operator and testing helpers such as `gum` and `bats-core`
+8. install tmux and other user tools
 
 That flow is not fully implemented yet.
 
@@ -139,10 +148,14 @@ The current thin bootstrap direction is now:
 
 ```zsh
 uv run ft host ssh-key dev-fortress-ubuntu
+uv run ft host ssh-key dev-fortress-alpine
 uv run ft container up ubuntu
+uv run ft container up alpine
 uv run ft host bootstrap localhost --check
 uv run ft host doctor dev-fortress-ubuntu --probe
+uv run ft host doctor dev-fortress-alpine --probe
 uv run ft host bootstrap dev-fortress-ubuntu --ensure-ssh-keys
+uv run ft host bootstrap dev-fortress-alpine --ensure-ssh-keys
 ```
 
 Under the hood, `ft host bootstrap` renders a temporary inventory and runs:
@@ -153,19 +166,73 @@ ansible-playbook \
   /home/timl/projects/tboss/dev-container-fortress/ansible/playbooks/host.yml
 ```
 
-Today that playbook is intentionally thin. It proves reachability and the
+Today that playbook is intentionally thin, but it is now a real convergence
+loop for the first supported Linux baselines. It proves reachability and the
 shared target contract, ensures the target user's XDG base directories exist,
-and reports whether baseline tools such as `python3`, `git`, and `zsh` are
-present. Full workstation-style roles are still follow-up work.
+converges baseline packages on Ubuntu and Alpine, and reports whether baseline
+tools such as `python3`, `git`, and `zsh` are present. Full workstation-style
+roles are still follow-up work.
 
 See [Ansible README](/home/timl/projects/tboss/dev-container-fortress/ansible/README.md) for the current host-automation layer status.
 
 > [!NOTE]
-> For the disposable Ubuntu test target, `ft container up ubuntu` can now
-> authorize the managed public key automatically when
-> `ft host ssh-key dev-fortress-ubuntu` has already been run. `ft host
+> For the disposable Ubuntu and Alpine test targets, `ft container up <target>`
+> can now authorize the managed public key automatically when the matching
+> `ft host ssh-key <target>` command has already been run. `ft host
 > ssh-key-enroll` remains useful for non-container or already-reachable remote
 > targets.
+
+## First Remote Ubuntu Host
+
+The next intended operator step after the disposable Docker targets is a real
+Ubuntu host reachable over SSH. That can be an EC2 instance, a VM, or an
+existing workstation that is already broadly aligned with the Dev Fortress
+baseline.
+
+Start by copying the example host file into your user config area and adding a
+real target based on `ubuntu-remote-example`:
+
+```zsh
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/dev-container-fortress"
+cp /home/timl/projects/tboss/dev-container-fortress/ft/targets/hosts.example.toml \
+  "${XDG_CONFIG_HOME:-$HOME/.config}/dev-container-fortress/hosts.toml"
+```
+
+Adjust the copied target so it matches the real host:
+
+- set `name` to something stable such as `dev-fortress-ec2-dev`
+- set `host` to the host DNS name or IP address
+- keep `user = "ubuntu"` for a stock Ubuntu cloud image unless your image uses a different default
+- keep `auth_method = "ssh_key"` and set `ssh_key_name` to a target-specific name
+- keep `ansible_python_interpreter = "/usr/bin/python3"` unless the host needs a different interpreter path
+
+Then run the canonical remote-host flow:
+
+```zsh
+uv run ft host show dev-fortress-ec2-dev
+uv run ft host ssh-key dev-fortress-ec2-dev
+uv run ft host ssh-key-enroll dev-fortress-ec2-dev
+uv run ft host doctor dev-fortress-ec2-dev --probe
+uv run ft host bootstrap dev-fortress-ec2-dev --check
+uv run ft host bootstrap dev-fortress-ec2-dev
+```
+
+That sequence is intentionally convergent rather than one-shot:
+
+- `ssh-key` creates the managed `dev_fortress_ed25519` keypair for that target name
+- `ssh-key-enroll` appends the matching public key when it is not already present
+- `doctor --probe` refreshes managed trust state and proves transport
+- `bootstrap --check` previews convergence safely where the underlying modules support check mode
+- `bootstrap` applies the first real host roles and should be safe to rerun on an already aligned host
+
+Today the real host loop converges:
+
+- XDG base directories for the target user
+- baseline package prerequisites on supported Linux families such as Ubuntu and Alpine
+- shell-config readiness checks for `python3`, `git`, and `zsh`
+
+It does not yet converge the full workstation stack such as Homebrew, tmux,
+editor tooling, or shell-config installation. Those remain follow-up milestones.
 
 ## Corporate CA Status
 

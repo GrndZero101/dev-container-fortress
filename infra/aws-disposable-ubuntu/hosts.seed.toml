@@ -1,0 +1,15 @@
+# Seed host target used to prepare the managed SSH key before the real
+# disposable AWS host exists. Replace the generated TOML fragment from
+# Terraform outputs into your user hosts.toml once the VM has been created.
+
+[[targets]]
+name = "dev-fortress-ec2-dev"
+kind = "cloud"
+connection = "ssh"
+host = "placeholder.invalid"
+port = 22
+user = "ubuntu"
+auth_method = "ssh_key"
+ssh_key_name = "dev-fortress-ec2-dev"
+ansible_python_interpreter = "/usr/bin/python3"
+tags = ["ssh", "ubuntu", "cloud", "disposable", "seed"]

@@ -80,6 +80,8 @@ Each milestone should have:
 - Treat `ft` as the main operator surface.
 - Keep shell UX in `shell-config` and environment provisioning in this repo.
 - Prove transport and bootstrap paths before deepening workstation automation.
+- Design host automation as convergent desired state, not one-shot setup.
+- Prefer built-in Ansible modules over custom shell-heavy orchestration where practical.
 - Keep “done” meaningful: code, docs, and verification should move together.
 
 ## Current Direction
@@ -90,6 +92,8 @@ Each milestone should have:
 - Prefer explicit, debuggable configuration over clever hidden behavior.
 - Keep features understandable across shell startup, container startup, and
   workstation login flows.
+- Make existing aligned workstations and fresh hosts converge toward the same
+  declared Dev Fortress baseline.
 - Build toward milestone-based squash merges rather than unbounded branch drift.
 
 ## Milestones
@@ -220,6 +224,8 @@ Exit criteria:
 - the host playbook uses real roles where appropriate
 - the disposable Ubuntu target can exercise at least one meaningful role in
   check mode and normal mode where safe
+- first host roles are safe to rerun on already-aligned hosts and converge them
+  toward the intended baseline
 - docs explain what is now truly provisioned versus still scaffolded
 
 Non-goals:
@@ -227,9 +233,36 @@ Non-goals:
 - full workstation provisioning
 - Brew integration across all platforms
 - tmux and editor automation
+- forcing every host difference through opaque imperative fix-up logic
 
 Details:
 [M4 draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M4-first-real-host-roles.md)
+
+### `M4a` Disposable Cloud Ubuntu Host Loop
+
+Status: `now side quest`
+
+Objective:
+Create the first Terraform-backed disposable Ubuntu VM loop so Dev Fortress can
+exercise its SSH and bootstrap model against a real cloud host at low cost,
+likely EC2 Spot first.
+
+Candidate areas:
+
+- Terraform-backed disposable Ubuntu host, likely EC2 Spot first
+- machine-readable cheapest-instance selection with a fallback fixed shape
+- target registration handoff from Terraform outputs into `ft host ...`
+- canonical provision -> probe -> bootstrap -> destroy workflow
+
+Current state:
+
+- real EC2 Ubuntu provisioning is proven
+- `ft host doctor --probe` and `ft host bootstrap` are proven against a live VM
+- Session Manager access is proven on the disposable host
+- final teardown validation on the currently live host is the remaining closeout step
+
+Details:
+[M4a draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M4a-disposable-cloud-ubuntu-host-loop.md)
 
 ### `M5` Host Bootstrap Expansion
 
@@ -244,6 +277,8 @@ Exit criteria:
 - host playbook provisions a small but real baseline
 - shell-config bootstrap handoff is automated where intended
 - host-side prerequisite handling is clearer across Linux, macOS, and WSL
+- reruns on previously configured or manually aligned hosts level-set drift
+  safely rather than assuming a pristine machine
 - bootstrap assumptions and carve-outs are documented
 
 Details:
@@ -337,6 +372,9 @@ Status: `later`
 
 Objective:
 Extend the shared SSH and bootstrap model to non-container remote targets.
+
+This remains the broader milestone bucket.
+The first narrow real-VM enabling step now lives in `M4a`.
 
 Candidate areas:
 
