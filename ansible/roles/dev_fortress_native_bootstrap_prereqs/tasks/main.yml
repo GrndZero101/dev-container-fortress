@@ -1,0 +1,136 @@
+---
+- name: Define required native bootstrap commands
+  ansible.builtin.set_fact:
+    dev_fortress_native_bootstrap_prereqs_required_commands: >-
+      {{
+        dev_container_fortress_native_bootstrap_required_commands
+        | default(['python3', 'git', 'curl', 'zsh'])
+      }}
+
+- name: Assert required native bootstrap command list is not empty
+  ansible.builtin.assert:
+    that:
+      - dev_fortress_native_bootstrap_prereqs_required_commands | length > 0
+    fail_msg: >-
+      Dev Fortress bootstrap requires a non-empty native prerequisite command
+      list before shell-config installation can proceed.
+
+- name: Check required native bootstrap commands
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -lc
+      - "command -v {{ item }}"
+  loop: "{{ dev_fortress_native_bootstrap_prereqs_required_commands }}"
+  register: dev_fortress_native_bootstrap_prereqs_command_checks
+  check_mode: false
+  changed_when: false
+  failed_when: false
+
+- name: Record native bootstrap prerequisite command status
+  ansible.builtin.set_fact:
+    dev_fortress_native_bootstrap_prereqs_command_status: >-
+      {{
+        (dev_fortress_native_bootstrap_prereqs_command_status | default({}))
+        | combine({item.item: (item.rc == 0)})
+      }}
+  loop: "{{ dev_fortress_native_bootstrap_prereqs_command_checks.results }}"
+
+- name: Record missing native bootstrap commands
+  ansible.builtin.set_fact:
+    dev_fortress_native_bootstrap_prereqs_missing_commands: >-
+      {{
+        dev_fortress_native_bootstrap_prereqs_command_status
+        | dict2items
+        | rejectattr('value')
+        | map(attribute='key')
+        | list
+      }}
+
+- name: Select bootstrap substrate package map for Ubuntu
+  ansible.builtin.set_fact:
+    dev_fortress_native_bootstrap_prereqs_package_map: >-
+      {{ dev_container_fortress_native_bootstrap_command_packages['ubuntu'] }}
+  when:
+    - ansible_facts['os_family'] == 'Debian'
+    - ansible_facts['distribution'] == 'Ubuntu'
+
+- name: Select bootstrap substrate package map for Alpine
+  ansible.builtin.set_fact:
+    dev_fortress_native_bootstrap_prereqs_package_map: >-
+      {{ dev_container_fortress_native_bootstrap_command_packages['alpine'] }}
+  when:
+    - ansible_facts['os_family'] == 'Alpine'
+
+- name: Install missing native bootstrap packages on Ubuntu
+  become: true
+  ansible.builtin.apt:
+    name: >-
+      {{
+        dev_fortress_native_bootstrap_prereqs_missing_commands
+        | map('extract', dev_fortress_native_bootstrap_prereqs_package_map)
+        | list
+      }}
+    state: present
+  when:
+    - dev_fortress_native_bootstrap_prereqs_missing_commands | length > 0
+    - ansible_facts['os_family'] == 'Debian'
+    - ansible_facts['distribution'] == 'Ubuntu'
+
+- name: Install missing native bootstrap packages on Alpine
+  become: true
+  community.general.apk:
+    name: >-
+      {{
+        dev_fortress_native_bootstrap_prereqs_missing_commands
+        | map('extract', dev_fortress_native_bootstrap_prereqs_package_map)
+        | list
+      }}
+    state: present
+  when:
+    - dev_fortress_native_bootstrap_prereqs_missing_commands | length > 0
+    - ansible_facts['os_family'] == 'Alpine'
+
+- name: Re-check required native bootstrap commands after package convergence
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -lc
+      - "command -v {{ item }}"
+  loop: "{{ dev_fortress_native_bootstrap_prereqs_required_commands }}"
+  register: dev_fortress_native_bootstrap_prereqs_recheck_results
+  check_mode: false
+  changed_when: false
+  failed_when: false
+
+- name: Record final native bootstrap prerequisite command status
+  ansible.builtin.set_fact:
+    dev_fortress_native_bootstrap_prereqs_final_status: >-
+      {{
+        (dev_fortress_native_bootstrap_prereqs_final_status | default({}))
+        | combine({item.item: (item.rc == 0)})
+      }}
+  loop: "{{ dev_fortress_native_bootstrap_prereqs_recheck_results.results }}"
+
+- name: Assert required native bootstrap commands are present after convergence
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          dev_fortress_native_bootstrap_prereqs_final_status
+          | dict2items
+          | rejectattr('value')
+          | list
+          | length
+        ) == 0
+    fail_msg: >-
+      Dev Fortress native bootstrap prerequisites are incomplete for
+      {{ inventory_hostname }}. Missing commands:
+      {{
+        dev_fortress_native_bootstrap_prereqs_final_status
+        | dict2items
+        | rejectattr('value')
+        | map(attribute='key')
+        | join(', ')
+      }}
+    success_msg: Native bootstrap prerequisite commands are present.

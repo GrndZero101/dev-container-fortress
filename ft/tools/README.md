@@ -8,6 +8,8 @@ Each tool definition lives under `[tools.<name>]` and should declare:
 
 - `description`
 - `version`
+- optional `version_source`
+- optional `release_tag_prefix`
 - `enabled`
 - `install_root`
 - `healthcheck`
@@ -39,6 +41,20 @@ A good default is to keep the installer generic and express tool differences thr
 - renderable fields like `url_template`, `filename`, and integrity URL templates
 
 That lets future GitHub-style tools reuse the same installer behavior while only changing manifest data.
+
+## Version Resolution
+
+`version` remains the manifest default and fallback value.
+
+For tools that should track current upstream releases, set:
+
+- `version_source = "github_latest"`
+- `variables.github_repo = "owner/repo"`
+- optional `release_tag_prefix` when tags use a prefix such as `v`
+
+At runtime, `ft tool plan` and `ft tool install` resolve the latest GitHub release
+by default for those tools. Use `--use-manifest-version` when you want the
+manifest value without a live upstream lookup.
 
 ## Environment Variables
 

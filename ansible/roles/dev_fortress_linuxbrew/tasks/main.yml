@@ -1,0 +1,115 @@
+---
+- name: Ensure Ubuntu Homebrew prerequisite packages are present
+  become: true
+  ansible.builtin.apt:
+    name: "{{ dev_container_fortress_ubuntu_homebrew_prerequisite_packages }}"
+    state: present
+
+- name: Ensure Homebrew prefix parent exists
+  become: true
+  ansible.builtin.file:
+    path: "{{ dev_container_fortress_homebrew_prefix_effective | dirname }}"
+    state: directory
+    owner: "{{ dev_fortress_target_contract_host.user }}"
+    group: "{{ dev_fortress_target_contract_host.user }}"
+    mode: "0755"
+
+- name: Ensure Homebrew prefix directories exist
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ dev_fortress_target_contract_host.user }}"
+    group: "{{ dev_fortress_target_contract_host.user }}"
+    mode: "0755"
+  loop:
+    - "{{ dev_container_fortress_homebrew_prefix_effective }}"
+    - "{{ dev_container_fortress_homebrew_prefix_effective }}/bin"
+
+- name: Ensure Homebrew checkout is present
+  become: true
+  become_user: "{{ dev_fortress_target_contract_host.user }}"
+  ansible.builtin.git:
+    repo: "{{ dev_container_fortress_homebrew_repo_effective }}"
+    dest: "{{ dev_container_fortress_homebrew_prefix_effective }}/Homebrew"
+    version: "{{ dev_container_fortress_homebrew_branch_effective }}"
+    update: true
+  environment:
+    HOME: "{{ dev_fortress_target_contract_host.home }}"
+  register: dev_fortress_linuxbrew_checkout
+
+- name: Check for brew launcher after Homebrew checkout
+  ansible.builtin.stat:
+    path: "{{ dev_container_fortress_homebrew_prefix_effective }}/Homebrew/bin/brew"
+  register: dev_fortress_linuxbrew_brew_launcher_stat
+
+- name: Ensure brew launcher symlink is present
+  become: true
+  ansible.builtin.file:
+    src: "{{ dev_container_fortress_homebrew_prefix_effective }}/Homebrew/bin/brew"
+    dest: "{{ dev_container_fortress_homebrew_prefix_effective }}/bin/brew"
+    state: link
+    owner: "{{ dev_fortress_target_contract_host.user }}"
+    group: "{{ dev_fortress_target_contract_host.user }}"
+  when:
+    - not ansible_check_mode or dev_fortress_linuxbrew_brew_launcher_stat.stat.exists
+
+- name: Ensure Homebrew profile snippet directory exists
+  ansible.builtin.file:
+    path: "{{ dev_container_fortress_homebrew_profile_snippet_effective | dirname }}"
+    state: directory
+    mode: "0755"
+
+- name: Generate Homebrew shellenv exports
+  become: true
+  become_user: "{{ dev_fortress_target_contract_host.user }}"
+  ansible.builtin.command:
+    argv:
+      - "{{ dev_container_fortress_homebrew_prefix_effective }}/bin/brew"
+      - shellenv
+  environment:
+    HOME: "{{ dev_fortress_target_contract_host.home }}"
+    NONINTERACTIVE: "1"
+  register: dev_fortress_linuxbrew_shellenv
+  changed_when: false
+  when: dev_fortress_linuxbrew_brew_launcher_stat.stat.exists
+
+- name: Persist Homebrew shellenv snippet
+  ansible.builtin.copy:
+    dest: "{{ dev_container_fortress_homebrew_profile_snippet_effective }}"
+    content: "{{ dev_fortress_linuxbrew_shellenv.stdout }}\n"
+    mode: "0644"
+  when: dev_fortress_linuxbrew_brew_launcher_stat.stat.exists
+
+- name: Ensure zprofile loads Homebrew shellenv snippet
+  ansible.builtin.blockinfile:
+    path: "{{ dev_fortress_target_contract_host.home }}/.zprofile"
+    create: true
+    mode: "0644"
+    marker: "# {mark} DEV FORTRESS HOMEBREW"
+    block: |
+      test -r "{{ dev_container_fortress_homebrew_profile_snippet_effective }}" && . "{{ dev_container_fortress_homebrew_profile_snippet_effective }}"
+  when: dev_fortress_linuxbrew_brew_launcher_stat.stat.exists
+
+- name: Ensure profile loads Homebrew shellenv snippet
+  ansible.builtin.blockinfile:
+    path: "{{ dev_fortress_target_contract_host.home }}/.profile"
+    create: true
+    mode: "0644"
+    marker: "# {mark} DEV FORTRESS HOMEBREW"
+    block: |
+      test -r "{{ dev_container_fortress_homebrew_profile_snippet_effective }}" && . "{{ dev_container_fortress_homebrew_profile_snippet_effective }}"
+  when: dev_fortress_linuxbrew_brew_launcher_stat.stat.exists
+
+- name: Ensure Linuxbrew formulae are present
+  become: true
+  become_user: "{{ dev_fortress_target_contract_host.user }}"
+  community.general.homebrew:
+    path: "{{ dev_container_fortress_homebrew_prefix_effective }}/bin"
+    name: "{{ dev_container_fortress_homebrew_linux_packages }}"
+    state: present
+    update_homebrew: false
+  environment:
+    HOME: "{{ dev_fortress_target_contract_host.home }}"
+    NONINTERACTIVE: "1"
+  when: dev_fortress_linuxbrew_brew_launcher_stat.stat.exists

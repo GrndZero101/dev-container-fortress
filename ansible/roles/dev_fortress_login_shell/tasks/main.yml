@@ -1,0 +1,50 @@
+---
+- name: Determine whether Dev Fortress should manage the login shell
+  ansible.builtin.set_fact:
+    dev_fortress_login_shell_manage_effective: >-
+      {{
+        dev_container_fortress_manage_login_shell
+        | default(dev_fortress_target_contract_host.connection != 'local')
+      }}
+
+- name: Check common zsh paths for login-shell convergence
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /usr/bin/zsh
+    - /bin/zsh
+    - /usr/local/bin/zsh
+    - /opt/homebrew/bin/zsh
+  register: dev_fortress_login_shell_zsh_candidates
+
+- name: Record resolved zsh path for login-shell convergence
+  ansible.builtin.set_fact:
+    dev_fortress_login_shell_path_effective: >-
+      {{
+        (
+          dev_fortress_login_shell_zsh_candidates.results
+          | selectattr('stat.exists')
+          | map(attribute='stat.path')
+          | list
+          | first
+        ) | default('')
+      }}
+
+- name: Assert zsh is available when login-shell convergence is enabled
+  ansible.builtin.assert:
+    that:
+      - dev_fortress_login_shell_path_effective | length > 0
+    fail_msg: >-
+      Dev Fortress expected to manage the target login shell, but no supported
+      zsh path was found. Install zsh first or set
+      dev_container_fortress_manage_login_shell=false for this target.
+  when: dev_fortress_login_shell_manage_effective
+
+- name: Ensure target user login shell is zsh
+  become: true
+  ansible.builtin.user:
+    name: "{{ dev_fortress_target_contract_host.user }}"
+    shell: "{{ dev_fortress_login_shell_path_effective }}"
+  when:
+    - dev_fortress_login_shell_manage_effective
+    - dev_fortress_login_shell_path_effective | length > 0

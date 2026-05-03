@@ -4,21 +4,71 @@
   gather_facts: true
 
   vars:
+    dev_container_fortress_xdg_config_home_effective: >-
+      {{ ansible_facts['env']['XDG_CONFIG_HOME'] | default(ansible_facts['env']['HOME'] ~ '/.config', true) }}
+    dev_container_fortress_xdg_cache_home_effective: >-
+      {{ ansible_facts['env']['XDG_CACHE_HOME'] | default(ansible_facts['env']['HOME'] ~ '/.cache', true) }}
+    dev_container_fortress_xdg_data_home_effective: >-
+      {{ ansible_facts['env']['XDG_DATA_HOME'] | default(ansible_facts['env']['HOME'] ~ '/.local/share', true) }}
+    dev_container_fortress_xdg_state_home_effective: >-
+      {{ ansible_facts['env']['XDG_STATE_HOME'] | default(ansible_facts['env']['HOME'] ~ '/.local/state', true) }}
     dev_container_fortress_shell_config_repo_effective: >-
       {{ dev_container_fortress_shell_config_repo | default('https://github.com/GrndZero101/shell-config.git') }}
     dev_container_fortress_shell_config_branch_effective: >-
       {{ dev_container_fortress_shell_config_branch | default('main') }}
     dev_container_fortress_shell_config_dir_effective: >-
-      {{ dev_container_fortress_shell_config_dir | default(ansible_facts['env']['HOME'] ~ '/.config/shell-config') }}
+      {{ dev_container_fortress_shell_config_dir | default(dev_container_fortress_xdg_config_home_effective ~ '/shell-config') }}
     dev_container_fortress_shell_config_profile_effective: >-
       {{ dev_container_fortress_shell_config_profile | default('zsh-tll-citadel-dev-fortress') }}
+    dev_container_fortress_shell_config_state_file_effective: >-
+      {{ dev_container_fortress_xdg_state_home_effective ~ '/shell-config/active-profile' }}
+    dev_container_fortress_shell_config_zinit_manage_effective: >-
+      {{
+        dev_container_fortress_shell_config_zinit_manage
+        | default(dev_container_fortress_shell_config_profile_effective == 'zsh-tll-citadel-dev-fortress')
+      }}
+    dev_container_fortress_shell_config_zinit_home_effective: >-
+      {{
+        dev_container_fortress_xdg_data_home_effective
+        ~ '/shell-config/'
+        ~ dev_container_fortress_shell_config_profile_effective
+        ~ '/zinit/zinit.git'
+      }}
+    dev_container_fortress_neovim_kickstart_manage_effective: >-
+      {{
+        dev_container_fortress_neovim_kickstart_manage
+        | default(
+            ansible_facts['os_family'] == 'Debian'
+            and ansible_facts['distribution'] == 'Ubuntu'
+          )
+      }}
+    dev_container_fortress_neovim_kickstart_repo_effective: >-
+      {{ dev_container_fortress_neovim_kickstart_repo | default('https://github.com/nvim-lua/kickstart.nvim.git') }}
+    dev_container_fortress_neovim_kickstart_branch_effective: >-
+      {{ dev_container_fortress_neovim_kickstart_branch | default('master') }}
+    dev_container_fortress_neovim_kickstart_app_name_effective: >-
+      {{ dev_container_fortress_neovim_kickstart_app_name | default('nvim-kickstart') }}
+    dev_container_fortress_neovim_kickstart_dir_effective: >-
+      {{
+        dev_container_fortress_neovim_kickstart_dir
+        | default(
+            dev_container_fortress_xdg_config_home_effective
+            ~ '/'
+            ~ dev_container_fortress_neovim_kickstart_app_name_effective
+          )
+      }}
+    dev_container_fortress_neovim_kickstart_wrapper_effective: >-
+      {{
+        dev_container_fortress_neovim_kickstart_wrapper
+        | default(ansible_facts['env']['HOME'] ~ '/.local/bin/nvim-kickstart')
+      }}
     dev_container_fortress_required_xdg_dirs:
-      - "{{ ansible_facts['env']['HOME'] }}/.config"
+      - "{{ dev_container_fortress_xdg_config_home_effective }}"
       - "{{ ansible_facts['env']['HOME'] }}/.local"
       - "{{ ansible_facts['env']['HOME'] }}/.local/bin"
-      - "{{ ansible_facts['env']['HOME'] }}/.local/share"
-      - "{{ ansible_facts['env']['HOME'] }}/.local/state"
-      - "{{ ansible_facts['env']['HOME'] }}/.cache"
+      - "{{ dev_container_fortress_xdg_data_home_effective }}"
+      - "{{ dev_container_fortress_xdg_state_home_effective }}"
+      - "{{ dev_container_fortress_xdg_cache_home_effective }}"
     dev_container_fortress_ubuntu_baseline_packages:
       - ca-certificates
       - curl
@@ -26,6 +76,7 @@
       - python3
       - python3-venv
       - rsync
+      - xclip
       - zsh
     dev_container_fortress_alpine_baseline_packages:
       - ca-certificates
@@ -34,6 +85,137 @@
       - python3
       - rsync
       - zsh
+    dev_container_fortress_ubuntu_homebrew_prerequisite_packages:
+      - build-essential
+      - procps
+      - file
+    dev_container_fortress_docker_manage_effective: >-
+      {{
+        dev_container_fortress_docker_manage
+        | default(
+            ansible_facts['os_family'] == 'Debian'
+            and ansible_facts['distribution'] == 'Ubuntu'
+            and dev_fortress_target_kind in ['workstation', 'cloud']
+          )
+      }}
+    dev_container_fortress_docker_apt_prerequisite_packages:
+      - ca-certificates
+      - curl
+      - gnupg
+    dev_container_fortress_docker_conflicting_packages:
+      - docker.io
+      - docker-doc
+      - docker-compose
+      - docker-compose-v2
+      - podman-docker
+      - containerd
+      - runc
+    dev_container_fortress_docker_repo_architecture_map:
+      x86_64: amd64
+      amd64: amd64
+      aarch64: arm64
+      arm64: arm64
+    dev_container_fortress_docker_repo_architecture_effective: >-
+      {{
+        dev_container_fortress_docker_repo_architecture_map[
+          ansible_facts['architecture']
+        ]
+        | default(ansible_facts['architecture'])
+      }}
+    dev_container_fortress_docker_packages:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    dev_container_fortress_docker_users_effective:
+      - "{{ ansible_facts['user_id'] }}"
+    dev_container_fortress_docker_daemon_config_effective:
+      builder:
+        gc:
+          enabled: true
+          defaultKeepStorage: "20GB"
+      log-driver: json-file
+      log-opts:
+        max-size: "50m"
+        max-file: "3"
+    dev_container_fortress_native_bootstrap_required_commands:
+      - python3
+      - git
+      - curl
+      - zsh
+    dev_container_fortress_native_bootstrap_command_packages:
+      ubuntu:
+        python3: python3
+        git: git
+        curl: curl
+        zsh: zsh
+      alpine:
+        python3: python3
+        git: git
+        curl: curl
+        zsh: zsh
+    dev_container_fortress_homebrew_manage_effective: >-
+      {{
+        dev_container_fortress_homebrew_manage
+        | default(
+            ansible_facts['os_family'] == 'Debian'
+            and ansible_facts['distribution'] == 'Ubuntu'
+          )
+      }}
+    dev_container_fortress_homebrew_prefix_effective: >-
+      {{ dev_container_fortress_homebrew_prefix | default('/home/linuxbrew/.linuxbrew') }}
+    dev_container_fortress_homebrew_repo_effective: >-
+      {{ dev_container_fortress_homebrew_repo | default('https://github.com/Homebrew/brew') }}
+    dev_container_fortress_homebrew_branch_effective: >-
+      {{ dev_container_fortress_homebrew_branch | default('master') }}
+    dev_container_fortress_homebrew_profile_snippet_effective: >-
+      {{
+        dev_container_fortress_xdg_config_home_effective
+        ~ '/dev-container-fortress/profile.d/homebrew.sh'
+      }}
+    dev_container_fortress_homebrew_linux_packages:
+      - atuin
+      - bat
+      - bats-core
+      - btop
+      - coreutils
+      - duf
+      - eza
+      - fd
+      - fzf
+      - git
+      - git-delta
+      - glow
+      - gnupg
+      - gopass
+      - gum
+      - helix
+      - jq
+      - jsongrep
+      - kubernetes-cli
+      - lazygit
+      - mtr
+      - neovim
+      - nerdfetch
+      - nmap
+      - oh-my-posh
+      - pass
+      - pbzip2
+      - ripgrep
+      - rustic
+      - starship
+      - syncthing
+      - television
+      - tenv
+      - tmux
+      - tree
+      - tree-sitter-cli
+      - uv
+      - yazi
+      - yq
+      - zoxide
+      - direnv
 
   pre_tasks:
     - name: Prove Ansible reachability
@@ -49,4 +231,19 @@
     - role: dev_fortress_alpine_base_packages
       when:
         - ansible_facts['os_family'] == 'Alpine'
+    - role: dev_fortress_native_bootstrap_prereqs
+    - role: dev_fortress_docker
+      when:
+        - dev_container_fortress_docker_manage_effective | bool
+    - role: dev_fortress_shell_config_bootstrap
+    - role: dev_fortress_shell_config_zinit
+    - role: dev_fortress_login_shell
+    - role: dev_fortress_linuxbrew
+      when:
+        - dev_container_fortress_homebrew_manage_effective | bool
+        - ansible_facts['os_family'] == 'Debian'
+        - ansible_facts['distribution'] == 'Ubuntu'
+    - role: dev_fortress_neovim_kickstart
+      when:
+        - dev_container_fortress_neovim_kickstart_manage_effective | bool
     - role: dev_fortress_shell_config_ready

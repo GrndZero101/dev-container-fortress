@@ -1,0 +1,144 @@
+[homebrew.common]
+formulae = [
+  "atuin",
+  "bat",
+  "bats-core",
+  "btop",
+  "coreutils",
+  "duf",
+  "eza",
+  "fd",
+  "fzf",
+  "git",
+  "git-delta",
+  "glow",
+  "gnupg",
+  "gopass",
+  "gum",
+  "helix",
+  "jq",
+  "jsongrep",
+  "kubernetes-cli",
+  "lazygit",
+  "mtr",
+  "neovim",
+  "nerdfetch",
+  "nmap",
+  "oh-my-posh",
+  "pass",
+  "pbzip2",
+  "ripgrep",
+  "rustic",
+  "starship",
+  "syncthing",
+  "television",
+  "tenv",
+  "tmux",
+  "tree",
+  "tree-sitter-cli",
+  "uv",
+  "yazi",
+  "yq",
+  "zoxide",
+  "direnv",
+]
+
+[homebrew.linux]
+formulae = []
+
+[homebrew.wsl]
+formulae = []
+
+[homebrew.macos]
+formulae = [
+  "gnu-sed",
+  "reattach-to-user-namespace",
+]
+
+[downloader.common]
+target_tools = [
+  "atuin",
+  "bat",
+  "bats",
+  "btop",
+  "duf",
+  "eza",
+  "fd",
+  "git-delta",
+  "gopass",
+  "glow",
+  "gum",
+  "helix",
+  "jq",
+  "jsongrep",
+  "kubernetes-cli",
+  "lazygit",
+  "neovim",
+  "nerdfetch",
+  "nmap",
+  "oh-my-posh",
+  "pass",
+  "rustic",
+  "starship",
+  "syncthing",
+  "television",
+  "tenv",
+  "tmux",
+  "tree-sitter-cli",
+  "yazi",
+  "zoxide",
+]
+implemented_tools = [
+  "atuin",
+  "bat",
+  "bats",
+  "fd",
+  "glow",
+  "gum",
+  "jq",
+  "lazygit",
+  "oh-my-posh",
+  "starship",
+  "tenv",
+  "zoxide",
+]
+
+[downloader.linux]
+target_tools = []
+implemented_tools = []
+
+[downloader.wsl]
+target_tools = []
+implemented_tools = []
+
+[downloader.macos]
+target_tools = []
+implemented_tools = []
+
+[containers.common]
+command_checks = [
+  "atuin",
+  "bat",
+  "bats",
+  "csm",
+  "fd",
+  "fortress-hud",
+  "ft",
+  "fzf",
+  "glow",
+  "gum",
+  "jq",
+  "lazygit",
+  "nvim",
+  "oh-my-posh",
+  "rg",
+  "starship",
+  "tenv",
+  "zoxide",
+]
+
+[containers.ubuntu]
+command_checks = []
+
+[containers.alpine]
+command_checks = []

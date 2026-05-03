@@ -7,7 +7,8 @@ Current state:
 
 - `playbooks/host.yml` is still the thin bootstrap entrypoint
 - the first convergent host roles now exist for contract validation, XDG layout,
-  Ubuntu and Alpine baseline packages, and shell-config readiness reporting
+  Ubuntu and Alpine baseline packages, shell-config bootstrap, and shell-config
+  readiness reporting
 - more host setup should continue to land incrementally as milestone-backed slices
 
 Role guidance:
@@ -41,8 +42,14 @@ Expected early role candidates:
 - `dev_fortress_xdg_layout`
 - `dev_fortress_ubuntu_base_packages`
 - `dev_fortress_alpine_base_packages`
+- `dev_fortress_native_bootstrap_prereqs`
+- `dev_fortress_docker`
+- `dev_fortress_shell_config_bootstrap`
+- `dev_fortress_shell_config_zinit`
+- `dev_fortress_login_shell`
+- `dev_fortress_linuxbrew`
+- `dev_fortress_neovim_kickstart`
 - `dev_fortress_shell_config_ready`
-- future `shell_config_bootstrap`
 - future `uv_prereqs`
 
 As roles land, update this file so it reflects current reality rather than a
@@ -73,8 +80,57 @@ Uses the native `community.general.apk` module so reruns stay declarative and
 aligned with Alpine's package-manager model instead of falling back to shell
 wrappers.
 
+### `dev_fortress_native_bootstrap_prereqs`
+
+Converges the minimum native command substrate required before `shell-config`
+bootstrap runs on supported Linux targets, then asserts that the substrate is
+actually present. The current contract is intentionally small:
+`python3`, `git`, `curl`, and `zsh`.
+
+### `dev_fortress_docker`
+
+Installs Docker CE on Ubuntu workstation and cloud targets using Docker's
+official apt repository, converges a small managed `daemon.json`, enables the
+`docker` and `containerd` services under systemd, and adds the target user to
+the `docker` group. This role is intentionally not applied to disposable
+`kind = "docker"` SSH targets.
+
+### `dev_fortress_shell_config_bootstrap`
+
+Clones `shell-config`, runs the repo-owned `csm bootstrap` entrypoint, and
+persists the selected profile into the target user's XDG state directory.
+This is intentionally done before Homebrew uplift so Dev Fortress can validate
+the shell on a minimally prepared host first.
+
+### `dev_fortress_shell_config_zinit`
+
+Installs the fortress profile-local `zinit` checkout when the selected profile
+expects it. The role is intentionally convergent: it installs `zinit` when it
+is missing, but does not treat every bootstrap run as an implicit plugin
+manager update cycle.
+
+### `dev_fortress_login_shell`
+
+Converges the target user's login shell to `zsh` using the native Ansible user
+module. This stays configurable per target and defaults to enabled for
+non-local targets so real SSH and cloud hosts actually enter the Dev Fortress
+shell on login.
+
+### `dev_fortress_linuxbrew`
+
+Installs Linuxbrew for supported Ubuntu targets in the standard supported
+prefix, persists a managed shellenv snippet, and converges the current
+fortress operator tool pool after `shell-config` bootstrap.
+
+### `dev_fortress_neovim_kickstart`
+
+Clones `kickstart.nvim` into a parallel XDG config directory and installs a
+repo-managed `nvim-kickstart` wrapper that launches Neovim with
+`NVIM_APPNAME=nvim-kickstart`. This keeps the IDE-style starter config
+available without overwriting an existing user-owned `~/.config/nvim`.
+
 ### `dev_fortress_shell_config_ready`
 
 Reports whether the target currently looks ready for the later shell-config
-handoff, while keeping the boundary between Dev Fortress-managed state and
-user-owned customization explicit.
+install or current shell-config state, while keeping the boundary between Dev
+Fortress-managed state and user-owned customization explicit.

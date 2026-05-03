@@ -1,0 +1,13 @@
+---
+- name: Ensure kickstart.nvim checkout is present
+  ansible.builtin.git:
+    repo: "{{ dev_container_fortress_neovim_kickstart_repo_effective }}"
+    dest: "{{ dev_container_fortress_neovim_kickstart_dir_effective }}"
+    version: "{{ dev_container_fortress_neovim_kickstart_branch_effective }}"
+    update: true
+
+- name: Install nvim-kickstart wrapper
+  ansible.builtin.template:
+    src: nvim-kickstart.sh.j2
+    dest: "{{ dev_container_fortress_neovim_kickstart_wrapper_effective }}"
+    mode: "0755"
