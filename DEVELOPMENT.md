@@ -1,9 +1,12 @@
 # Development Guide
 
-This guide is for a developer who wants to get productive in `dev-container-fortress` quickly.
+This guide is for a developer who wants to work on
+`dev-container-fortress`, `shell-config`, or both without losing track of
+which local checkout is actually active.
 
 It focuses on the current high-value loop:
 
+- clone both repos explicitly for development
 - bootstrap the repo locally
 - use `ft` as the primary operator CLI
 - build and validate Ubuntu and Alpine test containers
@@ -16,6 +19,30 @@ It focuses on the current high-value loop:
 > When a documented `ft` or bootstrap workflow exists, prefer it over ad hoc
 > manual commands. If a necessary workflow is still too manual or taxing,
 > treat that as a roadmap opportunity rather than a permanent workaround.
+
+## Development Layout
+
+For active development, prefer a sibling-checkout layout:
+
+```text
+<workspace>/
+  dev-container-fortress/
+  shell-config/
+```
+
+This matters because:
+
+- `ft workspace ...` auto-mounts a sibling `../shell-config` checkout when it
+  exists
+- `ft container build ... --shell-config-source local` is easiest to drive from
+  a real local `shell-config` clone
+- it keeps the source you are editing separate from any installed
+  `~/.config/shell-config` checkout that host bootstrap may manage
+
+Operator installs and host bootstrap may still populate
+`${XDG_CONFIG_HOME:-$HOME/.config}/shell-config`. Treat that installed checkout
+as runtime state. For development, your sibling clone should be the source of
+truth.
 
 ## Supported Developer Platforms
 
@@ -115,29 +142,45 @@ rsync --version
 
 ## First-Time Setup
 
-Recommended one-liner:
+If you only want the operator path, use the installer described in
+[README.md](/home/timl/projects/tboss/dev-container-fortress/README.md).
+
+For development, start from explicit clones instead:
+
+```zsh
+git clone https://github.com/GrndZero101/dev-container-fortress.git
+git clone https://github.com/GrndZero101/shell-config.git
+cd dev-container-fortress
+zsh ./bootstrap.zsh
+```
+
+If you specifically want the installer-shaped flow for Dev Fortress itself,
+this still works:
 
 ```zsh
 curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | sh
 ```
 
-This will:
+But that is the weaker development path when you are also editing
+`shell-config`, because you still need to be deliberate about which
+`shell-config` checkout your shell and containers are using.
 
-1. clone or refresh the repository checkout
-2. install `uv` if missing
-3. hand off to `bootstrap.zsh`
-4. provision a uv-managed Python 3.14 runtime for the project environment
-5. create or refresh the local project environment
-6. install the live `ft` CLI into the user tool path with `uv tool install`
-7. install the `ft` completion artifact into the XDG data tree
+The Dev Fortress bootstrap will:
 
-Optional environment overrides:
+1. install `uv` if missing
+2. hand off to `bootstrap.zsh`
+3. provision a uv-managed Python 3.14 runtime for the project environment
+4. create or refresh the local project environment
+5. install the live `ft` CLI into the user tool path with `uv tool install`
+6. install the `ft` completion artifact into the XDG data tree
+
+Optional environment overrides for the installer path:
 
 - `DEV_CONTAINER_FORTRESS_DIR` to change the checkout destination
 - `DEV_CONTAINER_FORTRESS_REF` to pin a branch, tag, or commit
 - `DEV_CONTAINER_FORTRESS_REPO` to use an alternate repository URL
 
-Manual clone fallback:
+Manual clone fallback for Dev Fortress only:
 
 ```zsh
 git clone https://github.com/GrndZero101/dev-container-fortress.git
@@ -317,7 +360,33 @@ ft container reset ubuntu
 
 ## Shell-Config Development Loop
 
-If you are actively changing `shell-config`, prefer a repo-local build source instead of a moving GitHub branch.
+If you are actively changing `shell-config`, prefer your local clone instead of
+an installed checkout or a moving GitHub branch.
+
+Recommended assumptions:
+
+- your development clone lives at `../shell-config`
+- workspace flows should mount that clone directly
+- container builds should stage from that clone directly
+- if host bootstrap has already installed `~/.config/shell-config`, do not
+  assume that checkout reflects your in-progress branch work
+
+The mounted workspace path is the easiest truthful loop:
+
+```zsh
+ft workspace doctor ubuntu-full
+ft workspace build ubuntu-full
+ft workspace up ubuntu-full
+ft workspace enter ubuntu-full
+```
+
+Then verify the mounted checkout:
+
+```zsh
+ft workspace exec ubuntu-full -- zsh -lc 'test -d /workspace/shell-config && echo shell-config-mounted'
+```
+
+For Docker image builds, prefer a repo-local build source instead of a moving GitHub branch.
 
 Recommended:
 
