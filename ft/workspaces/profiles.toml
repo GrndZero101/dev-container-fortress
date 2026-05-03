@@ -1,0 +1,59 @@
+[tool_layers.gitforge]
+description = "Persists GitHub CLI and GitLab CLI state for forge-driven workflows."
+mode = "image_build"
+build_arg = "WORKSPACE_TOOL_LAYER_GITFORGE"
+
+[tool_layers.secrets]
+description = "Reserved marker for the future secrets baseline and restore contract."
+mode = "state_only"
+
+[tool_layers.aws]
+description = "Persists AWS CLI state and marks the profile for AWS-oriented workflows."
+mode = "image_build"
+build_arg = "WORKSPACE_TOOL_LAYER_AWS"
+
+[tool_layers.azure]
+description = "Persists Azure CLI state and marks the profile for Azure-oriented workflows."
+mode = "state_only"
+
+[profiles.ubuntu-base]
+description = "Ubuntu-first mounted daily-driver workspace for Dev Fortress development."
+container_target = "ubuntu"
+working_directory = "/workspace/dev-container-fortress"
+persisted_mounts = ["cache", "share", "gh", "glab", "aws", "azure"]
+tool_layers = []
+
+[profiles.ubuntu-gitforge]
+description = "Ubuntu workspace with forge-oriented persisted state for GitHub and GitLab CLI use."
+container_target = "ubuntu"
+working_directory = "/workspace/dev-container-fortress"
+persisted_mounts = ["cache", "share", "gh", "glab"]
+tool_layers = ["gitforge"]
+
+[profiles.ubuntu-secrets]
+description = "Ubuntu workspace reserved for future secrets-baseline integration."
+container_target = "ubuntu"
+working_directory = "/workspace/dev-container-fortress"
+persisted_mounts = ["cache", "share"]
+tool_layers = ["secrets"]
+
+[profiles.ubuntu-cloud-aws]
+description = "Ubuntu workspace with AWS CLI state persistence."
+container_target = "ubuntu"
+working_directory = "/workspace/dev-container-fortress"
+persisted_mounts = ["cache", "share", "aws"]
+tool_layers = ["aws"]
+
+[profiles.ubuntu-cloud-azure]
+description = "Ubuntu workspace with Azure CLI state persistence."
+container_target = "ubuntu"
+working_directory = "/workspace/dev-container-fortress"
+persisted_mounts = ["cache", "share", "azure"]
+tool_layers = ["azure"]
+
+[profiles.ubuntu-full]
+description = "Ubuntu workspace that combines the current optional layer markers, with gitforge and AWS now changing the built image."
+container_target = "ubuntu"
+working_directory = "/workspace/dev-container-fortress"
+persisted_mounts = ["cache", "share", "gh", "glab", "aws", "azure"]
+tool_layers = ["gitforge", "secrets", "aws", "azure"]

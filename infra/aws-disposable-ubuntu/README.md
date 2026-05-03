@@ -60,29 +60,40 @@ This is intentionally not a full AWS platform layer.
 
 ## Expected Operator Flow
 
-1. Create a managed SSH key for the future host target name.
-2. Copy `terraform.tfvars.example` to `terraform.tfvars` and fill in real values.
-3. Run `terraform init`, `terraform plan`, and `terraform apply`.
-4. Copy the `host_target_toml_fragment` output into `hosts.toml`.
-5. Run `uv run ft host doctor <target> --probe`.
-6. Run `uv run ft host bootstrap <target> --check`.
-7. Run `uv run ft host bootstrap <target>`.
-8. Destroy the host when validation is complete.
+The preferred operator loop now runs through `ft`, which derives the managed SSH
+public key automatically and passes it to Terraform via `TF_VAR_ssh_public_key`.
 
-Example bootstrap of the managed SSH key:
+1. Copy `terraform.tfvars.example` to `terraform.tfvars` and fill in the stable values.
+2. Run `uv run ft infra aws-disposable-ubuntu plan`.
+3. Run `uv run ft infra aws-disposable-ubuntu apply`.
+4. Run `uv run ft host doctor <target> --probe`.
+5. Run `uv run ft host bootstrap <target> --check`.
+6. Run `uv run ft host bootstrap <target>`.
+7. Run `uv run ft host bootstrap <target>` again to confirm convergence.
+8. Destroy the host when validation is complete with `uv run ft infra aws-disposable-ubuntu destroy`.
+
+Example preferred loop:
 
 ```zsh
-uv run ft host ssh-key dev-fortress-ec2-dev --config hosts.seed.toml
-cat "${XDG_STATE_HOME:-$HOME/.local/state}/dev-container-fortress/ssh/dev-fortress-ec2-dev/dev_fortress_ed25519.pub"
+cp infra/aws-disposable-ubuntu/terraform.tfvars.example infra/aws-disposable-ubuntu/terraform.tfvars
+uv run ft infra aws-disposable-ubuntu plan
+uv run ft infra aws-disposable-ubuntu apply
+uv run ft host doctor dev-fortress-ec2-dev --probe
+uv run ft host bootstrap dev-fortress-ec2-dev --check
+uv run ft host bootstrap dev-fortress-ec2-dev
+uv run ft host bootstrap dev-fortress-ec2-dev
+uv run ft infra aws-disposable-ubuntu destroy
 ```
 
-Example Terraform loop:
+`ft infra aws-disposable-ubuntu apply` also imports the Terraform-emitted host
+target into your configured `hosts.toml` by default, so the manual TOML copy step
+is no longer required in the common case.
+
+The raw Terraform path still works when needed:
 
 ```zsh
 cd infra/aws-disposable-ubuntu
-cp terraform.tfvars.example terraform.tfvars
 terraform init
-terraform fmt
 terraform validate
 terraform plan
 terraform apply
@@ -112,7 +123,7 @@ terraform destroy
 - the AWS account has a default VPC and default subnets in the chosen region
 - Ubuntu cloud images use the `ubuntu` SSH user
 - standard Ubuntu AWS images already include the SSM Agent for Session Manager
-- the operator supplies a trusted CIDR for SSH ingress
+- the operator supplies a trusted CIDR for SSH ingress, or allows automatic public-IP detection
 - ARM64 is the default cost-conscious path, with a fixed instance-type fallback
 
 These assumptions are deliberate for the first real-cloud pass and can be

@@ -5,6 +5,7 @@ description = "Provisioning and packaging workspace for portable developer envir
 requires-python = ">=3.14"
 dependencies = [
   "ft",
+  "prompt-toolkit>=3.0.51",
 ]
 
 [dependency-groups]

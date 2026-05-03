@@ -6,6 +6,8 @@ ARG SHELL_CONFIG_BRANCH="main"
 ARG SHELL_CONFIG_LOCAL_DIR=""
 ARG SHELL_CONFIG_PROFILE_DEFAULT="zsh-tll-citadel-dev-fortress"
 ARG SHELL_CONFIG_INSTALL_ZINIT="1"
+ARG WORKSPACE_TOOL_LAYER_GITFORGE="0"
+ARG WORKSPACE_TOOL_LAYER_AWS="0"
 
 FROM ${UV_DISTROLESS_IMAGE} AS uv-distroless
 
@@ -28,6 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tar \
     tmux \
     unzip \
+    xdg-utils \
     zsh \
   && rm -rf /var/lib/apt/lists/*
 
@@ -48,9 +51,13 @@ ARG SHELL_CONFIG_BRANCH="main"
 ARG SHELL_CONFIG_LOCAL_DIR=""
 ARG SHELL_CONFIG_PROFILE_DEFAULT="zsh-tll-citadel-dev-fortress"
 ARG SHELL_CONFIG_INSTALL_ZINIT="1"
+ARG WORKSPACE_TOOL_LAYER_GITFORGE="0"
+ARG WORKSPACE_TOOL_LAYER_AWS="0"
 
 COPY --from=uv-distroless /uv /uvx /usr/local/bin/
 COPY containers/common/install-corporate-ca.sh /usr/local/bin/install-corporate-ca
+COPY containers/common/install-aws-cli.sh /usr/local/bin/install-aws-cli
+COPY containers/common/ft-host-browser-open.sh /usr/local/bin/ft-host-browser-open
 COPY containers/common/install-shell-config.sh /usr/local/bin/install-shell-config
 COPY containers/common/start-test-target.sh /usr/local/bin/start-test-target
 
@@ -82,7 +89,7 @@ RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
   && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-${USERNAME} \
   && chmod 0440 /etc/sudoers.d/90-${USERNAME}
 
-RUN chmod 0755 /usr/local/bin/install-corporate-ca /usr/local/bin/install-shell-config /usr/local/bin/start-test-target
+RUN chmod 0755 /usr/local/bin/install-corporate-ca /usr/local/bin/install-aws-cli /usr/local/bin/ft-host-browser-open /usr/local/bin/install-shell-config /usr/local/bin/start-test-target
 RUN --mount=type=bind,source=.,target=/tmp/build-context,readonly \
     /usr/local/bin/install-corporate-ca /tmp/build-context "${CORPORATE_CA_CERT_DIR}"
 
@@ -106,15 +113,28 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh
 RUN uv python install 3.14
 RUN uv tool install --python 3.14 ${XDG_DATA_HOME}/dev-container-fortress/ft
 RUN ft completion install zsh
-RUN ft install \
+RUN --mount=type=cache,target=/home/vscode/.cache/dev-container-fortress/tools,uid=1000,gid=1000 \
+    ft install \
     --manifest ${XDG_DATA_HOME}/dev-container-fortress/ft/tools/tools.toml \
     --target ubuntu
+RUN if [ "${WORKSPACE_TOOL_LAYER_GITFORGE}" = "1" ]; then \
+      sudo apt-get update \
+      && sudo apt-get install -y --no-install-recommends gh glab \
+      && sudo rm -rf /var/lib/apt/lists/*; \
+    fi
+RUN if [ "${WORKSPACE_TOOL_LAYER_AWS}" = "1" ]; then \
+      sudo /usr/local/bin/install-aws-cli; \
+    fi
 
 RUN uv --version \
   && test -f ${XDG_DATA_HOME}/dev-container-fortress/completions/zsh/_ft \
-  && ft plan --manifest ${XDG_DATA_HOME}/dev-container-fortress/ft/tools/tools.toml --target ubuntu \
+  && ft plan --manifest ${XDG_DATA_HOME}/dev-container-fortress/ft/tools/tools.toml --target ubuntu --use-manifest-version \
   && tenv --version \
   && starship --version \
   && zoxide --version \
   && atuin --version \
+  && nvim --version \
+  && rg --version \
+  && if [ "${WORKSPACE_TOOL_LAYER_GITFORGE}" = "1" ]; then gh --version && glab --version; fi \
+  && if [ "${WORKSPACE_TOOL_LAYER_AWS}" = "1" ]; then aws --version; fi \
   && fzf --version

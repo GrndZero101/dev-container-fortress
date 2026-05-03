@@ -6,9 +6,14 @@ import fnmatch
 import json
 import os
 from pathlib import Path
+import re
+import shlex
 import shutil
+import signal
 import subprocess
+import sys
 import tempfile
+import time
 import tomllib
 from typing import Annotated
 
@@ -23,9 +28,13 @@ from ft.models import (
     HostTargetManifest,
     ToolDefinition,
     ToolManifest,
+    WorkspaceProfileDefinition,
+    WorkspaceProfileManifest,
+    WorkspaceToolLayerDefinition,
 )
 from ft.platforms import detect_architecture, detect_system
 from ft.settings import FtSettings
+from ft.tool_pool import default_tool_pool_manifest_path, load_tool_pool_manifest
 
 app = typer.Typer(
     add_completion=False,
@@ -38,7 +47,7 @@ app = typer.Typer(
 tool_app = typer.Typer(
     no_args_is_help=False,
     help=(
-        "Manage pinned tool installation plans and installs from the shared manifest."
+        "Manage tool installation plans and installs from the shared manifest."
     ),
 )
 container_app = typer.Typer(
@@ -55,6 +64,34 @@ host_app = typer.Typer(
         "future provisioning workflows."
     ),
 )
+workspace_app = typer.Typer(
+    no_args_is_help=False,
+    help=(
+        "Operate mounted Dev Fortress daily-driver workspace containers for "
+        "day-to-day development."
+    ),
+)
+workspace_auth_app = typer.Typer(
+    no_args_is_help=False,
+    help=(
+        "Inspect auth and persisted-state handoff points for mounted Dev Fortress "
+        "workspace containers."
+    ),
+)
+infra_app = typer.Typer(
+    no_args_is_help=False,
+    help=(
+        "Run thin Terraform-backed infrastructure workflows that feed the "
+        "existing Dev Fortress host loop."
+    ),
+)
+aws_disposable_ubuntu_app = typer.Typer(
+    no_args_is_help=False,
+    help=(
+        "Operate the disposable Ubuntu AWS Terraform stack with Dev Fortress "
+        "managed SSH keys and host-target import wiring."
+    ),
+)
 completion_app = typer.Typer(
     no_args_is_help=False,
     help=(
@@ -65,11 +102,26 @@ completion_app = typer.Typer(
 app.add_typer(tool_app, name="tool")
 app.add_typer(container_app, name="container")
 app.add_typer(host_app, name="host")
+app.add_typer(workspace_app, name="workspace")
+workspace_app.add_typer(workspace_auth_app, name="auth")
+app.add_typer(infra_app, name="infra")
+infra_app.add_typer(aws_disposable_ubuntu_app, name="aws-disposable-ubuntu")
 app.add_typer(completion_app, name="completion")
 
 console = Console()
 KNOWN_CONTAINER_TARGETS = ("ubuntu", "alpine")
 SUPPORTED_SHELL_CONFIG_SOURCES = ("github", "local")
+ANSIBLE_PLAY_RECAP_PATTERN = re.compile(
+    r"^(?:.*\|\s*)?(?P<target>[^\n:|]+?)\s*:\s*"
+    r"ok=(?P<ok>\d+)\s+"
+    r"changed=(?P<changed>\d+)\s+"
+    r"unreachable=(?P<unreachable>\d+)\s+"
+    r"failed=(?P<failed>\d+)\s+"
+    r"skipped=(?P<skipped>\d+)\s+"
+    r"rescued=(?P<rescued>\d+)\s+"
+    r"ignored=(?P<ignored>\d+)\s*$",
+    re.MULTILINE,
+)
 
 
 @app.callback(invoke_without_command=True)
@@ -99,6 +151,38 @@ def container_callback(context: typer.Context) -> None:
 @host_app.callback(invoke_without_command=True)
 def host_callback(context: typer.Context) -> None:
     """Render host-group help when no host subcommand is passed."""
+    if context.invoked_subcommand is None:
+        console.print(context.get_help())
+        raise typer.Exit()
+
+
+@workspace_app.callback(invoke_without_command=True)
+def workspace_callback(context: typer.Context) -> None:
+    """Render workspace-group help when no workspace subcommand is passed."""
+    if context.invoked_subcommand is None:
+        console.print(context.get_help())
+        raise typer.Exit()
+
+
+@workspace_auth_app.callback(invoke_without_command=True)
+def workspace_auth_callback(context: typer.Context) -> None:
+    """Render workspace-auth help when no subcommand is passed."""
+    if context.invoked_subcommand is None:
+        console.print(context.get_help())
+        raise typer.Exit()
+
+
+@infra_app.callback(invoke_without_command=True)
+def infra_callback(context: typer.Context) -> None:
+    """Render infra-group help when no infra subcommand is passed."""
+    if context.invoked_subcommand is None:
+        console.print(context.get_help())
+        raise typer.Exit()
+
+
+@aws_disposable_ubuntu_app.callback(invoke_without_command=True)
+def aws_disposable_ubuntu_callback(context: typer.Context) -> None:
+    """Render disposable-Ubuntu infra help when no subcommand is passed."""
     if context.invoked_subcommand is None:
         console.print(context.get_help())
         raise typer.Exit()
@@ -160,12 +244,20 @@ def _resolve_runtime_options(
 def _selected_tools(
     manifest: ToolManifest,
     requested_tool: str | None,
+    *,
+    target: str | None,
 ) -> list[tuple[str, ToolDefinition]]:
     """Resolve the tool subset requested by the user."""
     if requested_tool is None:
-        return manifest.enabled_tools()
+        return manifest.enabled_tools(target=target)
     if requested_tool not in manifest.tools:
         raise typer.BadParameter(f"unknown tool: {requested_tool}", param_hint="--tool")
+    if not manifest.tools[requested_tool].enabled_for(target):
+        target_detail = f" for target {target}" if target else ""
+        raise typer.BadParameter(
+            f"tool {requested_tool} is not downloader-managed{target_detail}",
+            param_hint="--tool",
+        )
     return [(requested_tool, manifest.tools[requested_tool])]
 
 
@@ -184,7 +276,7 @@ def _render_plan(
     table.add_column("key", style="cyan")
     table.add_column("value", style="white")
     table.add_row("target", target)
-    table.add_row("version", plan.tool.version)
+    table.add_row("version", plan.resolved_version or plan.tool.version)
     table.add_row("platform", f"{plan.os_name}/{plan.architecture}")
     table.add_row("url", plan.asset.url)
     table.add_row("archive", plan.asset.archive)
@@ -208,6 +300,14 @@ def _container_host_ssh_target_name(target: str) -> str | None:
         return "dev-fortress-ubuntu"
     if target == "alpine":
         return "dev-fortress-alpine"
+    return None
+
+
+def _container_target_for_host_ssh_target_name(host_target_name: str) -> str | None:
+    """Return the disposable container target for one SSH host-target name."""
+    for target in KNOWN_CONTAINER_TARGETS:
+        if _container_host_ssh_target_name(target) == host_target_name:
+            return target
     return None
 
 
@@ -410,6 +510,917 @@ def _dev_fortress_state_root() -> Path:
     return xdg_state_home / "dev-container-fortress"
 
 
+def _workspace_profile_manifest_path() -> Path:
+    """Return the repo-local workspace-profile manifest path."""
+    return _repo_root() / "ft" / "workspaces" / "profiles.toml"
+
+
+def _workspace_state_root() -> Path:
+    """Return the XDG-aligned state root for workspace containers."""
+    return _dev_fortress_state_root() / "workspaces"
+
+
+def _load_workspace_profile_manifest() -> WorkspaceProfileManifest:
+    """Load and validate the repo-local workspace-profile manifest."""
+    manifest_path = _workspace_profile_manifest_path()
+    with manifest_path.open("rb") as handle:
+        return WorkspaceProfileManifest.model_validate(tomllib.load(handle))
+
+
+def _resolve_workspace_profile(
+    profile_name: str,
+) -> tuple[str, WorkspaceProfileDefinition]:
+    """Resolve exactly one named workspace profile from the repo manifest."""
+    manifest = _load_workspace_profile_manifest()
+    if profile_name not in manifest.profiles:
+        available = ", ".join(sorted(manifest.profiles))
+        raise typer.BadParameter(
+            f"unknown workspace profile: {profile_name!r} (available: {available})",
+            param_hint="profile",
+        )
+    return profile_name, manifest.profiles[profile_name]
+
+
+def _workspace_profile_names() -> list[str]:
+    """Return workspace profile names in deterministic order."""
+    return sorted(_load_workspace_profile_manifest().profiles)
+
+
+def _workspace_tool_layer_definitions(
+    profile: WorkspaceProfileDefinition,
+) -> list[tuple[str, WorkspaceToolLayerDefinition]]:
+    """Return resolved tool-layer definitions for one workspace profile."""
+    manifest = _load_workspace_profile_manifest()
+    return [
+        (layer_name, manifest.tool_layers[layer_name]) for layer_name in profile.tool_layers
+    ]
+
+
+def _workspace_image_build_layers(
+    profile: WorkspaceProfileDefinition,
+) -> list[tuple[str, WorkspaceToolLayerDefinition]]:
+    """Return workspace layers that would change image build behavior."""
+    return [
+        (layer_name, layer_definition)
+        for layer_name, layer_definition in _workspace_tool_layer_definitions(profile)
+        if layer_definition.mode == "image_build"
+    ]
+
+
+def _workspace_state_only_layers(
+    profile: WorkspaceProfileDefinition,
+) -> list[tuple[str, WorkspaceToolLayerDefinition]]:
+    """Return workspace layers that are state and contract markers only."""
+    return [
+        (layer_name, layer_definition)
+        for layer_name, layer_definition in _workspace_tool_layer_definitions(profile)
+        if layer_definition.mode == "state_only"
+    ]
+
+
+def _workspace_container_name(profile_name: str) -> str:
+    """Return the deterministic Docker container name for one workspace profile."""
+    return f"dev-fortress-workspace-{profile_name}"
+
+
+def _workspace_image_tag(profile_name: str) -> str:
+    """Return the deterministic Docker image tag for one workspace profile."""
+    return f"dev-container-fortress:workspace-{profile_name}"
+
+
+def _workspace_default_shell_config_checkout() -> Path | None:
+    """Return the default sibling shell-config checkout path when present."""
+    candidate = _repo_root().parent / "shell-config"
+    return candidate if candidate.is_dir() else None
+
+
+def _workspace_runtime_shell_config_checkout(
+    shell_config_checkout: Path | None,
+) -> Path | None:
+    """Resolve the optional shell-config checkout used for live bind mounts."""
+    if shell_config_checkout is not None:
+        return shell_config_checkout
+    return _workspace_default_shell_config_checkout()
+
+
+def _workspace_shell_config_resolution(
+    shell_config_checkout: Path | None,
+) -> dict[str, object]:
+    """Describe how the workspace shell-config checkout was resolved."""
+    if shell_config_checkout is not None:
+        return {
+            "requested_path": str(shell_config_checkout),
+            "resolved_path": str(shell_config_checkout),
+            "source": "explicit",
+            "available": True,
+            "detail": "using --shell-config-checkout",
+        }
+
+    default_checkout = _workspace_default_shell_config_checkout()
+    if default_checkout is not None:
+        return {
+            "requested_path": None,
+            "resolved_path": str(default_checkout),
+            "source": "sibling_default",
+            "available": True,
+            "detail": "using sibling ../shell-config checkout",
+        }
+
+    return {
+        "requested_path": None,
+        "resolved_path": None,
+        "source": "none",
+        "available": False,
+        "detail": "no sibling ../shell-config checkout found; pass --shell-config-checkout /absolute/path/to/shell-config to mount it live",
+    }
+
+
+def _workspace_persisted_host_path(profile_name: str, mount_name: str) -> Path:
+    """Return the host-side persisted path for one named workspace mount."""
+    mapping = {
+        "cache": _workspace_state_root() / profile_name / "cache",
+        "share": _workspace_state_root() / profile_name / "share",
+        "gh": _workspace_state_root() / profile_name / "config-gh",
+        "glab": _workspace_state_root() / profile_name / "config-glab",
+        "aws": Path.home() / ".aws",
+        "azure": _workspace_state_root() / profile_name / "azure",
+    }
+    if mount_name not in mapping:
+        raise ValueError(f"unsupported workspace persisted mount: {mount_name}")
+    return mapping[mount_name]
+
+
+def _workspace_persisted_container_path(mount_name: str) -> str:
+    """Return the in-container path for one named workspace persisted mount."""
+    mapping = {
+        "cache": "/home/vscode/.cache",
+        "share": "/home/vscode/.local/share",
+        "gh": "/home/vscode/.config/gh",
+        "glab": "/home/vscode/.config/glab",
+        "aws": "/home/vscode/.aws",
+        "azure": "/home/vscode/.azure",
+    }
+    if mount_name not in mapping:
+        raise ValueError(f"unsupported workspace persisted mount: {mount_name}")
+    return mapping[mount_name]
+
+
+def _host_proc_version_text() -> str:
+    """Return the host kernel version text when readable."""
+    try:
+        return Path("/proc/version").read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
+def _host_runs_under_wsl() -> bool:
+    """Return whether the current host runtime appears to be WSL-backed."""
+    if os.environ.get("WSL_DISTRO_NAME") or os.environ.get("WSL_INTEROP"):
+        return True
+    return "microsoft" in _host_proc_version_text().lower()
+
+
+def _workspace_wsl_windows_system_path() -> Path:
+    """Return the host-side Windows System32 path used for WSL browser interop."""
+    return Path("/mnt/c/Windows/System32")
+
+
+def _workspace_wsl_interop_root() -> Path:
+    """Return the host-side WSL interop runtime directory."""
+    return Path("/run/WSL")
+
+
+def _workspace_wsl_init_path() -> Path:
+    """Return the host-side WSL init binary used by Windows interop."""
+    return Path("/init")
+
+
+def _workspace_host_browser_open_command() -> str:
+    """Return the in-container helper used to reach the host browser."""
+    return "/usr/local/bin/ft-host-browser-open"
+
+
+def _workspace_host_browser_bridge_dir(profile_name: str) -> Path:
+    """Return the host-side directory used for browser bridge runtime state."""
+    return _workspace_state_root() / profile_name / "host-browser"
+
+
+def _workspace_container_host_browser_bridge_dir() -> str:
+    """Return the in-container directory used for host browser bridge mounts."""
+    return "/tmp/dev-fortress-host-services"
+
+
+def _workspace_container_host_browser_socket() -> str:
+    """Return the in-container Unix socket path for host browser bridge traffic."""
+    return (
+        f"{_workspace_container_host_browser_bridge_dir()}/browser-open.sock"
+    )
+
+
+def _workspace_host_browser_opener_command() -> list[str] | None:
+    """Resolve the preferred host-side browser opener command."""
+    override = os.environ.get("DEV_FORTRESS_HOST_BROWSER_OPENER")
+    if override:
+        return shlex.split(override)
+    if _host_runs_under_wsl() and shutil.which("wslview"):
+        return ["wslview"]
+    browser = os.environ.get("BROWSER")
+    if browser:
+        return shlex.split(browser)
+    if shutil.which("xdg-open"):
+        return ["xdg-open"]
+    return None
+
+
+def _workspace_pid_is_alive(pid: int) -> bool:
+    """Return whether one process id is currently alive."""
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def _ensure_workspace_host_browser_bridge(profile_name: str) -> Path | None:
+    """Ensure the host-side browser bridge broker is running and return its socket."""
+    opener_command = _workspace_host_browser_opener_command()
+    if opener_command is None:
+        return None
+
+    bridge_dir = _workspace_host_browser_bridge_dir(profile_name)
+    bridge_dir.mkdir(parents=True, exist_ok=True)
+    socket_path = bridge_dir / "browser-open.sock"
+    pid_path = bridge_dir / "browser-open.pid"
+    command_path = bridge_dir / "browser-open.command"
+    opener_signature = json.dumps(opener_command)
+
+    if pid_path.is_file():
+        try:
+            existing_pid = int(pid_path.read_text(encoding="utf-8").strip())
+        except ValueError:
+            existing_pid = 0
+        existing_signature = ""
+        if command_path.is_file():
+            existing_signature = command_path.read_text(encoding="utf-8").strip()
+        if existing_pid > 0 and socket_path.exists() and _workspace_pid_is_alive(
+            existing_pid
+        ) and existing_signature == opener_signature:
+            return socket_path
+        if existing_pid > 0 and _workspace_pid_is_alive(existing_pid):
+            try:
+                os.kill(existing_pid, signal.SIGTERM)
+            except OSError:
+                pass
+
+    if socket_path.exists():
+        socket_path.unlink()
+
+    command = [
+        sys.executable,
+        "-m",
+        "ft.browser_bridge",
+        str(socket_path),
+        *opener_command,
+    ]
+    process = subprocess.Popen(
+        command,
+        cwd=str(_repo_root() / "ft"),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    pid_path.write_text(f"{process.pid}\n", encoding="utf-8")
+    command_path.write_text(f"{opener_signature}\n", encoding="utf-8")
+
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        if socket_path.exists():
+            return socket_path
+        if process.poll() is not None:
+            break
+        time.sleep(0.05)
+    return None
+
+
+def _workspace_host_checkout_mounts(
+    shell_config_checkout: Path | None,
+) -> list[tuple[Path, str]]:
+    """Return required and optional host checkout mounts for one workspace."""
+    mounts: list[tuple[Path, str]] = [
+        (_repo_root(), "/workspace/dev-container-fortress"),
+    ]
+    resolved_shell_config = _workspace_runtime_shell_config_checkout(
+        shell_config_checkout
+    )
+    if resolved_shell_config is not None:
+        mounts.append((resolved_shell_config, "/workspace/shell-config"))
+    return mounts
+
+
+def _workspace_mount_plan(
+    profile_name: str,
+    profile: WorkspaceProfileDefinition,
+    *,
+    shell_config_checkout: Path | None = None,
+) -> list[tuple[Path, str]]:
+    """Return the complete host-to-container mount plan for one workspace profile."""
+    mounts = _workspace_host_checkout_mounts(shell_config_checkout)
+    for mount_name in profile.persisted_mounts:
+        mounts.append(
+            (
+                _workspace_persisted_host_path(profile_name, mount_name),
+                _workspace_persisted_container_path(mount_name),
+            )
+        )
+    return mounts
+
+
+def _workspace_mount_plan_payload(
+    profile_name: str,
+    profile: WorkspaceProfileDefinition,
+    *,
+    shell_config_checkout: Path | None = None,
+) -> dict[str, object]:
+    """Return a machine-readable mount plan payload for one workspace profile."""
+    mounts = _workspace_mount_plan(
+        profile_name,
+        profile,
+        shell_config_checkout=shell_config_checkout,
+    )
+    shell_config = _workspace_shell_config_resolution(shell_config_checkout)
+    return {
+        "profile": profile_name,
+        "target": profile.container_target,
+        "working_directory": profile.working_directory,
+        "tool_layers": [
+            {
+                "name": layer_name,
+                "mode": layer_definition.mode,
+                "description": layer_definition.description,
+                "build_arg": layer_definition.build_arg,
+            }
+            for layer_name, layer_definition in _workspace_tool_layer_definitions(profile)
+        ],
+        "image_build_layers": [
+            layer_name for layer_name, _ in _workspace_image_build_layers(profile)
+        ],
+        "state_only_layers": [
+            layer_name for layer_name, _ in _workspace_state_only_layers(profile)
+        ],
+        "shell_config": shell_config,
+        "shell_config_checkout": shell_config["resolved_path"],
+        "mounts": [
+            {
+                "host_path": str(host_path),
+                "container_path": container_path,
+            }
+            for host_path, container_path in mounts
+        ],
+    }
+
+
+def _workspace_auth_checks(
+    profile_name: str,
+    profile: WorkspaceProfileDefinition,
+) -> list[dict[str, str]]:
+    """Return structured auth and persisted-state checks for one workspace profile."""
+    checks: list[dict[str, str]] = []
+
+    def add_check(*, stat: str, check: str, detail: str) -> None:
+        checks.append({"stat": stat, "check": check, "detail": detail})
+
+    ssh_auth_sock = os.environ.get("SSH_AUTH_SOCK")
+    if ssh_auth_sock:
+        ssh_auth_sock_path = Path(ssh_auth_sock)
+        passed = ssh_auth_sock_path.exists()
+        add_check(
+            stat="OK" if passed else "WARN",
+            check="ssh_agent",
+            detail=str(ssh_auth_sock_path)
+            if passed
+            else f"missing {ssh_auth_sock_path}",
+        )
+    else:
+        add_check(
+            stat="WARN",
+            check="ssh_agent",
+            detail="SSH_AUTH_SOCK not set; SSH agent forwarding will be unavailable",
+        )
+
+    gh_browser = os.environ.get("GH_BROWSER")
+    browser = os.environ.get("BROWSER")
+    if gh_browser:
+        add_check(
+            stat="OK",
+            check="gh_browser_env",
+            detail=gh_browser,
+        )
+    elif browser:
+        add_check(
+            stat="OK",
+            check="browser_env",
+            detail=browser,
+        )
+    else:
+        add_check(
+            stat="INFO",
+            check="browser_env",
+            detail=(
+                "BROWSER and GH_BROWSER are not set; gh will rely on in-container "
+                "browser opener discovery and may fall back to device code"
+            ),
+        )
+
+    if _host_runs_under_wsl():
+        windows_system_path = _workspace_wsl_windows_system_path()
+        if windows_system_path.is_dir():
+            add_check(
+                stat="OK",
+                check="browser_strategy",
+                detail=(
+                    "WSL host detected; workspace will mount "
+                    f"{windows_system_path} and forward WSL interop runtime paths; "
+                    "default browser launch will go through "
+                    f"{_workspace_host_browser_open_command()} when no explicit "
+                    "browser env is set"
+                ),
+            )
+        else:
+            add_check(
+                stat="WARN",
+                check="browser_strategy",
+                detail=(
+                    "WSL host detected but /mnt/c/Windows/System32 is unavailable; "
+                    "container browser launch may fall back to device code"
+                ),
+            )
+    else:
+        add_check(
+            stat="INFO",
+            check="browser_strategy",
+            detail="standard Linux browser opener flow",
+        )
+
+    browser_bridge_opener = _workspace_host_browser_opener_command()
+    if browser_bridge_opener is not None:
+        add_check(
+            stat="OK",
+            check="host_browser_bridge",
+            detail="host browser opener available",
+        )
+    else:
+        add_check(
+            stat="INFO",
+            check="host_browser_bridge",
+            detail="not available; container will rely on in-container opener behavior",
+        )
+
+    mount_checks: list[tuple[str, str]] = [
+        ("gh", "github_cli_state"),
+        ("glab", "gitlab_cli_state"),
+        ("aws", "aws_cli_state"),
+        ("azure", "azure_cli_state"),
+    ]
+    for mount_name, check_name in mount_checks:
+        if mount_name not in profile.persisted_mounts:
+            add_check(
+                stat="INFO",
+                check=check_name,
+                detail=f"not part of profile {profile_name}",
+            )
+            continue
+        host_path = _workspace_persisted_host_path(profile_name, mount_name)
+        add_check(
+            stat="OK" if host_path.is_dir() else "WARN",
+            check=check_name,
+            detail=str(host_path) if host_path.is_dir() else f"missing {host_path}",
+        )
+
+    if "secrets" in profile.tool_layers:
+        add_check(
+            stat="WARN",
+            check="secrets_baseline",
+            detail="workspace secrets baseline is not implemented yet; see M7a",
+        )
+    else:
+        add_check(
+            stat="INFO",
+            check="secrets_baseline",
+            detail=f"not part of profile {profile_name}",
+        )
+
+    return checks
+
+
+def _workspace_layer_command_checks(
+    profile: WorkspaceProfileDefinition,
+) -> list[str]:
+    """Return runtime command checks implied by the workspace image-build layers."""
+    checks: list[str] = []
+    for layer_name, _ in _workspace_image_build_layers(profile):
+        if layer_name == "gitforge":
+            checks.extend(["gh", "glab", "xdg-open"])
+        if layer_name == "aws":
+            checks.append("aws")
+    return checks
+
+
+def _build_workspace_auth_doctor_report(
+    profile_name: str,
+    profile: WorkspaceProfileDefinition,
+) -> dict[str, object]:
+    """Build a structured auth-handoff report for one workspace profile."""
+    checks = _workspace_auth_checks(profile_name, profile)
+    overall_success = all(check["stat"] not in {"FAIL", "WARN"} for check in checks)
+    next_step = (
+        "start the workspace with `ft workspace up "
+        f"{profile_name}` after any missing auth or state paths are addressed."
+    )
+    return {
+        "success": overall_success,
+        "profile": profile_name,
+        "target": profile.container_target,
+        "tool_layers": [
+            {
+                "name": layer_name,
+                "mode": layer_definition.mode,
+                "description": layer_definition.description,
+            }
+            for layer_name, layer_definition in _workspace_tool_layer_definitions(profile)
+        ],
+        "checks": checks,
+        "next_step": next_step,
+    }
+
+
+def _render_workspace_auth_doctor_report(report: dict[str, object]) -> None:
+    """Render one workspace auth-doctor report in the standard human-readable format."""
+    console.print("[bold]workspace auth checks[/bold]")
+    console.print(f"{'stat':<4} {'check':<24} detail")
+    for check in report["checks"]:
+        _emit_validation_result(
+            stat=str(check["stat"]),
+            check=str(check["check"]),
+            detail=str(check["detail"]),
+        )
+    console.print(f"next: {report['next_step']}")
+
+
+def _run_workspace_auth_doctor(
+    profile_name: str,
+    profile: WorkspaceProfileDefinition,
+    *,
+    json_output: bool = False,
+) -> bool:
+    """Render an auth-handoff report for one workspace profile."""
+    report = _build_workspace_auth_doctor_report(profile_name, profile)
+    if json_output:
+        _json_dump(report)
+    else:
+        _render_workspace_auth_doctor_report(report)
+    return bool(report["success"])
+
+
+def _validate_workspace_auth_runtime(
+    profile_name: str,
+    profile: WorkspaceProfileDefinition,
+) -> dict[str, object]:
+    """Validate runtime auth helpers and selected auth-oriented CLIs in one workspace."""
+    container_name = _workspace_container_name(profile_name)
+    checks: list[dict[str, str]] = []
+    success = True
+
+    def add_result(*, stat: str, check: str, detail: str) -> None:
+        checks.append({"stat": stat, "check": check, "detail": detail})
+
+    inspect_result = _run_command(["docker", "container", "inspect", container_name])
+    if inspect_result.returncode != 0:
+        add_result(
+            stat="FAIL",
+            check="workspace",
+            detail=f"workspace not found: {container_name}",
+        )
+        return {
+            "profile": profile_name,
+            "container": container_name,
+            "success": False,
+            "checks": checks,
+        }
+
+    runtime_checks = [
+        (
+            "browser_helper",
+            "test -x /usr/local/bin/ft-host-browser-open && print -r -- ready",
+        ),
+        (
+            "browser_env",
+            (
+                'if [ -n "${BROWSER:-}" ]; then print -r -- "${BROWSER}"; '
+                'elif [ -n "${GH_BROWSER:-}" ]; then print -r -- "${GH_BROWSER}"; '
+                "else print -r -- unset; fi"
+            ),
+        ),
+        (
+            "host_browser_socket",
+            (
+                'socket_path="${DEV_FORTRESS_HOST_BROWSER_SOCKET:-}"; '
+                'if [ -z "${socket_path}" ]; then print -r -- unset; '
+                'elif [ -S "${socket_path}" ]; then print -r -- "${socket_path}"; '
+                'else print -r -- "missing ${socket_path}"; exit 1; fi'
+            ),
+        ),
+    ]
+
+    for check_name, command in runtime_checks:
+        ok, output = _shell_text(container_name, command)
+        normalized_output = _last_non_empty_line(output)
+        if check_name == "browser_helper":
+            passed = ok and normalized_output == "ready"
+            if passed:
+                add_result(stat="OK", check=check_name, detail=normalized_output)
+                continue
+            add_result(
+                stat="FAIL",
+                check=check_name,
+                detail=normalized_output or output or "check failed",
+            )
+            success = False
+            continue
+        if check_name == "browser_env":
+            add_result(
+                stat="OK" if normalized_output != "unset" else "INFO",
+                check=check_name,
+                detail=(
+                    normalized_output
+                    if normalized_output != "unset"
+                    else "not configured in running workspace"
+                ),
+            )
+            continue
+        if check_name == "host_browser_socket":
+            if ok and normalized_output:
+                add_result(stat="OK", check=check_name, detail=normalized_output)
+                continue
+            if normalized_output == "unset":
+                add_result(
+                    stat="INFO",
+                    check=check_name,
+                    detail="not configured in running workspace",
+                )
+                continue
+            add_result(
+                stat="FAIL",
+                check=check_name,
+                detail=normalized_output or output or "check failed",
+            )
+            success = False
+
+    for command_name in _workspace_layer_command_checks(profile):
+        ok, output = _shell_text(container_name, f"command -v -- '{command_name}'")
+        normalized_output = _last_non_empty_line(output)
+        add_result(
+            stat="OK" if ok else "FAIL",
+            check=f"{command_name}_command",
+            detail=normalized_output or "command not found",
+        )
+        success = success and ok
+
+    if "gitforge" in profile.tool_layers:
+        for check_name, command in (
+            (
+                "gh_login_state",
+                "gh auth status >/dev/null 2>&1 && print -r -- logged-in || print -r -- not-logged-in",
+            ),
+            (
+                "glab_login_state",
+                "glab auth status >/dev/null 2>&1 && print -r -- logged-in || print -r -- not-logged-in",
+            ),
+        ):
+            ok, output = _shell_text(container_name, command)
+            normalized_output = _last_non_empty_line(output)
+            add_result(
+                stat="OK" if ok and normalized_output == "logged-in" else "INFO",
+                check=check_name,
+                detail=normalized_output or "unknown",
+            )
+
+    if "aws" in profile.tool_layers:
+        add_result(
+            stat="INFO",
+            check="aws_login_mode",
+            detail=(
+                "browser launch is supported in workspace containers, but "
+                "localhost callback OAuth is not guaranteed; prefer "
+                "`aws sso login --use-device-code` for plain Docker workspaces"
+            ),
+        )
+        for check_name, command, expected in (
+            (
+                "aws_state",
+                (
+                    'if [ -f "${HOME}/.aws/config" ] || [ -f "${HOME}/.aws/credentials" ]; '
+                    'then print -r -- configured; else print -r -- missing; fi'
+                ),
+                "configured",
+            ),
+            (
+                "aws_sso_cache",
+                (
+                    'if [ -d "${HOME}/.aws/sso/cache" ]; '
+                    'then print -r -- present; else print -r -- missing; fi'
+                ),
+                "present",
+            ),
+        ):
+            ok, output = _shell_text(container_name, command)
+            normalized_output = _last_non_empty_line(output)
+            add_result(
+                stat="OK" if ok and normalized_output == expected else "INFO",
+                check=check_name,
+                detail=normalized_output or "unknown",
+            )
+
+    if "azure" in profile.tool_layers:
+        add_result(
+            stat="INFO",
+            check="azure_login_mode",
+            detail=(
+                "browser launch is supported in workspace containers, but "
+                "localhost callback OAuth is not guaranteed; prefer device-code "
+                "or equivalent non-localhost flows when available"
+            ),
+        )
+        ok, output = _shell_text(
+            container_name,
+            (
+                'if [ -d "${HOME}/.azure" ] && [ "$(ls -A "${HOME}/.azure" 2>/dev/null)" ]; '
+                'then print -r -- configured; else print -r -- missing; fi'
+            ),
+        )
+        normalized_output = _last_non_empty_line(output)
+        add_result(
+            stat="OK" if ok and normalized_output == "configured" else "INFO",
+            check="azure_state",
+            detail=normalized_output or "unknown",
+        )
+
+    return {
+        "profile": profile_name,
+        "container": container_name,
+        "success": success,
+        "checks": checks,
+    }
+
+
+def _validate_workspace_profile(
+    profile_name: str,
+    profile: WorkspaceProfileDefinition,
+    *,
+    shell_config_checkout: Path | None = None,
+) -> dict[str, object]:
+    """Validate one mounted workspace container profile and return structured results."""
+    container_name = _workspace_container_name(profile_name)
+    checks: list[dict[str, str]] = []
+    success = True
+
+    def add_result(*, stat: str, check: str, detail: str) -> None:
+        checks.append({"stat": stat, "check": check, "detail": detail})
+
+    inspect_result = _run_command(["docker", "container", "inspect", container_name])
+    if inspect_result.returncode != 0:
+        add_result(
+            stat="FAIL",
+            check="workspace",
+            detail=f"workspace not found: {container_name}",
+        )
+        return {
+            "profile": profile_name,
+            "container": container_name,
+            "success": False,
+            "checks": checks,
+        }
+
+    shell_checks = [
+        ("runtime_user", "whoami", "vscode"),
+        ("working_directory", "pwd", profile.working_directory),
+        (
+            "active_profile",
+            'print -r -- "${SHELL_CONFIG_PROFILE:-}"',
+            "zsh-tll-citadel-dev-fortress",
+        ),
+        ("path_local_bin", 'print -r -- "$PATH"', "/home/vscode/.local/bin"),
+        (
+            "workspace_repo_mount",
+            'test -d /workspace/dev-container-fortress && print -r -- mounted',
+            "mounted",
+        ),
+    ]
+
+    shell_config = _workspace_shell_config_resolution(shell_config_checkout)
+    if bool(shell_config["available"]):
+        shell_checks.append(
+            (
+                "shell_config_mount",
+                'test -d /workspace/shell-config && print -r -- mounted',
+                "mounted",
+            )
+        )
+    else:
+        add_result(
+            stat="INFO",
+            check="shell_config_mount",
+            detail=str(shell_config["detail"]),
+        )
+
+    for check_name, command, expected in shell_checks:
+        ok, output = _shell_text(container_name, command)
+        if not ok:
+            add_result(stat="FAIL", check=check_name, detail=output)
+            success = False
+            continue
+        if check_name == "path_local_bin":
+            passed = f":{expected}:" in f":{output}:"
+            detail = expected if passed else f"missing {expected}"
+        else:
+            normalized_output = _last_non_empty_line(output)
+            passed = normalized_output == expected
+            detail = (
+                normalized_output
+                if passed
+                else f"expected {expected}, got {normalized_output or output}"
+            )
+        add_result(
+            stat="OK" if passed else "FAIL",
+            check=check_name,
+            detail=detail,
+        )
+        success = success and passed
+
+    for command_name in _workspace_layer_command_checks(profile):
+        ok, output = _shell_text(container_name, f"command -v -- '{command_name}'")
+        normalized_output = _last_non_empty_line(output)
+        add_result(
+            stat="OK" if ok else "FAIL",
+            check=command_name,
+            detail=normalized_output or "command not found",
+        )
+        success = success and ok
+
+    return {
+        "profile": profile_name,
+        "container": container_name,
+        "success": success,
+        "checks": checks,
+    }
+
+
+def _workspace_status_value(profile_name: str) -> str:
+    """Return the current Docker status value for one managed workspace container."""
+    result = _run_command(
+        [
+            "docker",
+            "inspect",
+            "-f",
+            "{{.State.Status}}",
+            _workspace_container_name(profile_name),
+        ]
+    )
+    if result.returncode == 0:
+        return result.stdout.strip()
+    return "missing"
+
+
+def _workspace_exists(profile_name: str) -> bool:
+    """Return whether the managed workspace container currently exists."""
+    result = _run_command(
+        ["docker", "container", "inspect", _workspace_container_name(profile_name)]
+    )
+    return result.returncode == 0
+
+
+def _render_workspace_status(profile_names: list[str]) -> None:
+    """Render a simple status table for one or more managed workspace profiles."""
+    manifest = _load_workspace_profile_manifest()
+    table = Table(title="dev-container-fortress workspaces")
+    table.add_column("profile", style="cyan")
+    table.add_column("target", style="white")
+    table.add_column("container", style="white")
+    table.add_column("image", style="white")
+    table.add_column("status", style="white")
+
+    for profile_name in profile_names:
+        profile = manifest.profiles[profile_name]
+        table.add_row(
+            profile_name,
+            profile.container_target,
+            _workspace_container_name(profile_name),
+            _workspace_image_tag(profile_name),
+            _workspace_status_value(profile_name),
+        )
+
+    console.print(table)
+
+
 def _configured_host_config_path(config_path: Path | None) -> Path:
     """Return the resolved host-target config path for the current invocation."""
     if config_path is not None:
@@ -424,6 +1435,29 @@ def _load_host_target_manifest(
     config_path: Path | None = None,
 ) -> tuple[Path, HostTargetManifest]:
     """Load and validate the configured host-target manifest."""
+    if config_path is None:
+        settings = FtSettings()
+        if settings.host_config is None:
+            example_path = _example_host_config_path()
+            default_path = _default_host_config_path()
+            base_manifest: HostTargetManifest | None = None
+            if example_path.is_file():
+                with example_path.open("rb") as handle:
+                    base_manifest = HostTargetManifest.model_validate(
+                        tomllib.load(handle)
+                    )
+            if default_path.is_file():
+                with default_path.open("rb") as handle:
+                    user_manifest = HostTargetManifest.model_validate(
+                        tomllib.load(handle)
+                    )
+                merged_manifest = _upsert_host_targets(
+                    base_manifest, user_manifest.targets
+                )
+                return default_path, merged_manifest
+            if base_manifest is not None:
+                return example_path, base_manifest
+
     resolved_path = _configured_host_config_path(config_path)
     if not resolved_path.is_file():
         raise typer.BadParameter(
@@ -437,6 +1471,166 @@ def _load_host_target_manifest(
     with resolved_path.open("rb") as handle:
         manifest_data = tomllib.load(handle)
     return resolved_path, HostTargetManifest.model_validate(manifest_data)
+
+
+def _load_optional_host_target_manifest(
+    config_path: Path | None = None,
+) -> tuple[Path, HostTargetManifest | None]:
+    """Load a host-target manifest when present, otherwise return the resolved path."""
+    resolved_path = _configured_host_config_path(config_path)
+    if not resolved_path.is_file():
+        return resolved_path, None
+    with resolved_path.open("rb") as handle:
+        manifest_data = tomllib.load(handle)
+    return resolved_path, HostTargetManifest.model_validate(manifest_data)
+
+
+def _toml_quote(value: str) -> str:
+    """Return one TOML-safe quoted string."""
+    return json.dumps(value)
+
+
+def _toml_inline_list(values: list[str]) -> str:
+    """Render one simple TOML inline string list."""
+    return "[" + ", ".join(_toml_quote(value) for value in values) + "]"
+
+
+def _host_target_manifest_toml(manifest: HostTargetManifest) -> str:
+    """Render a host-target manifest in a small deterministic TOML shape."""
+    lines: list[str] = []
+    for index, target in enumerate(manifest.targets):
+        if index > 0:
+            lines.append("")
+        lines.append("[[targets]]")
+        lines.append(f"name = {_toml_quote(target.name)}")
+        lines.append(f"kind = {_toml_quote(target.kind)}")
+        if target.connection != "ssh":
+            lines.append(f"connection = {_toml_quote(target.connection)}")
+        if target.host is not None:
+            lines.append(f"host = {_toml_quote(target.host)}")
+        if target.user is not None:
+            lines.append(f"user = {_toml_quote(target.user)}")
+        if target.port != 22:
+            lines.append(f"port = {target.port}")
+        if target.auth_method != "ssh_key":
+            lines.append(f"auth_method = {_toml_quote(target.auth_method)}")
+        if target.ssh_key_name is not None:
+            lines.append(f"ssh_key_name = {_toml_quote(target.ssh_key_name)}")
+        if target.ansible_python_interpreter is not None:
+            lines.append(
+                "ansible_python_interpreter = "
+                f"{_toml_quote(target.ansible_python_interpreter)}"
+            )
+        lines.append(f"tags = {_toml_inline_list(target.tags)}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _upsert_host_targets(
+    existing_manifest: HostTargetManifest | None,
+    imported_targets: list[HostTargetDefinition],
+) -> HostTargetManifest:
+    """Upsert imported targets into an existing manifest by target name."""
+    merged_targets: list[HostTargetDefinition] = []
+    imported_by_name = {target.name: target for target in imported_targets}
+    if existing_manifest is not None:
+        for target in existing_manifest.targets:
+            replacement = imported_by_name.pop(target.name, None)
+            merged_targets.append(replacement or target)
+    merged_targets.extend(imported_by_name[name] for name in sorted(imported_by_name))
+    return HostTargetManifest.model_validate({"targets": merged_targets})
+
+
+def _default_disposable_ubuntu_terraform_dir() -> Path:
+    """Return the repo-local Terraform directory for the disposable Ubuntu host."""
+    return _repo_root() / "infra" / "aws-disposable-ubuntu"
+
+
+def _default_disposable_ubuntu_seed_config_path() -> Path:
+    """Return the repo-local seed host manifest for the disposable Ubuntu stack."""
+    return _default_disposable_ubuntu_terraform_dir() / "hosts.seed.toml"
+
+
+def _terraform_output_payload(terraform_dir: Path) -> dict[str, object]:
+    """Return parsed `terraform output -json` for one Terraform working directory."""
+    if shutil.which("terraform") is None:
+        raise typer.BadParameter(
+            "terraform not found in PATH",
+            param_hint="--terraform-dir",
+        )
+    if not terraform_dir.is_dir():
+        raise typer.BadParameter(
+            f"terraform directory not found: {terraform_dir}",
+            param_hint="--terraform-dir",
+        )
+
+    result = _run_command(
+        ["terraform", "-chdir=" + str(terraform_dir), "output", "-json"]
+    )
+    if result.returncode != 0:
+        detail = (
+            _last_non_empty_line(result.stderr or result.stdout)
+            or "terraform output -json failed"
+        )
+        console.print(detail)
+        raise typer.Exit(code=1)
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise typer.BadParameter(
+            "terraform output did not return valid JSON",
+            param_hint="--terraform-dir",
+        ) from error
+    if not isinstance(payload, dict):
+        raise typer.BadParameter(
+            "terraform output payload was not a JSON object",
+            param_hint="--terraform-dir",
+        )
+    return payload
+
+
+def _terraform_host_target_manifest(terraform_dir: Path) -> HostTargetManifest:
+    """Parse the host-target manifest emitted by Terraform outputs."""
+    payload = _terraform_output_payload(terraform_dir)
+    fragment_record = payload.get("host_target_toml_fragment")
+    if not isinstance(fragment_record, dict) or "value" not in fragment_record:
+        raise typer.BadParameter(
+            "terraform output is missing host_target_toml_fragment",
+            param_hint="--terraform-dir",
+        )
+    fragment_value = fragment_record["value"]
+    if not isinstance(fragment_value, str):
+        raise typer.BadParameter(
+            "terraform host_target_toml_fragment value must be a TOML string",
+            param_hint="--terraform-dir",
+        )
+    try:
+        manifest_data = tomllib.loads(fragment_value)
+    except tomllib.TOMLDecodeError as error:
+        raise typer.BadParameter(
+            "terraform host_target_toml_fragment is not valid TOML",
+            param_hint="--terraform-dir",
+        ) from error
+    return HostTargetManifest.model_validate(manifest_data)
+
+
+def _import_terraform_host_targets(
+    terraform_dir: Path, config_path: Path | None
+) -> dict[str, object]:
+    """Import Terraform-emitted host targets into the configured hosts.toml."""
+    imported_manifest = _terraform_host_target_manifest(terraform_dir)
+    resolved_path, existing_manifest = _load_optional_host_target_manifest(config_path)
+    merged_manifest = _upsert_host_targets(existing_manifest, imported_manifest.targets)
+    resolved_path.parent.mkdir(parents=True, exist_ok=True)
+    resolved_path.write_text(
+        _host_target_manifest_toml(merged_manifest), encoding="utf-8"
+    )
+    return {
+        "config": str(resolved_path),
+        "terraform_dir": str(terraform_dir),
+        "imported_targets": [target.name for target in imported_manifest.targets],
+        "total_targets": len(merged_manifest.targets),
+    }
 
 
 def _resolve_host_targets(
@@ -463,6 +1657,225 @@ def _resolve_host_targets(
     )
 
 
+def _interactive_select_host_targets(
+    targets: list[HostTargetDefinition],
+) -> list[HostTargetDefinition]:
+    """Interactively select one or more host targets with prompt-toolkit."""
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        raise typer.BadParameter(
+            "--interactive requires an interactive terminal",
+            param_hint="--interactive",
+        )
+    try:
+        from prompt_toolkit.application import Application
+        from prompt_toolkit.key_binding import KeyBindings
+        from prompt_toolkit.layout import HSplit, Layout, Window
+        from prompt_toolkit.layout.controls import FormattedTextControl
+        from prompt_toolkit.styles import Style
+        from prompt_toolkit.widgets import TextArea
+    except ImportError as error:
+        raise typer.BadParameter(
+            "prompt-toolkit is not installed; run `uv sync` first",
+            param_hint="--interactive",
+        ) from error
+
+    if not targets:
+        return []
+
+    selected_names: set[str] = set()
+    cursor_index = 0
+    result: list[HostTargetDefinition] = []
+    query_field = TextArea(
+        text="",
+        multiline=False,
+        prompt=[("class:prompt.label", "filter"), ("class:prompt.sep", "> ")],
+        focus_on_click=True,
+        style="class:prompt.input",
+    )
+    selector_style = Style.from_dict(
+        {
+            "frame.title": "bold #8be9fd",
+            "frame.subtitle": "#6272a4",
+            "prompt.label": "bold #50fa7b",
+            "prompt.sep": "bold #8be9fd",
+            "prompt.input": "#f8f8f2 bg:#1f2335",
+            "divider": "#3b4261",
+            "pointer": "bold #8be9fd",
+            "checkbox.on": "bold #50fa7b",
+            "checkbox.off": "#6272a4",
+            "target.name": "bold #f8f8f2",
+            "target.meta": "#a9b1d6",
+            "target.count": "#7aa2f7",
+            "target.empty": "#6272a4 italic",
+            "target.active.pointer": "bold #1f2335 bg:#7aa2f7",
+            "target.active.checkbox.on": "bold #1f2335 bg:#7aa2f7",
+            "target.active.checkbox.off": "bold #1f2335 bg:#7aa2f7",
+            "target.active.name": "bold #1f2335 bg:#7aa2f7",
+            "target.active.meta": "#1f2335 bg:#7aa2f7",
+            "footer": "#6272a4",
+            "footer.key": "bold #8be9fd",
+        }
+    )
+
+    def filtered_targets() -> list[HostTargetDefinition]:
+        query = query_field.text.strip().lower()
+        if not query:
+            return targets
+        return [
+            target
+            for target in targets
+            if query in target.name.lower()
+            or query in target.kind.lower()
+            or any(query in tag.lower() for tag in target.tags)
+        ]
+
+    def clamp_cursor() -> None:
+        nonlocal cursor_index
+        matches = filtered_targets()
+        if not matches:
+            cursor_index = 0
+            return
+        cursor_index = max(0, min(cursor_index, len(matches) - 1))
+
+    def render_target_list() -> list[tuple[str, str]]:
+        matches = filtered_targets()
+        if not matches:
+            return [
+                ("class:target.empty", "  no targets match the current filter"),
+            ]
+
+        fragments: list[tuple[str, str]] = []
+        for index, target in enumerate(matches):
+            is_active = index == cursor_index
+            pointer = ">" if is_active else " "
+            checkbox = "[x]" if target.name in selected_names else "[ ]"
+            tags = ", ".join(target.tags)
+            detail = f"{target.kind}"
+            if tags:
+                detail = f"{detail} | {tags}"
+            prefix = "target.active" if is_active else "target"
+            checkbox_style = (
+                "checkbox.on" if target.name in selected_names else "checkbox.off"
+            )
+            fragments.extend(
+                [
+                    (f"class:{prefix}.pointer", f"{pointer} "),
+                    (f"class:{prefix}.{checkbox_style}", f"{checkbox} "),
+                    (f"class:{prefix}.name", target.name),
+                    (f"class:{prefix}.meta", f"  {detail}\n"),
+                ]
+            )
+        return fragments
+
+    def render_header() -> list[tuple[str, str]]:
+        return [
+            ("class:frame.title", "Dev Fortress Target Selector"),
+            (
+                "class:frame.subtitle",
+                f"  {len(filtered_targets())}/{len(targets)} visible",
+            ),
+        ]
+
+    def render_footer() -> list[tuple[str, str]]:
+        return [
+            ("class:footer.key", "Up/Down"),
+            ("class:footer", " move  "),
+            ("class:footer.key", "Space"),
+            ("class:footer", " toggle  "),
+            ("class:footer.key", "Enter"),
+            ("class:footer", " confirm  "),
+            ("class:footer.key", "Esc"),
+            ("class:footer", " cancel"),
+        ]
+
+    instructions = Window(
+        FormattedTextControl(render_header),
+        height=1,
+    )
+    result_window = Window(
+        FormattedTextControl(render_target_list),
+        always_hide_cursor=True,
+    )
+    footer = Window(
+        FormattedTextControl(render_footer),
+        height=1,
+    )
+
+    kb = KeyBindings()
+
+    @kb.add("up")
+    @kb.add("k")
+    def _move_up(event: object) -> None:
+        nonlocal cursor_index
+        if filtered_targets():
+            cursor_index = max(0, cursor_index - 1)
+
+    @kb.add("down")
+    @kb.add("j")
+    def _move_down(event: object) -> None:
+        nonlocal cursor_index
+        matches = filtered_targets()
+        if matches:
+            cursor_index = min(len(matches) - 1, cursor_index + 1)
+
+    @kb.add("space")
+    def _toggle_current(event: object) -> None:
+        matches = filtered_targets()
+        if not matches:
+            return
+        target = matches[cursor_index]
+        if target.name in selected_names:
+            selected_names.remove(target.name)
+        else:
+            selected_names.add(target.name)
+
+    @kb.add("enter")
+    def _accept(event: object) -> None:
+        matches = filtered_targets()
+        if not matches:
+            return
+        if not selected_names:
+            selected_names.add(matches[cursor_index].name)
+        selected_lookup = set(selected_names)
+        result.extend([target for target in targets if target.name in selected_lookup])
+        event.app.exit(result=result)
+
+    @kb.add("escape")
+    @kb.add("c-c")
+    def _cancel(event: object) -> None:
+        event.app.exit(result=[])
+
+    @query_field.buffer.on_text_changed.add_handler
+    def _on_text_changed(_: object) -> None:
+        clamp_cursor()
+
+    layout = Layout(
+        HSplit(
+            [
+                instructions,
+                query_field,
+                Window(height=1, char="-", style="class:divider"),
+                result_window,
+                Window(height=1, char="-", style="class:divider"),
+                footer,
+            ]
+        ),
+        focused_element=query_field,
+    )
+    app = Application(
+        layout=layout,
+        key_bindings=kb,
+        style=selector_style,
+        full_screen=False,
+        mouse_support=False,
+        refresh_interval=0.1,
+    )
+    selected = app.run()
+    if not selected:
+        raise typer.Exit(code=1)
+    return selected
+
+
 def _resolve_single_host_target(
     selector: str,
     manifest: HostTargetManifest,
@@ -478,6 +1891,20 @@ def _resolve_single_host_target(
         f"{command_name} requires exactly one target, but {selector!r} matched "
         f"{', '.join(target.name for target in resolved_targets)}",
         param_hint="target",
+    )
+
+
+def _interactive_select_single_host_target(
+    targets: list[HostTargetDefinition], *, command_name: str
+) -> HostTargetDefinition:
+    """Interactively resolve exactly one host target for one command."""
+    resolved_targets = _interactive_select_host_targets(targets)
+    if len(resolved_targets) == 1:
+        return resolved_targets[0]
+    raise typer.BadParameter(
+        f"{command_name} requires exactly one target, but interactive selection "
+        f"returned {len(resolved_targets)} targets",
+        param_hint="--interactive",
     )
 
 
@@ -499,6 +1926,73 @@ def _host_ssh_public_key_path(target: HostTargetDefinition) -> Path | None:
     if private_path is None:
         return None
     return private_path.with_name(f"{private_path.name}.pub")
+
+
+def _seed_host_target_for_name(
+    target_name: str,
+    seed_config_path: Path,
+) -> HostTargetDefinition:
+    """Return one seed host target definition for managed key generation."""
+    _, manifest = _load_host_target_manifest(seed_config_path)
+    return _resolve_single_host_target(
+        target_name,
+        manifest,
+        command_name="infra aws-disposable-ubuntu",
+    )
+
+
+def _ensure_managed_ssh_public_key_for_name(
+    target_name: str,
+    seed_config_path: Path,
+) -> Path:
+    """Ensure the managed SSH public key exists for one future host target name."""
+    target = _seed_host_target_for_name(target_name, seed_config_path)
+    _ensure_managed_host_ssh_key(target)
+    public_key_path = _host_ssh_public_key_path(target)
+    assert public_key_path is not None
+    return public_key_path
+
+
+def _terraform_env_for_disposable_ubuntu(
+    *,
+    target_name: str,
+    seed_config_path: Path,
+) -> dict[str, str]:
+    """Build the Terraform environment for the disposable Ubuntu stack."""
+    public_key_path = _ensure_managed_ssh_public_key_for_name(
+        target_name, seed_config_path
+    )
+    public_key_text = public_key_path.read_text(encoding="utf-8").strip()
+    env = os.environ.copy()
+    env["TF_IN_AUTOMATION"] = "1"
+    env["TF_VAR_name"] = target_name
+    env["TF_VAR_ssh_public_key"] = public_key_text
+    return env
+
+
+def _run_disposable_ubuntu_terraform(
+    terraform_args: list[str],
+    *,
+    terraform_dir: Path,
+    target_name: str,
+    seed_config_path: Path,
+) -> int:
+    """Run one Terraform command for the disposable Ubuntu stack."""
+    if shutil.which("terraform") is None:
+        console.print("terraform not found in PATH")
+        raise typer.Exit(code=1)
+    if not terraform_dir.is_dir():
+        raise typer.BadParameter(
+            f"terraform directory not found: {terraform_dir}",
+            param_hint="--terraform-dir",
+        )
+
+    env = _terraform_env_for_disposable_ubuntu(
+        target_name=target_name,
+        seed_config_path=seed_config_path,
+    )
+    command = ["terraform", "-chdir=" + str(terraform_dir), *terraform_args]
+    return _run_streaming_command(command, env=env).returncode
 
 
 def _host_known_hosts_path(target: HostTargetDefinition) -> Path | None:
@@ -557,6 +2051,95 @@ def _host_ansible_ssh_common_args(target: HostTargetDefinition) -> str | None:
     if _uses_managed_known_hosts(target):
         return f"-o StrictHostKeyChecking=yes -o UserKnownHostsFile={known_hosts_path}"
     return None
+
+
+def _host_ssh_command(target: HostTargetDefinition) -> list[str]:
+    """Return the interactive SSH command for one configured SSH host target."""
+    if target.connection != "ssh":
+        raise typer.BadParameter(
+            f"target {target.name!r} does not use ssh transport",
+            param_hint="target",
+        )
+    if shutil.which("ssh") is None:
+        console.print("ssh not found in PATH")
+        raise typer.Exit(code=1)
+
+    private_key_path = _host_ssh_private_key_path(target)
+    if target.auth_method == "ssh_key":
+        if private_key_path is None or not private_key_path.is_file():
+            console.print(
+                f"missing managed ssh key for {target.name}: {private_key_path}"
+            )
+            console.print(
+                "Run `ft host ssh-key <target>` or rerun with a workflow that "
+                "ensures managed keys first."
+            )
+            raise typer.Exit(code=1)
+
+    known_hosts_path = _refresh_managed_known_host(target)
+
+    command = ["ssh", "-p", str(target.port)]
+    if target.auth_method == "ssh_key" and private_key_path is not None:
+        command.extend(["-i", str(private_key_path)])
+    if known_hosts_path is not None and _uses_managed_known_hosts(target):
+        command.extend(
+            [
+                "-o",
+                "StrictHostKeyChecking=yes",
+                "-o",
+                f"UserKnownHostsFile={known_hosts_path}",
+            ]
+        )
+    command.append(f"{target.user}@{target.host}")
+    return command
+
+
+def _ssh_single_host_target(target: HostTargetDefinition) -> int:
+    """Open one interactive SSH session for one configured host target."""
+    if not _ensure_host_target_runtime_ready(target):
+        console.print(f"failed to prepare runtime for {target.name} before SSH")
+        return 1
+    return _run_streaming_command(_host_ssh_command(target)).returncode
+
+
+def _ensure_host_target_runtime_ready(target: HostTargetDefinition) -> bool:
+    """Ensure any target-specific runtime prerequisites exist before SSH operations."""
+    if target.kind != "docker":
+        return True
+    container_target = _container_target_for_host_ssh_target_name(target.name)
+    if container_target is None:
+        return True
+    if not _up_single_container_target(container_target):
+        return False
+    return _wait_for_target_ssh_service(target)
+
+
+def _wait_for_target_ssh_service(
+    target: HostTargetDefinition,
+    *,
+    attempts: int = 10,
+    delay_seconds: float = 1.0,
+) -> bool:
+    """Wait for one SSH target to start accepting keyscan connections."""
+    if shutil.which("ssh-keyscan") is None:
+        return True
+
+    for attempt in range(attempts):
+        result = _run_command(
+            [
+                "ssh-keyscan",
+                "-T",
+                "2",
+                "-p",
+                str(target.port),
+                str(target.host),
+            ]
+        )
+        if result.returncode == 0 and (result.stdout or "").strip():
+            return True
+        if attempt < attempts - 1:
+            time.sleep(delay_seconds)
+    return False
 
 
 def _host_playbook_path() -> Path:
@@ -659,19 +2242,61 @@ def _bootstrap_host_targets(
     *,
     ensure_ssh_keys: bool,
     check: bool,
+    ask_become_pass: bool,
 ) -> int:
-    """Run the host bootstrap playbook for one or more configured targets."""
+    """Run the host bootstrap playbook for one or more configured targets.
+
+    Args:
+        targets: Host targets to bootstrap.
+        ensure_ssh_keys: Whether to create managed SSH keys instead of running Ansible.
+        check: Whether to run Ansible in check mode.
+        ask_become_pass: Whether to pass ``-K`` to ``ansible-playbook``.
+
+    Returns:
+        Process exit code from the underlying bootstrap action.
+    """
+    return int(
+        _bootstrap_host_targets_with_result(
+            targets,
+            ensure_ssh_keys=ensure_ssh_keys,
+            check=check,
+            ask_become_pass=ask_become_pass,
+            capture_recap=False,
+        )["returncode"]
+    )
+
+
+def _bootstrap_host_targets_with_result(
+    targets: list[HostTargetDefinition],
+    *,
+    ensure_ssh_keys: bool,
+    check: bool,
+    ask_become_pass: bool,
+    capture_recap: bool,
+) -> dict[str, object]:
+    """Run the host bootstrap playbook and return execution metadata.
+
+    Args:
+        targets: Host targets to bootstrap.
+        ensure_ssh_keys: Whether to create managed SSH keys instead of running Ansible.
+        check: Whether to run Ansible in check mode.
+        ask_become_pass: Whether to pass ``-K`` to ``ansible-playbook``.
+        capture_recap: Whether to parse ``PLAY RECAP`` counters from the Ansible log.
+
+    Returns:
+        Execution metadata containing the bootstrap exit code and any parsed recap.
+    """
     playbook_path = _host_playbook_path()
     ansible_config_path = _ansible_config_path()
     if not playbook_path.is_file():
         console.print(f"missing playbook: {playbook_path}")
-        return 1
+        return {"returncode": 1, "target_recaps": {}}
     if not ansible_config_path.is_file():
         console.print(f"missing ansible config: {ansible_config_path}")
-        return 1
+        return {"returncode": 1, "target_recaps": {}}
     if shutil.which("ansible-playbook") is None:
         console.print("ansible-playbook not found in PATH")
-        return 1
+        return {"returncode": 1, "target_recaps": {}}
 
     for target in targets:
         key_path = _host_ssh_private_key_path(target)
@@ -687,7 +2312,7 @@ def _bootstrap_host_targets(
                 f"missing managed ssh key for {target.name}: {key_path}. "
                 f"Run `ft host ssh-key {target.name}` or use --ensure-ssh-keys."
             )
-            return 1
+            return {"returncode": 1, "target_recaps": {}}
 
     inventory = _build_host_inventory(targets)
     with tempfile.NamedTemporaryFile(
@@ -697,15 +2322,30 @@ def _bootstrap_host_targets(
         inventory_path = Path(handle.name)
 
     command = ["ansible-playbook", "-i", str(inventory_path), str(playbook_path)]
+    if ask_become_pass:
+        command.append("-K")
     if check:
         command.append("--check")
     ansible_env = os.environ.copy()
     ansible_env["ANSIBLE_CONFIG"] = str(ansible_config_path)
+    log_path: Path | None = None
+    if capture_recap:
+        with tempfile.NamedTemporaryFile(suffix=".log", delete=False) as log_handle:
+            log_path = Path(log_handle.name)
+        ansible_env["ANSIBLE_LOG_PATH"] = str(log_path)
 
     try:
-        return _run_streaming_command(command, env=ansible_env).returncode
+        result = _run_streaming_command(command, env=ansible_env)
+        target_recaps: dict[str, dict[str, int]] = {}
+        if capture_recap and log_path is not None and log_path.exists():
+            target_recaps = _parse_ansible_play_recap(
+                log_path.read_text(encoding="utf-8", errors="replace")
+            )
+        return {"returncode": result.returncode, "target_recaps": target_recaps}
     finally:
         inventory_path.unlink(missing_ok=True)
+        if log_path is not None:
+            log_path.unlink(missing_ok=True)
 
 
 def _probe_ssh_target(target: HostTargetDefinition) -> tuple[bool, str]:
@@ -823,6 +2463,16 @@ def _build_host_doctor_report(
             )
             overall_success = False
             continue
+        if not _ensure_host_target_runtime_ready(target):
+            target_checks.append(
+                {
+                    "stat": "FAIL",
+                    "check": f"{target.name}_runtime",
+                    "detail": "failed to prepare target runtime before SSH probe",
+                }
+            )
+            overall_success = False
+            continue
 
         probe_ok, probe_detail = _probe_ssh_target(target)
         target_checks.append(
@@ -893,6 +2543,91 @@ def _run_host_doctor(
 
     console.print(f"next: {report['next_step']}")
     return bool(report["success"])
+
+
+def _validate_host_target(
+    target: HostTargetDefinition,
+    *,
+    config_path: Path,
+    json_output: bool,
+    ask_become_pass: bool,
+) -> bool:
+    """Run the standard doctor/bootstrap convergence loop for one host target."""
+    results: list[dict[str, object]] = []
+    success = _run_host_doctor(
+        [target], config_path=config_path, probe=True, json_output=json_output
+    )
+    results.append({"step": "doctor_probe", "success": success})
+
+    if success:
+        success = (
+            _bootstrap_host_targets(
+                [target],
+                ensure_ssh_keys=False,
+                check=True,
+                ask_become_pass=ask_become_pass,
+            )
+            == 0
+        )
+        results.append({"step": "bootstrap_check", "success": success})
+
+    if success:
+        success = (
+            _bootstrap_host_targets(
+                [target],
+                ensure_ssh_keys=False,
+                check=False,
+                ask_become_pass=ask_become_pass,
+            )
+            == 0
+        )
+        results.append({"step": "bootstrap_apply", "success": success})
+
+    if success:
+        converge_result = _bootstrap_host_targets_with_result(
+            [target],
+            ensure_ssh_keys=False,
+            check=False,
+            ask_become_pass=ask_become_pass,
+            capture_recap=True,
+        )
+        converge_success = int(converge_result["returncode"]) == 0
+        target_recaps = converge_result["target_recaps"]
+        recap = (
+            target_recaps[target.name]
+            if isinstance(target_recaps, dict) and target.name in target_recaps
+            else None
+        )
+        recap_changed = recap["changed"] if isinstance(recap, dict) else None
+        if converge_success and recap_changed is None:
+            console.print(
+                f"final bootstrap pass for {target.name} did not produce a parseable PLAY RECAP; unable to verify convergence"
+            )
+            converge_success = False
+        if converge_success and recap_changed != 0:
+            console.print(
+                f"final bootstrap pass for {target.name} did not converge cleanly: changed={recap_changed}"
+            )
+            converge_success = False
+        results.append(
+            {
+                "step": "bootstrap_converge",
+                "success": converge_success,
+                "changed": recap_changed,
+            }
+        )
+        success = converge_success
+
+    if json_output:
+        _json_dump(
+            {
+                "target": target.name,
+                "config": str(config_path),
+                "success": success,
+                "steps": results,
+            }
+        )
+    return success
 
 
 def _host_target_record(target: HostTargetDefinition) -> dict[str, object]:
@@ -1098,6 +2833,29 @@ def _run_streaming_command(
     return subprocess.run(command, check=False, text=True, env=env)
 
 
+def _parse_ansible_play_recap(log_text: str) -> dict[str, dict[str, int]]:
+    """Parse Ansible ``PLAY RECAP`` counters from one log stream.
+
+    Args:
+        log_text: Full Ansible log text.
+
+    Returns:
+        Mapping of inventory host name to recap counters.
+    """
+    recaps: dict[str, dict[str, int]] = {}
+    for match in ANSIBLE_PLAY_RECAP_PATTERN.finditer(log_text):
+        recaps[match.group("target").strip()] = {
+            "ok": int(match.group("ok")),
+            "changed": int(match.group("changed")),
+            "unreachable": int(match.group("unreachable")),
+            "failed": int(match.group("failed")),
+            "skipped": int(match.group("skipped")),
+            "rescued": int(match.group("rescued")),
+            "ignored": int(match.group("ignored")),
+        }
+    return recaps
+
+
 def _resolve_single_container_target(selector: str, *, command_name: str) -> str:
     """Resolve exactly one target for commands that cannot sensibly fan out."""
     resolved_targets = _resolve_container_targets(selector)
@@ -1160,6 +2918,11 @@ def _docker_available() -> tuple[bool, str]:
 def _doctor_manifest_path() -> Path:
     """Return the default repo-local tool manifest path used by ft."""
     return _repo_root() / "ft" / "tools" / "tools.toml"
+
+
+def _tool_pool_manifest_path() -> Path:
+    """Return the default repo-local canonical tool-pool manifest path."""
+    return default_tool_pool_manifest_path(_repo_root())
 
 
 def _build_doctor_report(targets: list[str]) -> dict[str, object]:
@@ -1343,15 +3106,9 @@ def _validate_single_container_target(target: str) -> dict[str, object]:
         )
         success = success and passed
 
-    for command_name in (
-        "starship",
-        "atuin",
-        "zoxide",
-        "fzf",
-        "fortress-hud",
-        "csm",
-        "ft",
-    ):
+    for command_name in load_tool_pool_manifest(
+        _tool_pool_manifest_path()
+    ).containers.command_checks_for(target):
         ok, output = _shell_text(container_name, f"command -v -- '{command_name}'")
         normalized_output = _last_non_empty_line(output)
         add_result(
@@ -1396,6 +3153,8 @@ def _validate_single_container_target(target: str) -> dict[str, object]:
 def _build_single_container_target(
     target: str,
     *,
+    image_tag: str | None = None,
+    extra_build_args: list[str] | None = None,
     shell_config_source: str,
     shell_config_repo_url: str,
     shell_config_branch: str,
@@ -1405,7 +3164,7 @@ def _build_single_container_target(
 ) -> bool:
     """Build one disposable container image target from the repo Dockerfile."""
     dockerfile_path = _dockerfile_for_target(target)
-    image_tag = _image_tag_for_target(target)
+    resolved_image_tag = image_tag or _image_tag_for_target(target)
 
     if not dockerfile_path.is_file():
         console.print(f"[red]missing Dockerfile:[/red] {dockerfile_path}")
@@ -1454,18 +3213,65 @@ def _build_single_container_target(
                 f"SHELL_CONFIG_LOCAL_DIR={local_dir_for_build}",
             ]
         )
+    if extra_build_args:
+        for build_arg in extra_build_args:
+            build_command.extend(["--build-arg", build_arg])
 
     build_command.extend(
         [
             "-f",
             str(dockerfile_path),
             "-t",
-            image_tag,
+            resolved_image_tag,
             str(_repo_root()),
         ]
     )
     result = _run_streaming_command(build_command)
     return result.returncode == 0
+
+
+def _build_workspace_profile(
+    profile_name: str,
+    profile: WorkspaceProfileDefinition,
+    *,
+    shell_config_source: str,
+    shell_config_repo_url: str,
+    shell_config_branch: str,
+    shell_config_local_dir: str | None,
+    shell_config_stage_from: Path | None,
+    no_cache: bool,
+) -> bool:
+    """Build one workspace image from the profile's underlying container target."""
+    image_build_layers = _workspace_image_build_layers(profile)
+    state_only_layers = _workspace_state_only_layers(profile)
+
+    if state_only_layers:
+        console.print(
+            "workspace layer markers that do not currently change the image: "
+            + ", ".join(layer_name for layer_name, _ in state_only_layers)
+        )
+    if image_build_layers:
+        console.print(
+            "workspace layers that change image build behavior: "
+            + ", ".join(layer_name for layer_name, _ in image_build_layers)
+        )
+    extra_build_args = [
+        f"{layer_definition.build_arg}=1"
+        for _, layer_definition in image_build_layers
+        if layer_definition.build_arg is not None
+    ]
+
+    return _build_single_container_target(
+        profile.container_target,
+        image_tag=_workspace_image_tag(profile_name),
+        extra_build_args=extra_build_args or None,
+        shell_config_source=shell_config_source,
+        shell_config_repo_url=shell_config_repo_url,
+        shell_config_branch=shell_config_branch,
+        shell_config_local_dir=shell_config_local_dir,
+        shell_config_stage_from=shell_config_stage_from,
+        no_cache=no_cache,
+    )
 
 
 def _container_status_value(target: str) -> str:
@@ -1698,6 +3504,381 @@ def _reset_single_container_target(target: str) -> bool:
     return False
 
 
+def _build_workspace_doctor_report(
+    profile_name: str,
+    profile: WorkspaceProfileDefinition,
+    *,
+    shell_config_checkout: Path | None = None,
+) -> dict[str, object]:
+    """Build a structured health report for one workspace profile."""
+    overall_success = True
+    checks: list[dict[str, str]] = []
+
+    def add_check(*, stat: str, check: str, detail: str) -> None:
+        checks.append({"stat": stat, "check": check, "detail": detail})
+
+    docker_ok, docker_detail = _docker_available()
+    add_check(
+        stat="OK" if docker_ok else "FAIL",
+        check="docker",
+        detail=docker_detail,
+    )
+    overall_success = overall_success and docker_ok
+
+    image_tag = _workspace_image_tag(profile_name)
+    image_present = _run_command(["docker", "image", "inspect", image_tag]).returncode == 0
+    add_check(
+        stat="OK" if image_present else "WARN",
+        check="image",
+        detail=image_tag if image_present else f"missing {image_tag}",
+    )
+
+    container_name = _workspace_container_name(profile_name)
+    container_status = _workspace_status_value(profile_name)
+    add_check(
+        stat="OK" if container_status != "missing" else "WARN",
+        check="container",
+        detail=f"{container_name} ({container_status})",
+    )
+
+    dev_repo_path = _repo_root()
+    add_check(
+        stat="OK" if dev_repo_path.is_dir() else "FAIL",
+        check="dev_repo_checkout",
+        detail=str(dev_repo_path) if dev_repo_path.is_dir() else f"missing {dev_repo_path}",
+    )
+    overall_success = overall_success and dev_repo_path.is_dir()
+
+    shell_config = _workspace_shell_config_resolution(shell_config_checkout)
+    if not bool(shell_config["available"]):
+        add_check(
+            stat="WARN",
+            check="shell_config_checkout",
+            detail=str(shell_config["detail"]),
+        )
+    else:
+        add_check(
+            stat="OK",
+            check="shell_config_checkout",
+            detail=str(shell_config["resolved_path"]),
+        )
+        overall_success = overall_success and True
+
+    if not docker_ok:
+        next_step = (
+            "install Docker or start the Docker daemon, then rerun "
+            f"`ft workspace doctor {profile_name}`."
+        )
+    elif not image_present:
+        next_step = f"build the workspace image with `ft workspace build {profile_name}`."
+    elif container_status == "missing":
+        next_step = f"start the workspace with `ft workspace up {profile_name}`."
+    else:
+        next_step = f"enter the workspace with `ft workspace enter {profile_name}`."
+
+    return {
+        "success": overall_success,
+        "profile": profile_name,
+        "target": profile.container_target,
+        "checks": checks,
+        "next_step": next_step,
+    }
+
+
+def _render_workspace_doctor_report(report: dict[str, object]) -> None:
+    """Render one workspace doctor report in the standard human-readable format."""
+    console.print("[bold]workspace checks[/bold]")
+    console.print(f"{'stat':<4} {'check':<24} detail")
+    for check in report["checks"]:
+        _emit_validation_result(
+            stat=str(check["stat"]),
+            check=str(check["check"]),
+            detail=str(check["detail"]),
+        )
+    console.print(f"next: {report['next_step']}")
+
+
+def _run_workspace_doctor(
+    profile_name: str,
+    profile: WorkspaceProfileDefinition,
+    *,
+    shell_config_checkout: Path | None = None,
+    json_output: bool = False,
+) -> bool:
+    """Render a small health report for one workspace profile."""
+    report = _build_workspace_doctor_report(
+        profile_name,
+        profile,
+        shell_config_checkout=shell_config_checkout,
+    )
+    if json_output:
+        _json_dump(report)
+    else:
+        _render_workspace_doctor_report(report)
+    return bool(report["success"])
+
+
+def _up_workspace_profile(
+    profile_name: str,
+    profile: WorkspaceProfileDefinition,
+    *,
+    shell_config_checkout: Path | None = None,
+) -> bool:
+    """Start or replace one managed workspace container profile."""
+    image_tag = _workspace_image_tag(profile_name)
+    container_name = _workspace_container_name(profile_name)
+
+    image_result = _run_command(["docker", "image", "inspect", image_tag])
+    if image_result.returncode != 0 and not _build_workspace_profile(
+        profile_name,
+        profile,
+        shell_config_source="github",
+        shell_config_repo_url="https://github.com/GrndZero101/shell-config.git",
+        shell_config_branch="main",
+        shell_config_local_dir=None,
+        shell_config_stage_from=None,
+        no_cache=False,
+    ):
+        return False
+
+    container_result = _run_command(["docker", "container", "inspect", container_name])
+    if container_result.returncode == 0:
+        console.print(f"replacing existing workspace {container_name}")
+        remove_result = _run_command(["docker", "rm", "-f", container_name])
+        if remove_result.returncode != 0:
+            console.print(
+                f"[red]failed to remove existing workspace:[/red] {container_name}"
+            )
+            return False
+
+    mount_plan = _workspace_mount_plan(
+        profile_name,
+        profile,
+        shell_config_checkout=shell_config_checkout,
+    )
+    browser_bridge_socket = _ensure_workspace_host_browser_bridge(profile_name)
+    for host_path, _ in mount_plan:
+        host_path.mkdir(parents=True, exist_ok=True)
+
+    run_command = [
+        "docker",
+        "run",
+        "--detach",
+        "--init",
+        "--name",
+        container_name,
+        "--hostname",
+        container_name,
+        "--workdir",
+        profile.working_directory,
+    ]
+
+    ssh_auth_sock = os.environ.get("SSH_AUTH_SOCK")
+    if ssh_auth_sock:
+        ssh_auth_sock_path = Path(ssh_auth_sock)
+        if ssh_auth_sock_path.exists():
+            run_command.extend(
+                [
+                    "--volume",
+                    f"{ssh_auth_sock_path}:{ssh_auth_sock_path}",
+                    "--env",
+                    f"SSH_AUTH_SOCK={ssh_auth_sock_path}",
+                ]
+            )
+
+    if browser_bridge_socket is not None:
+        host_bridge_dir = browser_bridge_socket.parent
+        run_command.extend(
+            [
+                "--volume",
+                (
+                    f"{host_bridge_dir}:"
+                    f"{_workspace_container_host_browser_bridge_dir()}"
+                ),
+                "--env",
+                (
+                    "DEV_FORTRESS_HOST_BROWSER_SOCKET="
+                    f"{_workspace_container_host_browser_socket()}"
+                ),
+            ]
+        )
+
+    if _host_runs_under_wsl():
+        windows_system_path = _workspace_wsl_windows_system_path()
+        if windows_system_path.is_dir():
+            run_command.extend(
+                [
+                    "--volume",
+                    f"{windows_system_path}:{windows_system_path}:ro",
+                ]
+            )
+            wsl_init_path = _workspace_wsl_init_path()
+            if wsl_init_path.is_file():
+                run_command.extend(
+                    [
+                        "--volume",
+                        f"{wsl_init_path}:{wsl_init_path}:ro",
+                    ]
+                )
+            wsl_interop_root = _workspace_wsl_interop_root()
+            if wsl_interop_root.is_dir():
+                run_command.extend(
+                    [
+                        "--volume",
+                        f"{wsl_interop_root}:{wsl_interop_root}",
+                    ]
+                )
+            for env_name in ("WSL_DISTRO_NAME", "WSL_INTEROP"):
+                env_value = os.environ.get(env_name)
+                if env_value:
+                    run_command.extend(["--env", f"{env_name}={env_value}"])
+            if browser_bridge_socket is not None or not os.environ.get("BROWSER"):
+                run_command.extend(
+                    [
+                        "--env",
+                        f"BROWSER={_workspace_host_browser_open_command()}",
+                    ]
+                )
+            if browser_bridge_socket is not None or not os.environ.get("GH_BROWSER"):
+                run_command.extend(
+                    [
+                        "--env",
+                        f"GH_BROWSER={_workspace_host_browser_open_command()}",
+                    ]
+                )
+
+    if browser_bridge_socket is not None:
+        if not _host_runs_under_wsl() and not os.environ.get("BROWSER"):
+            run_command.extend(
+                [
+                    "--env",
+                    f"BROWSER={_workspace_host_browser_open_command()}",
+                ]
+            )
+        if not _host_runs_under_wsl() and not os.environ.get("GH_BROWSER"):
+            run_command.extend(
+                [
+                    "--env",
+                    f"GH_BROWSER={_workspace_host_browser_open_command()}",
+                ]
+            )
+
+    for env_name in ("BROWSER", "GH_BROWSER"):
+        env_value = os.environ.get(env_name)
+        if env_value:
+            run_command.extend(["--env", f"{env_name}={env_value}"])
+
+    for host_path, container_path in mount_plan:
+        run_command.extend(
+            [
+                "--volume",
+                f"{host_path}:{container_path}",
+            ]
+        )
+
+    run_command.extend([image_tag, "sleep", "infinity"])
+    run_result = _run_command(run_command)
+    if run_result.returncode == 0:
+        console.print(f"started {container_name}")
+        return True
+
+    console.print(
+        (
+            run_result.stderr
+            or run_result.stdout
+            or f"failed to start {container_name}"
+        ).strip()
+    )
+    return False
+
+
+def _down_workspace_profile(profile_name: str) -> bool:
+    """Stop and remove one managed workspace container profile when present."""
+    container_name = _workspace_container_name(profile_name)
+    inspect_result = _run_command(["docker", "container", "inspect", container_name])
+    if inspect_result.returncode != 0:
+        console.print(f"workspace already absent: {container_name}")
+        return True
+
+    remove_result = _run_command(["docker", "rm", "-f", container_name])
+    if remove_result.returncode == 0:
+        console.print(f"removed {container_name}")
+        return True
+
+    console.print(
+        (
+            remove_result.stderr
+            or remove_result.stdout
+            or f"failed to remove {container_name}"
+        ).strip()
+    )
+    return False
+
+
+def _reset_workspace_profile(profile_name: str) -> bool:
+    """Remove one managed workspace container profile and its tagged image."""
+    image_tag = _workspace_image_tag(profile_name)
+    success = _down_workspace_profile(profile_name)
+
+    image_result = _run_command(["docker", "image", "inspect", image_tag])
+    if image_result.returncode != 0:
+        console.print(f"image already absent: {image_tag}")
+        return success
+
+    remove_result = _run_command(["docker", "image", "rm", "-f", image_tag])
+    if remove_result.returncode == 0:
+        console.print(f"removed image {image_tag}")
+        return success
+
+    console.print(
+        (
+            remove_result.stderr
+            or remove_result.stdout
+            or f"failed to remove image {image_tag}"
+        ).strip()
+    )
+    return False
+
+
+def _exec_workspace_profile(profile_name: str, command: list[str]) -> int:
+    """Run one command inside one managed workspace container profile."""
+    container_name = _workspace_container_name(profile_name)
+    if not _workspace_exists(profile_name):
+        console.print(f"[red]workspace not found:[/red] {container_name}")
+        return 1
+
+    effective_command = (
+        command
+        if command
+        else ["zsh", "-lc", "whoami && pwd && printenv SHELL_CONFIG_PROFILE"]
+    )
+    result = _run_streaming_command(
+        ["docker", "exec", "-it", container_name, *effective_command]
+    )
+    return result.returncode
+
+
+def _shell_workspace_profile(profile_name: str) -> int:
+    """Open one interactive zsh login shell in one managed workspace container profile."""
+    return _exec_workspace_profile(profile_name, ["zsh", "-il"])
+
+
+def _enter_workspace_profile(
+    profile_name: str,
+    profile: WorkspaceProfileDefinition,
+    *,
+    shell_config_checkout: Path | None = None,
+) -> int:
+    """Ensure one workspace is ready, then open an interactive shell inside it."""
+    if not _up_workspace_profile(
+        profile_name,
+        profile,
+        shell_config_checkout=shell_config_checkout,
+    ):
+        return 1
+    return _shell_workspace_profile(profile_name)
+
+
 @tool_app.command("plan")
 def tool_plan(
     tool: Annotated[str | None, typer.Option(help="Plan only the named tool.")] = None,
@@ -1721,6 +3902,13 @@ def tool_plan(
         Path | None,
         typer.Option(help="Override the configured install root."),
     ] = None,
+    resolve_latest: Annotated[
+        bool,
+        typer.Option(
+            "--resolve-latest/--use-manifest-version",
+            help="Resolve current upstream GitHub releases for tools configured to do so.",
+        ),
+    ] = True,
 ) -> None:
     """Print the resolved install plan for one tool or the full enabled set."""
     runtime = _resolve_runtime_options(
@@ -1733,13 +3921,16 @@ def tool_plan(
     )
     manifest_model = load_manifest(Path(runtime["manifest"]))
 
-    for name, tool_definition in _selected_tools(manifest_model, tool):
+    for name, tool_definition in _selected_tools(
+        manifest_model, tool, target=str(runtime["target"])
+    ):
         plan_model = build_plan(
             name,
             tool_definition,
             os_name=str(runtime["system_name"]),
             architecture=str(runtime["architecture"]),
             target=str(runtime["target"]),
+            resolve_latest=resolve_latest,
         )
         _render_plan(
             plan_model,
@@ -1780,6 +3971,13 @@ def tool_install(
             help="Run the configured healthcheck after installation.",
         ),
     ] = None,
+    resolve_latest: Annotated[
+        bool,
+        typer.Option(
+            "--resolve-latest/--use-manifest-version",
+            help="Resolve current upstream GitHub releases for tools configured to do so.",
+        ),
+    ] = True,
 ) -> None:
     """Install one tool or the full enabled tool set from the shared manifest."""
     runtime = _resolve_runtime_options(
@@ -1792,13 +3990,16 @@ def tool_install(
     )
     manifest_model = load_manifest(Path(runtime["manifest"]))
 
-    for name, tool_definition in _selected_tools(manifest_model, tool):
+    for name, tool_definition in _selected_tools(
+        manifest_model, tool, target=str(runtime["target"])
+    ):
         plan_model = build_plan(
             name,
             tool_definition,
             os_name=str(runtime["system_name"]),
             architecture=str(runtime["architecture"]),
             target=str(runtime["target"]),
+            resolve_latest=resolve_latest,
         )
         effective_install_root = _effective_install_root(
             tool_definition.install_root,
@@ -2222,6 +4423,433 @@ def container_enter(
     raise typer.Exit(code=_enter_single_container_target(resolved_target))
 
 
+@workspace_app.command("build")
+def workspace_build(
+    profile: Annotated[
+        str,
+        typer.Argument(
+            help="One named workspace profile from the repo-owned workspace manifest."
+        ),
+    ],
+    shell_config_source: Annotated[
+        str,
+        typer.Option(
+            "--shell-config-source",
+            help=(
+                "Choose whether the image installs shell-config from GitHub or "
+                "from a staged repo-local checkout."
+            ),
+        ),
+    ] = "github",
+    shell_config_repo_url: Annotated[
+        str,
+        typer.Option(
+            "--shell-config-repo-url",
+            help="GitHub repository URL to clone when using --shell-config-source github.",
+        ),
+    ] = "https://github.com/GrndZero101/shell-config.git",
+    shell_config_branch: Annotated[
+        str,
+        typer.Option(
+            "--shell-config-branch",
+            help="Git branch to clone when using --shell-config-source github.",
+        ),
+    ] = "main",
+    shell_config_local_dir: Annotated[
+        str | None,
+        typer.Option(
+            "--shell-config-local-dir",
+            help=(
+                "Repo-relative staged shell-config path inside the Docker build "
+                "context when using --shell-config-source local."
+            ),
+        ),
+    ] = None,
+    shell_config_stage_from: Annotated[
+        Path | None,
+        typer.Option(
+            "--shell-config-stage-from",
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+            help=(
+                "Absolute host checkout to stage into the repo build context "
+                "before a local shell-config build."
+            ),
+        ),
+    ] = None,
+    no_cache: Annotated[
+        bool,
+        typer.Option(
+            "--no-cache",
+            help="Disable Docker build cache for this workspace image build.",
+        ),
+    ] = False,
+) -> None:
+    """Build one workspace image from its underlying Ubuntu-first container target."""
+    resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
+    if not _build_workspace_profile(
+        resolved_profile_name,
+        resolved_profile,
+        shell_config_source=shell_config_source,
+        shell_config_repo_url=shell_config_repo_url,
+        shell_config_branch=shell_config_branch,
+        shell_config_local_dir=shell_config_local_dir,
+        shell_config_stage_from=shell_config_stage_from,
+        no_cache=no_cache,
+    ):
+        raise typer.Exit(code=1)
+
+
+@workspace_app.command("status")
+def workspace_status(
+    profile: Annotated[
+        str | None,
+        typer.Argument(
+            help=(
+                "Optional named workspace profile. Defaults to all repo-owned "
+                "workspace profiles."
+            )
+        ),
+    ] = None,
+) -> None:
+    """Show Docker status for one or more managed workspace profiles."""
+    resolved_profiles = (
+        _workspace_profile_names()
+        if profile is None
+        else [_resolve_workspace_profile(profile)[0]]
+    )
+    _render_workspace_status(resolved_profiles)
+
+
+@workspace_app.command("up")
+def workspace_up(
+    profile: Annotated[
+        str,
+        typer.Argument(
+            help="One named workspace profile from the repo-owned workspace manifest."
+        ),
+    ],
+    shell_config_checkout: Annotated[
+        Path | None,
+        typer.Option(
+            "--shell-config-checkout",
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+            help=(
+                "Optional live shell-config checkout to bind-mount into the "
+                "workspace. Defaults to a sibling ../shell-config checkout when present."
+            ),
+        ),
+    ] = None,
+) -> None:
+    """Start or replace one managed workspace container profile."""
+    resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
+    if not _up_workspace_profile(
+        resolved_profile_name,
+        resolved_profile,
+        shell_config_checkout=shell_config_checkout,
+    ):
+        raise typer.Exit(code=1)
+
+
+@workspace_app.command("down")
+def workspace_down(
+    profile: Annotated[
+        str,
+        typer.Argument(
+            help="One named workspace profile from the repo-owned workspace manifest."
+        ),
+    ],
+) -> None:
+    """Stop and remove one managed workspace container profile."""
+    resolved_profile_name, _ = _resolve_workspace_profile(profile)
+    if not _down_workspace_profile(resolved_profile_name):
+        raise typer.Exit(code=1)
+
+
+@workspace_app.command("reset")
+def workspace_reset(
+    profile: Annotated[
+        str,
+        typer.Argument(
+            help="One named workspace profile from the repo-owned workspace manifest."
+        ),
+    ],
+) -> None:
+    """Remove one managed workspace container profile and its tagged image."""
+    resolved_profile_name, _ = _resolve_workspace_profile(profile)
+    if not _reset_workspace_profile(resolved_profile_name):
+        raise typer.Exit(code=1)
+
+
+@workspace_app.command("exec")
+def workspace_exec(
+    profile: Annotated[
+        str,
+        typer.Argument(
+            help="One named workspace profile from the repo-owned workspace manifest."
+        ),
+    ],
+    command: Annotated[
+        list[str] | None,
+        typer.Argument(
+            help=(
+                "Optional command to run inside the workspace. Use `--` before "
+                "the inner command when it has its own flags."
+            ),
+        ),
+    ] = None,
+) -> None:
+    """Run one command inside one managed workspace container profile."""
+    resolved_profile_name, _ = _resolve_workspace_profile(profile)
+    raise typer.Exit(
+        code=_exec_workspace_profile(resolved_profile_name, list(command or []))
+    )
+
+
+@workspace_app.command("enter")
+def workspace_enter(
+    profile: Annotated[
+        str,
+        typer.Argument(
+            help="One named workspace profile from the repo-owned workspace manifest."
+        ),
+    ],
+    shell_config_checkout: Annotated[
+        Path | None,
+        typer.Option(
+            "--shell-config-checkout",
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+            help=(
+                "Optional live shell-config checkout to bind-mount into the "
+                "workspace. Defaults to a sibling ../shell-config checkout when present."
+            ),
+        ),
+    ] = None,
+) -> None:
+    """Ensure one workspace is ready, then open an interactive shell inside it."""
+    resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
+    raise typer.Exit(
+        code=_enter_workspace_profile(
+            resolved_profile_name,
+            resolved_profile,
+            shell_config_checkout=shell_config_checkout,
+        )
+    )
+
+
+@workspace_app.command("doctor")
+def workspace_doctor(
+    profile: Annotated[
+        str,
+        typer.Argument(
+            help="One named workspace profile from the repo-owned workspace manifest."
+        ),
+    ],
+    shell_config_checkout: Annotated[
+        Path | None,
+        typer.Option(
+            "--shell-config-checkout",
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+            help=(
+                "Optional live shell-config checkout to verify for bind-mount "
+                "readiness. Defaults to a sibling ../shell-config checkout when present."
+            ),
+        ),
+    ] = None,
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help="Render structured JSON for automation or agentic consumers.",
+        ),
+    ] = False,
+) -> None:
+    """Render a small health report for one mounted daily-driver workspace profile."""
+    resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
+    if not _run_workspace_doctor(
+        resolved_profile_name,
+        resolved_profile,
+        shell_config_checkout=shell_config_checkout,
+        json_output=json_output,
+    ):
+        raise typer.Exit(code=1)
+
+
+@workspace_app.command("validate")
+def workspace_validate(
+    profile: Annotated[
+        str,
+        typer.Argument(
+            help="One named workspace profile from the repo-owned workspace manifest."
+        ),
+    ],
+    shell_config_checkout: Annotated[
+        Path | None,
+        typer.Option(
+            "--shell-config-checkout",
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+            help=(
+                "Optional live shell-config checkout to validate for bind-mount "
+                "presence. Defaults to a sibling ../shell-config checkout when present."
+            ),
+        ),
+    ] = None,
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help="Render structured JSON for automation or agentic consumers.",
+        ),
+    ] = False,
+) -> None:
+    """Validate shell, mounts, and layer-specific commands inside one workspace."""
+    resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
+    report = _validate_workspace_profile(
+        resolved_profile_name,
+        resolved_profile,
+        shell_config_checkout=shell_config_checkout,
+    )
+    if json_output:
+        _json_dump(report)
+    else:
+        console.print(f"[bold]validating {resolved_profile_name}[/bold]")
+        console.print(f"{'stat':<4} {'check':<24} detail")
+        for check in report["checks"]:
+            _emit_validation_result(
+                stat=str(check["stat"]),
+                check=str(check["check"]),
+                detail=str(check["detail"]),
+            )
+    if not bool(report["success"]):
+        raise typer.Exit(code=1)
+
+
+@workspace_app.command("mount-plan")
+def workspace_mount_plan(
+    profile: Annotated[
+        str,
+        typer.Argument(
+            help="One named workspace profile from the repo-owned workspace manifest."
+        ),
+    ],
+    shell_config_checkout: Annotated[
+        Path | None,
+        typer.Option(
+            "--shell-config-checkout",
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+            help=(
+                "Optional live shell-config checkout to include in the mount "
+                "plan. Defaults to a sibling ../shell-config checkout when present."
+            ),
+        ),
+    ] = None,
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help="Render structured JSON for automation or agentic consumers.",
+        ),
+    ] = False,
+) -> None:
+    """Render the resolved host-to-container mount plan for one workspace profile."""
+    resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
+    payload = _workspace_mount_plan_payload(
+        resolved_profile_name,
+        resolved_profile,
+        shell_config_checkout=shell_config_checkout,
+    )
+    if json_output:
+        _json_dump(payload)
+        return
+
+    table = Table(title=f"{resolved_profile_name} workspace mount plan")
+    table.add_column("host", style="cyan")
+    table.add_column("container", style="white")
+    for mount in payload["mounts"]:
+        table.add_row(str(mount["host_path"]), str(mount["container_path"]))
+    console.print(table)
+
+
+@workspace_auth_app.command("doctor")
+def workspace_auth_doctor(
+    profile: Annotated[
+        str,
+        typer.Argument(
+            help="One named workspace profile from the repo-owned workspace manifest."
+        ),
+    ],
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help="Render structured JSON for automation or agentic consumers.",
+        ),
+    ] = False,
+) -> None:
+    """Inspect auth and persisted-state handoff points for one workspace profile."""
+    resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
+    if not _run_workspace_auth_doctor(
+        resolved_profile_name,
+        resolved_profile,
+        json_output=json_output,
+    ):
+        raise typer.Exit(code=1)
+
+
+@workspace_auth_app.command("validate")
+def workspace_auth_validate(
+    profile: Annotated[
+        str,
+        typer.Argument(
+            help="One named workspace profile from the repo-owned workspace manifest."
+        ),
+    ],
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help="Render structured JSON for automation or agentic consumers.",
+        ),
+    ] = False,
+) -> None:
+    """Validate runtime browser-auth helpers and selected auth-oriented CLIs."""
+    resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
+    report = _validate_workspace_auth_runtime(
+        resolved_profile_name,
+        resolved_profile,
+    )
+    if json_output:
+        _json_dump(report)
+    else:
+        console.print(f"[bold]validating auth for {resolved_profile_name}[/bold]")
+        console.print(f"{'stat':<4} {'check':<24} detail")
+        for check in report["checks"]:
+            _emit_validation_result(
+                stat=str(check["stat"]),
+                check=str(check["check"]),
+                detail=str(check["detail"]),
+            )
+    if not bool(report["success"]):
+        raise typer.Exit(code=1)
+
+
 @host_app.command("list")
 def host_list(
     target: Annotated[
@@ -2356,6 +4984,271 @@ def host_inventory(
     typer.echo(_yaml_dump(inventory), nl=False)
 
 
+@host_app.command("import-terraform")
+def host_import_terraform(
+    terraform_dir: Annotated[
+        Path,
+        typer.Option(
+            "--terraform-dir",
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+            help=(
+                "Terraform working directory to read with `terraform output -json`. "
+                "Defaults to the disposable Ubuntu stack under infra/."
+            ),
+        ),
+    ] = _default_disposable_ubuntu_terraform_dir(),
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            file_okay=True,
+            dir_okay=False,
+            resolve_path=True,
+            help=(
+                "Optional host target config path. Defaults to FT_HOST_CONFIG "
+                "or the XDG-managed hosts.toml path."
+            ),
+        ),
+    ] = None,
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help="Render the import result as structured JSON instead of a table.",
+        ),
+    ] = False,
+) -> None:
+    """Import Terraform-emitted host targets into the configured hosts.toml."""
+    payload = _import_terraform_host_targets(terraform_dir, config)
+    if json_output:
+        _json_dump(payload)
+        return
+
+    table = Table(title="Terraform host import", show_header=False)
+    table.add_column("key", style="cyan")
+    table.add_column("value", style="white")
+    table.add_row("config", str(payload["config"]))
+    table.add_row("terraform_dir", str(terraform_dir))
+    table.add_row(
+        "imported_targets",
+        ", ".join(str(name) for name in payload["imported_targets"]),
+    )
+    table.add_row("total_targets", str(payload["total_targets"]))
+    console.print(table)
+
+
+@aws_disposable_ubuntu_app.command("plan")
+def infra_aws_disposable_ubuntu_plan(
+    terraform_dir: Annotated[
+        Path,
+        typer.Option(
+            "--terraform-dir",
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+            help="Terraform working directory for the disposable Ubuntu stack.",
+        ),
+    ] = _default_disposable_ubuntu_terraform_dir(),
+    seed_config: Annotated[
+        Path,
+        typer.Option(
+            "--seed-config",
+            file_okay=True,
+            dir_okay=False,
+            resolve_path=True,
+            help="Seed host manifest used to derive the managed SSH key.",
+        ),
+    ] = _default_disposable_ubuntu_seed_config_path(),
+    target_name: Annotated[
+        str,
+        typer.Option(
+            "--target-name",
+            help="Managed SSH key and Terraform host target name to use.",
+        ),
+    ] = "dev-fortress-ec2-dev",
+) -> None:
+    """Run terraform init, validate, and plan for the disposable Ubuntu stack."""
+    for terraform_args in (["init"], ["validate"], ["plan"]):
+        exit_code = _run_disposable_ubuntu_terraform(
+            terraform_args,
+            terraform_dir=terraform_dir,
+            target_name=target_name,
+            seed_config_path=seed_config,
+        )
+        if exit_code != 0:
+            raise typer.Exit(code=exit_code)
+
+
+@aws_disposable_ubuntu_app.command("apply")
+def infra_aws_disposable_ubuntu_apply(
+    terraform_dir: Annotated[
+        Path,
+        typer.Option(
+            "--terraform-dir",
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+            help="Terraform working directory for the disposable Ubuntu stack.",
+        ),
+    ] = _default_disposable_ubuntu_terraform_dir(),
+    seed_config: Annotated[
+        Path,
+        typer.Option(
+            "--seed-config",
+            file_okay=True,
+            dir_okay=False,
+            resolve_path=True,
+            help="Seed host manifest used to derive the managed SSH key.",
+        ),
+    ] = _default_disposable_ubuntu_seed_config_path(),
+    target_name: Annotated[
+        str,
+        typer.Option(
+            "--target-name",
+            help="Managed SSH key and Terraform host target name to use.",
+        ),
+    ] = "dev-fortress-ec2-dev",
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            file_okay=True,
+            dir_okay=False,
+            resolve_path=True,
+            help=(
+                "Optional host target config path. Defaults to FT_HOST_CONFIG "
+                "or the XDG-managed hosts.toml path."
+            ),
+        ),
+    ] = None,
+    auto_import: Annotated[
+        bool,
+        typer.Option(
+            "--auto-import/--no-auto-import",
+            help="Import the Terraform host target into hosts.toml after apply.",
+        ),
+    ] = True,
+    auto_approve: Annotated[
+        bool,
+        typer.Option(
+            "--auto-approve",
+            help="Pass -auto-approve to terraform apply.",
+        ),
+    ] = False,
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help="Render the import result as structured JSON when auto-importing.",
+        ),
+    ] = False,
+) -> None:
+    """Run terraform init, validate, and apply for the disposable Ubuntu stack."""
+    for terraform_args in (["init"], ["validate"]):
+        exit_code = _run_disposable_ubuntu_terraform(
+            terraform_args,
+            terraform_dir=terraform_dir,
+            target_name=target_name,
+            seed_config_path=seed_config,
+        )
+        if exit_code != 0:
+            raise typer.Exit(code=exit_code)
+
+    apply_args = ["apply"]
+    if auto_approve:
+        apply_args.append("-auto-approve")
+    exit_code = _run_disposable_ubuntu_terraform(
+        apply_args,
+        terraform_dir=terraform_dir,
+        target_name=target_name,
+        seed_config_path=seed_config,
+    )
+    if exit_code != 0:
+        raise typer.Exit(code=exit_code)
+    if not auto_import:
+        return
+
+    payload = _import_terraform_host_targets(terraform_dir, config)
+    if json_output:
+        _json_dump(payload)
+        return
+
+    table = Table(title="Disposable Ubuntu apply", show_header=False)
+    table.add_column("key", style="cyan")
+    table.add_column("value", style="white")
+    table.add_row("config", str(payload["config"]))
+    table.add_row("terraform_dir", str(payload["terraform_dir"]))
+    table.add_row("target_name", target_name)
+    table.add_row(
+        "imported_targets",
+        ", ".join(str(name) for name in payload["imported_targets"]),
+    )
+    table.add_row("total_targets", str(payload["total_targets"]))
+    console.print(table)
+
+
+@aws_disposable_ubuntu_app.command("destroy")
+def infra_aws_disposable_ubuntu_destroy(
+    terraform_dir: Annotated[
+        Path,
+        typer.Option(
+            "--terraform-dir",
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+            help="Terraform working directory for the disposable Ubuntu stack.",
+        ),
+    ] = _default_disposable_ubuntu_terraform_dir(),
+    seed_config: Annotated[
+        Path,
+        typer.Option(
+            "--seed-config",
+            file_okay=True,
+            dir_okay=False,
+            resolve_path=True,
+            help="Seed host manifest used to derive the managed SSH key.",
+        ),
+    ] = _default_disposable_ubuntu_seed_config_path(),
+    target_name: Annotated[
+        str,
+        typer.Option(
+            "--target-name",
+            help="Managed SSH key and Terraform host target name to use.",
+        ),
+    ] = "dev-fortress-ec2-dev",
+    auto_approve: Annotated[
+        bool,
+        typer.Option(
+            "--auto-approve",
+            help="Pass -auto-approve to terraform destroy.",
+        ),
+    ] = False,
+) -> None:
+    """Run terraform init and destroy for the disposable Ubuntu stack."""
+    exit_code = _run_disposable_ubuntu_terraform(
+        ["init"],
+        terraform_dir=terraform_dir,
+        target_name=target_name,
+        seed_config_path=seed_config,
+    )
+    if exit_code != 0:
+        raise typer.Exit(code=exit_code)
+
+    destroy_args = ["destroy"]
+    if auto_approve:
+        destroy_args.append("-auto-approve")
+    exit_code = _run_disposable_ubuntu_terraform(
+        destroy_args,
+        terraform_dir=terraform_dir,
+        target_name=target_name,
+        seed_config_path=seed_config,
+    )
+    if exit_code != 0:
+        raise typer.Exit(code=exit_code)
+
+
 @host_app.command("ssh-key-path")
 def host_ssh_key_path(
     target: Annotated[
@@ -2470,6 +5363,61 @@ def host_ssh_key_enroll(
     console.print(f"enrolled public key for {resolved_target.name}: {public_key_path}")
 
 
+@host_app.command("ssh")
+def host_ssh(
+    target: Annotated[
+        str | None,
+        typer.Argument(
+            help=(
+                "Optional SSH host target name or selector that must resolve to "
+                "exactly one configured host target."
+            )
+        ),
+    ] = None,
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            exists=False,
+            dir_okay=False,
+            resolve_path=True,
+            help="Path to the host target TOML config.",
+        ),
+    ] = None,
+    interactive: Annotated[
+        bool,
+        typer.Option(
+            "--interactive",
+            "-i",
+            help="Interactively choose one SSH host target.",
+        ),
+    ] = False,
+) -> None:
+    """Open one interactive SSH session using the configured Dev Fortress target."""
+    _, manifest = _load_host_target_manifest(config)
+    if interactive:
+        candidate_targets = (
+            [
+                target_definition
+                for target_definition in manifest.targets
+                if target_definition.connection == "ssh"
+            ]
+            if target is None
+            else _resolve_host_targets(target, manifest)
+        )
+        resolved_target = _interactive_select_single_host_target(
+            candidate_targets, command_name="ssh"
+        )
+    else:
+        if target is None:
+            console.print("target is required unless --interactive is used")
+            raise typer.Exit(code=2)
+        resolved_target = _resolve_single_host_target(
+            target, manifest, command_name="ssh"
+        )
+    raise typer.Exit(code=_ssh_single_host_target(resolved_target))
+
+
 @host_app.command("doctor")
 def host_doctor(
     target: Annotated[
@@ -2505,18 +5453,119 @@ def host_doctor(
             help="Render structured JSON for automation or agentic consumers.",
         ),
     ] = False,
+    interactive: Annotated[
+        bool,
+        typer.Option(
+            "--interactive",
+            "-i",
+            help="Interactively choose one or more host targets to inspect.",
+        ),
+    ] = False,
 ) -> None:
     """Inspect host-target readiness before attempting bootstrap."""
     resolved_path, manifest = _load_host_target_manifest(config)
-    resolved_targets = (
-        manifest.targets if target is None else _resolve_host_targets(target, manifest)
-    )
+    if interactive:
+        candidate_targets = (
+            manifest.targets
+            if target is None
+            else _resolve_host_targets(target, manifest)
+        )
+        resolved_targets = _interactive_select_host_targets(candidate_targets)
+    else:
+        resolved_targets = (
+            manifest.targets
+            if target is None
+            else _resolve_host_targets(target, manifest)
+        )
     if not _run_host_doctor(
         resolved_targets,
         config_path=resolved_path,
         probe=probe,
         json_output=json_output,
     ):
+        raise typer.Exit(code=1)
+
+
+@host_app.command("validate")
+def host_validate(
+    target: Annotated[
+        str | None,
+        typer.Argument(
+            help=(
+                "Optional host target selector to validate. Supports exact names, "
+                "shell-style wildcards, and the alias 'all'."
+            ),
+        ),
+    ] = None,
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            exists=False,
+            dir_okay=False,
+            resolve_path=True,
+            help="Path to the host target TOML config.",
+        ),
+    ] = None,
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help="Render structured JSON for automation or agentic consumers.",
+        ),
+    ] = False,
+    interactive: Annotated[
+        bool,
+        typer.Option(
+            "--interactive",
+            "-i",
+            help="Interactively choose one or more host targets to validate.",
+        ),
+    ] = False,
+    ask_become_pass: Annotated[
+        bool,
+        typer.Option(
+            "--ask-become-pass",
+            "-K",
+            help="Pass --ask-become-pass through to ansible-playbook during bootstrap stages.",
+        ),
+    ] = False,
+) -> None:
+    """Run the standard doctor/bootstrap convergence loop for one or more host targets."""
+    resolved_path, manifest = _load_host_target_manifest(config)
+    if interactive:
+        candidate_targets = (
+            manifest.targets
+            if target is None
+            else _resolve_host_targets(target, manifest)
+        )
+        resolved_targets = _interactive_select_host_targets(candidate_targets)
+    else:
+        if target is None:
+            console.print("target is required unless --interactive is used")
+            raise typer.Exit(code=2)
+        resolved_targets = _resolve_host_targets(target, manifest)
+    results: list[dict[str, object]] = []
+    success = True
+    for resolved_target in resolved_targets:
+        target_success = _validate_host_target(
+            resolved_target,
+            config_path=resolved_path,
+            json_output=False,
+            ask_become_pass=ask_become_pass,
+        )
+        results.append({"target": resolved_target.name, "success": target_success})
+        success = success and target_success
+
+    if json_output:
+        _json_dump(
+            {
+                "config": str(resolved_path),
+                "targets": results,
+                "success": success,
+            }
+        )
+    if not success:
         raise typer.Exit(code=1)
 
 
@@ -2555,6 +5604,14 @@ def host_bootstrap(
             help="Run ansible-playbook in check mode.",
         ),
     ] = False,
+    ask_become_pass: Annotated[
+        bool,
+        typer.Option(
+            "--ask-become-pass",
+            "-K",
+            help="Pass --ask-become-pass through to ansible-playbook.",
+        ),
+    ] = False,
 ) -> None:
     """Run the thin inventory-driven host bootstrap playbook for one or more targets."""
     _, manifest = _load_host_target_manifest(config)
@@ -2566,6 +5623,7 @@ def host_bootstrap(
             resolved_targets,
             ensure_ssh_keys=ensure_ssh_keys,
             check=check,
+            ask_become_pass=ask_become_pass,
         )
     )
 
@@ -2639,6 +5697,13 @@ def plan(
         Path | None,
         typer.Option(help="Override the configured install root."),
     ] = None,
+    resolve_latest: Annotated[
+        bool,
+        typer.Option(
+            "--resolve-latest/--use-manifest-version",
+            help="Resolve current upstream GitHub releases for tools configured to do so.",
+        ),
+    ] = True,
 ) -> None:
     """Compatibility alias for `ft tool plan`."""
     tool_plan(
@@ -2648,6 +5713,7 @@ def plan(
         system_name=system_name,
         architecture=architecture,
         install_root=install_root,
+        resolve_latest=resolve_latest,
     )
 
 
@@ -2713,6 +5779,13 @@ def install(
             help="Run the configured healthcheck after installation.",
         ),
     ] = None,
+    resolve_latest: Annotated[
+        bool,
+        typer.Option(
+            "--resolve-latest/--use-manifest-version",
+            help="Resolve current upstream GitHub releases for tools configured to do so.",
+        ),
+    ] = True,
 ) -> None:
     """Compatibility alias for `ft tool install`."""
     tool_install(
@@ -2723,4 +5796,5 @@ def install(
         architecture=architecture,
         install_root=install_root,
         healthcheck=healthcheck,
+        resolve_latest=resolve_latest,
     )
