@@ -40,9 +40,21 @@ Tooling policy follows the same split:
 | --- | --- |
 | [`shell-config`](https://github.com/GrndZero101/shell-config) | Shell UX, profile behavior, and interactive environment shaping consumed by Dev Fortress |
 
-## Quick Start
+## Two Paths
 
-The fastest way to get running locally is the one-liner installer.
+Choose the path that matches your intent:
+
+- `Operator install`: you want a working environment quickly and are happy for
+  Dev Fortress to manage the installed `shell-config` checkout under your XDG
+  config tree
+- `Development install`: you are actively changing `dev-container-fortress`,
+  `shell-config`, or both, and want local clone paths to be the source of truth
+
+For active repository work, prefer the development path.
+
+## Operator Install
+
+The fastest operator path is the one-liner installer.
 
 > [!IMPORTANT]
 > Baseline prerequisites:
@@ -51,7 +63,7 @@ The fastest way to get running locally is the one-liner installer.
 > `install.sh` checks the required baseline tools and warns if Docker or
 > `buildx` are not available yet.
 
-### Install with the one-liner
+### One-liner
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
@@ -61,6 +73,9 @@ curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/
 This clones or refreshes the repo, ensures `uv` exists, and then hands off to
 the repo bootstrap, which provisions a uv-managed Python 3.14 runtime for the
 project environment and installs a live `ft` CLI from the local checkout.
+
+On host bootstrap paths, Dev Fortress will also manage the installed
+`shell-config` checkout unless you deliberately point it somewhere else.
 
 > [!NOTE]
 > `install.sh` supports a few environment variables for common onboarding
@@ -95,7 +110,7 @@ zsh ./bootstrap.zsh
 Use the manual path when you want to inspect or edit the checkout before
 running the bootstrap.
 
-### Validate the first local loop
+### First validation loop
 
 ```sh
 uv run ft doctor
@@ -104,8 +119,58 @@ uv run ft container up ubuntu
 uv run ft container validate ubuntu
 ```
 
+For the current host-target path, continue with:
+
+```sh
+uv run ft host bootstrap localhost --check
+uv run ft host bootstrap localhost
+```
+
+## Development Install
+
+For development, keep both repos cloned explicitly and treat those clones as
+the source of truth:
+
+```text
+<workspace>/
+  dev-container-fortress/
+  shell-config/
+```
+
+Recommended setup:
+
+```sh
+git clone https://github.com/GrndZero101/dev-container-fortress.git
+git clone https://github.com/GrndZero101/shell-config.git
+cd dev-container-fortress
+zsh ./bootstrap.zsh
+```
+
+Then use the local repos directly:
+
+- run `ft` from the Dev Fortress checkout
+- keep `shell-config` as a sibling checkout so workspace and container flows can
+  see it automatically
+- prefer local-source container and workspace flows over GitHub-backed staging
+
+Recommended development loops:
+
+```sh
+ft workspace doctor ubuntu-full
+ft workspace build ubuntu-full
+ft workspace up ubuntu-full
+ft workspace enter ubuntu-full
+```
+
+```sh
+ft container build ubuntu \
+  --shell-config-source local \
+  --shell-config-stage-from /absolute/path/to/shell-config
+```
+
 > [!NOTE]
-> For the full contributor workflow, see [DEVELOPMENT.md](/home/timl/projects/tboss/dev-container-fortress/DEVELOPMENT.md).
+> The full contributor workflow lives in
+> [DEVELOPMENT.md](/home/timl/projects/tboss/dev-container-fortress/DEVELOPMENT.md).
 
 ## Status
 
@@ -147,8 +212,8 @@ uv run ft container validate ubuntu
 
 | Document | Audience | Purpose |
 | --- | --- | --- |
-| [README.md](/home/timl/projects/tboss/dev-container-fortress/README.md) | Everyone | Project overview and quick entry points |
-| [DEVELOPMENT.md](/home/timl/projects/tboss/dev-container-fortress/DEVELOPMENT.md) | Contributors | Local bootstrap, checks, and iteration loops |
+| [README.md](/home/timl/projects/tboss/dev-container-fortress/README.md) | Everyone | Project overview plus operator-versus-development entry points |
+| [DEVELOPMENT.md](/home/timl/projects/tboss/dev-container-fortress/DEVELOPMENT.md) | Contributors | Clone layout, local bootstrap, checks, and iteration loops |
 | [docs/container-usage.md](/home/timl/projects/tboss/dev-container-fortress/docs/container-usage.md) | Operators | Docker-based usage and validation |
 | [docs/workstation-usage.md](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md) | Operators | Host-target and workstation flow status |
 | [docs/wsl-bootstrap.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/wsl-bootstrap.md) | Operators | Step-by-step bootstrap path for Ubuntu under WSL2 |
