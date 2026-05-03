@@ -16,6 +16,16 @@ The project is intentionally split across layers:
 - Dockerfiles handle container construction
 - `shell-config` owns shell UX rather than this repo reimplementing it
 
+Tooling policy follows the same split:
+
+- container images should install userland tools through repo-owned Dev Fortress
+  mechanisms such as `ft`, shared installer scripts, and image-managed build
+  logic
+- host targets should converge on Homebrew for steady-state userland tools once
+  the minimal native bootstrap substrate is in place
+- Ansible should orchestrate and validate host state, including Homebrew-backed
+  host tooling, rather than becoming the primary tool source itself
+
 > [!IMPORTANT]
 > This project is still in active buildout.
 > The container and operator loops are already useful day to day, while the
@@ -50,7 +60,7 @@ curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/
 
 This clones or refreshes the repo, ensures `uv` exists, and then hands off to
 the repo bootstrap, which provisions a uv-managed Python 3.14 runtime for the
-project environment.
+project environment and installs a live `ft` CLI from the local checkout.
 
 > [!NOTE]
 > `install.sh` supports a few environment variables for common onboarding
@@ -106,6 +116,7 @@ uv run ft container validate ubuntu
 | Ubuntu disposable target | Working | End-to-end Docker, SSH, and Ansible check loop is proven |
 | Alpine disposable target | Working | End-to-end Docker, SSH, and Ansible check loop is proven |
 | VS Code devcontainers | Working | Thin wrappers over the container targets |
+| Workspace daily-driver container | Working foundation | Ubuntu-first mounted workspace loop exists under `ft workspace ...` |
 | Host target model | Working foundation | `ft host ...` inventory, key, probe, and bootstrap contract exists |
 | Real host provisioning roles | In progress | Current milestone is `M4 First Real Host Roles` |
 | Full workstation bootstrap | Partial | Still scaffolded beyond the thin host bootstrap contract |
@@ -129,7 +140,7 @@ uv run ft container validate ubuntu
 | Ubuntu disposable SSH host loop | Supported foundation | [Workstation Usage](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md) |
 | macOS workstation | Planned / partial | [Workstation Usage](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md) |
 | Ubuntu workstation | Planned / partial | [Workstation Usage](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md) |
-| WSL workstation | Planned / partial | [Workstation Usage](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md) |
+| WSL workstation | Ubuntu-first active path | [WSL Bootstrap Runbook](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/wsl-bootstrap.md) |
 | VS Code devcontainers | Supported | [Devcontainer Usage](/home/timl/projects/tboss/dev-container-fortress/docs/devcontainer-usage.md) |
 
 ## :compass: Documentation Map
@@ -140,6 +151,8 @@ uv run ft container validate ubuntu
 | [DEVELOPMENT.md](/home/timl/projects/tboss/dev-container-fortress/DEVELOPMENT.md) | Contributors | Local bootstrap, checks, and iteration loops |
 | [docs/container-usage.md](/home/timl/projects/tboss/dev-container-fortress/docs/container-usage.md) | Operators | Docker-based usage and validation |
 | [docs/workstation-usage.md](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md) | Operators | Host-target and workstation flow status |
+| [docs/wsl-bootstrap.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/wsl-bootstrap.md) | Operators | Step-by-step bootstrap path for Ubuntu under WSL2 |
+| [docs/target-validation.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/target-validation.md) | Operators | Current three-target validation runbook across Ubuntu, Alpine, and EC2 |
 | [docs/devcontainer-usage.md](/home/timl/projects/tboss/dev-container-fortress/docs/devcontainer-usage.md) | Operators | VS Code devcontainer usage |
 | [docs/architecture.md](/home/timl/projects/tboss/dev-container-fortress/docs/architecture.md) | Maintainers | Layering and control-plane direction |
 | [docs/container-standards.md](/home/timl/projects/tboss/dev-container-fortress/docs/container-standards.md) | Maintainers | Container runtime/build contract |
@@ -165,14 +178,17 @@ uv run ft container validate ubuntu
 - Prefer explicit, debuggable contracts over magic
 - Prove transport and bootstrap paths before deepening workstation automation
 - Keep the container and host stories aligned where practical without forcing them to be identical
+- Keep container userland tooling repo-owned and image-managed
+- Keep host userland tooling Homebrew-managed after the native bootstrap floor
 
 ## :zap: Current Working Surface
 
 Working today:
 
 - local workspace bootstrap with `uv`
-- packaged `ft` CLI with grouped `container`, `host`, and `tool` surfaces
+- packaged `ft` CLI with grouped `container`, `workspace`, `host`, and `tool` surfaces
 - Ubuntu and Alpine disposable container flows
+- Ubuntu-first mounted workspace flow through `ft workspace ...`
 - VS Code devcontainer wrappers
 - host target inventory, managed SSH keys, public-key enrollment, probe, and thin bootstrap
 - disposable Ubuntu and Alpine end-to-end verification through Docker, SSH, and Ansible bootstrap

@@ -2,4 +2,4 @@ tap "homebrew/core"
 tap "homebrew/cask"
 
 brew "gnu-sed"
-brew "coreutils"
+brew "reattach-to-user-namespace"

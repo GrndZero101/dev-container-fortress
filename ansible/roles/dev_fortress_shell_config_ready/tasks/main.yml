@@ -29,6 +29,26 @@
   changed_when: false
   failed_when: false
 
+- name: Check for curl on the target
+  ansible.builtin.command:
+    argv:
+      - curl
+      - --version
+  register: dev_fortress_shell_config_ready_curl_check
+  check_mode: false
+  changed_when: false
+  failed_when: false
+
+- name: Check for brew on the target
+  ansible.builtin.command:
+    argv:
+      - "{{ dev_container_fortress_homebrew_prefix_effective }}/bin/brew"
+      - --version
+  register: dev_fortress_shell_config_ready_brew_check
+  check_mode: false
+  changed_when: false
+  failed_when: false
+
 - name: Check for shell-config checkout on the target
   ansible.builtin.stat:
     path: "{{ dev_container_fortress_shell_config_dir_effective }}"
@@ -38,6 +58,11 @@
   ansible.builtin.stat:
     path: "{{ dev_container_fortress_shell_config_dir_effective }}/scripts/csm"
   register: dev_fortress_shell_config_ready_csm_stat
+
+- name: Check for installed fortress zinit repository
+  ansible.builtin.stat:
+    path: "{{ dev_container_fortress_shell_config_zinit_home_effective }}/zinit.zsh"
+  register: dev_fortress_shell_config_ready_zinit_stat
 
 - name: Check for installed root zshenv selector
   ansible.builtin.stat:
@@ -51,27 +76,102 @@
     follow: false
   register: dev_fortress_shell_config_ready_csm_link_stat
 
+- name: Check for saved shell-config active profile
+  ansible.builtin.stat:
+    path: "{{ dev_container_fortress_shell_config_state_file_effective }}"
+  register: dev_fortress_shell_config_ready_active_profile_stat
+
+- name: Read passwd entry for the target user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ dev_fortress_target_contract_host.user }}"
+  register: dev_fortress_shell_config_ready_passwd_entry
+
+- name: Read saved shell-config active profile
+  ansible.builtin.slurp:
+    path: "{{ dev_container_fortress_shell_config_state_file_effective }}"
+  when: dev_fortress_shell_config_ready_active_profile_stat.stat.exists
+  register: dev_fortress_shell_config_ready_active_profile_slurp
+
 - name: Report current bootstrap readiness
   ansible.builtin.debug:
     msg:
       target: "{{ dev_fortress_target_contract_host.target }}"
       kind: "{{ dev_fortress_target_contract_host.kind }}"
       tags: "{{ dev_fortress_target_contract_host.tags }}"
+      connection: "{{ dev_fortress_target_contract_host.connection }}"
       user: "{{ dev_fortress_target_contract_host.user }}"
       home: "{{ dev_fortress_target_contract_host.home }}"
       platform:
         system: "{{ ansible_facts['system'] }}"
         distribution: "{{ ansible_facts['distribution'] | default(ansible_facts['system']) }}"
         version: "{{ ansible_facts['distribution_version'] | default(ansible_facts['kernel']) }}"
+      native_bootstrap:
+        required_commands: "{{ dev_container_fortress_native_bootstrap_required_commands }}"
+        command_status:
+          python3: "{{ dev_fortress_shell_config_ready_python3_check.rc == 0 }}"
+          git: "{{ dev_fortress_shell_config_ready_git_check.rc == 0 }}"
+          curl: "{{ dev_fortress_shell_config_ready_curl_check.rc == 0 }}"
+          zsh: "{{ dev_fortress_shell_config_ready_zsh_check.rc == 0 }}"
+        meets_minimum: >-
+          {{
+            (dev_fortress_shell_config_ready_python3_check.rc == 0)
+            and (dev_fortress_shell_config_ready_git_check.rc == 0)
+            and (dev_fortress_shell_config_ready_curl_check.rc == 0)
+            and (dev_fortress_shell_config_ready_zsh_check.rc == 0)
+          }}
+      homebrew:
+        managed: "{{ dev_container_fortress_homebrew_manage_effective | default(false) }}"
+        prefix: "{{ dev_container_fortress_homebrew_prefix_effective | default('') }}"
+        profile_snippet: "{{ dev_container_fortress_homebrew_profile_snippet_effective | default('') }}"
+        installed: "{{ dev_fortress_shell_config_ready_brew_check.rc == 0 }}"
       tools:
         python3: "{{ dev_fortress_shell_config_ready_python3_check.rc == 0 }}"
         git: "{{ dev_fortress_shell_config_ready_git_check.rc == 0 }}"
+        curl: "{{ dev_fortress_shell_config_ready_curl_check.rc == 0 }}"
         zsh: "{{ dev_fortress_shell_config_ready_zsh_check.rc == 0 }}"
+        brew: "{{ dev_fortress_shell_config_ready_brew_check.rc == 0 }}"
+      login_shell:
+        managed: "{{ dev_fortress_login_shell_manage_effective | default(false) }}"
+        expected: "{{ dev_fortress_login_shell_path_effective | default('') }}"
+        current: >-
+          {{
+            (
+              dev_fortress_shell_config_ready_passwd_entry.ansible_facts.getent_passwd[
+                dev_fortress_target_contract_host.user
+              ][5]
+            )
+            if (
+              dev_fortress_shell_config_ready_passwd_entry.ansible_facts is defined
+              and dev_fortress_shell_config_ready_passwd_entry.ansible_facts.getent_passwd is defined
+              and dev_fortress_target_contract_host.user in dev_fortress_shell_config_ready_passwd_entry.ansible_facts.getent_passwd
+            )
+            else ''
+          }}
+        matches_expected: >-
+          {{
+            (
+              dev_fortress_shell_config_ready_passwd_entry.ansible_facts.getent_passwd[
+                dev_fortress_target_contract_host.user
+              ][5]
+            ) == (dev_fortress_login_shell_path_effective | default(''))
+            if (
+              dev_fortress_login_shell_manage_effective | default(false)
+              and dev_fortress_login_shell_path_effective | default('') | length > 0
+              and dev_fortress_shell_config_ready_passwd_entry.ansible_facts is defined
+              and dev_fortress_shell_config_ready_passwd_entry.ansible_facts.getent_passwd is defined
+              and dev_fortress_target_contract_host.user in dev_fortress_shell_config_ready_passwd_entry.ansible_facts.getent_passwd
+            )
+            else false
+          }}
       shell_config:
         repo: "{{ dev_container_fortress_shell_config_repo_effective }}"
         branch: "{{ dev_container_fortress_shell_config_branch_effective }}"
         dir: "{{ dev_container_fortress_shell_config_dir_effective }}"
         profile: "{{ dev_container_fortress_shell_config_profile_effective }}"
+        zinit_managed: "{{ dev_container_fortress_shell_config_zinit_manage_effective | default(false) }}"
+        zinit_home: "{{ dev_container_fortress_shell_config_zinit_home_effective | default('') }}"
+        zinit_installed: "{{ dev_fortress_shell_config_ready_zinit_stat.stat.exists }}"
         checkout_present: "{{ dev_fortress_shell_config_ready_dir_stat.stat.exists }}"
         csm_present: "{{ dev_fortress_shell_config_ready_csm_stat.stat.exists }}"
         root_zshenv_present: "{{ dev_fortress_shell_config_ready_root_zshenv_stat.stat.exists }}"
@@ -79,6 +179,28 @@
         csm_link_present: "{{ dev_fortress_shell_config_ready_csm_link_stat.stat.exists }}"
         csm_link_is_symlink: "{{ dev_fortress_shell_config_ready_csm_link_stat.stat.islnk | default(false) }}"
         csm_link_target: "{{ dev_fortress_shell_config_ready_csm_link_stat.stat.lnk_target | default('') }}"
+        active_profile_file: "{{ dev_container_fortress_shell_config_state_file_effective }}"
+        active_profile_saved: "{{ dev_fortress_shell_config_ready_active_profile_stat.stat.exists }}"
+        active_profile: >-
+          {{
+            (
+              dev_fortress_shell_config_ready_active_profile_slurp.content
+              | b64decode
+              | trim
+            )
+            if dev_fortress_shell_config_ready_active_profile_stat.stat.exists
+            else ''
+          }}
+        active_profile_matches_expected: >-
+          {{
+            (
+              dev_fortress_shell_config_ready_active_profile_slurp.content
+              | b64decode
+              | trim
+            ) == dev_container_fortress_shell_config_profile_effective
+            if dev_fortress_shell_config_ready_active_profile_stat.stat.exists
+            else false
+          }}
         ready_for_handoff: >-
           {{
             dev_fortress_shell_config_ready_dir_stat.stat.exists

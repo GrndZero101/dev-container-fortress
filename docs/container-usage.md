@@ -15,11 +15,26 @@ Works today:
 - runtime `uv`
 - installed `ft` CLI
 - installed `ft` zsh completion artifact in the XDG data tree
-- installed interaction baseline: `starship`, `zoxide`, `atuin`, and `fzf`
-- installed `tenv`
+- installed managed interaction baseline: `atuin`, `bat`, `bats`, `fd`, `glow`, `gum`, `jq`, `lazygit`, `nvim`, `oh-my-posh`, `rg`, `starship`, `tenv`, and `zoxide`
+- installed distro baseline: `fzf`
 - cloned and bootstrapped `shell-config`
 - default fortress shell profile
 - optional opt-in corporate CA support for builds
+
+For downloader-managed tools backed by GitHub releases, `ft install` resolves
+the current upstream release by default. Use `--use-manifest-version` only when
+you intentionally want the repo fallback version instead of a live release lookup.
+Downloaded assets are now reused from `${XDG_CACHE_HOME:-$HOME/.cache}/dev-container-fortress/tools`
+and the Dockerfiles mount that cache path during `ft install` so rebuilds can
+reuse previously verified artifacts even when the install layer reruns.
+
+`ripgrep` is hybrid today: Ubuntu installs it through the downloader, while
+Alpine uses the native `apk` package so `rg` is still available on musl targets
+where upstream release assets are incomplete.
+
+`neovim` is hybrid for the same reason: Ubuntu installs it through the
+downloader, while Alpine uses the native `apk` package because the upstream
+Linux tarballs are not musl builds.
 
 ## Build the Images
 
@@ -144,7 +159,7 @@ Use this short parity pass after container, shell, or toolchain changes:
 1. Rebuild and replace each target container.
 2. Run `fortress-hud` inside both targets.
 3. Confirm the prompt engine resolves the same way in both targets unless a difference is intentional.
-4. Confirm the managed shell tools surface the same way in both targets: `starship`, `atuin`, `zoxide`, and `fzf`.
+4. Confirm the managed shell tools surface the same way in both targets: `starship`, `atuin`, `zoxide`, `tenv`, and `fzf`.
 5. Confirm `${HOME}/.local/bin` is still present on `PATH` in both login shells.
 6. Confirm `zsh-tll-citadel-dev-fortress` remains the active profile in both targets.
 

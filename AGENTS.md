@@ -135,6 +135,8 @@
   * host provisioning to Ansible and Brew
   * container provisioning to Dockerfiles and Python tooling
   * shell setup to `shell-config`
+* For real hosts, treat native OS packages as the bootstrap substrate and Homebrew as the later preferred steady-state toolchain.
+* Validate `shell-config` first on minimally prepared supported hosts before relying on Homebrew-managed tools to provide the richer operator experience.
 * Allow the install location of `shell-config` to be user-configurable, but keep the default aligned with XDG conventions when possible.
 * Validate prerequisites early and fail with actionable error messages.
 * Do not silently continue after partial bootstrap failures that would leave the environment in an ambiguous state.

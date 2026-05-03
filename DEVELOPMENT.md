@@ -24,6 +24,14 @@ The current recommended developer platforms are:
 - macOS with Homebrew and Docker Desktop
 - Ubuntu on bare metal or Ubuntu under WSL2, with Docker CE from Docker's official apt repository
 
+General tool-management rule of thumb:
+
+- Docker images: repo-owned custom installers and `ft`-managed image logic
+- Host userland tools on macOS, Ubuntu, WSL2, and EC2 Ubuntu: Homebrew after
+  the minimal native bootstrap substrate is in place
+- Native package managers remain acceptable for base host prerequisites such as
+  Docker Engine, `git`, `curl`, and similar bootstrap-floor dependencies
+
 ## What You Need
 
 Recommended baseline on your workstation:
@@ -120,7 +128,8 @@ This will:
 3. hand off to `bootstrap.zsh`
 4. provision a uv-managed Python 3.14 runtime for the project environment
 5. create or refresh the local project environment
-6. install the `ft` completion artifact into the XDG data tree
+6. install the live `ft` CLI into the user tool path with `uv tool install`
+7. install the `ft` completion artifact into the XDG data tree
 
 Optional environment overrides:
 
@@ -142,7 +151,7 @@ This will:
 2. provision a uv-managed Python 3.14 runtime for the local project
 3. create or refresh the local `.venv`
 4. install Python dependencies for local development
-5. install the repo-local `ft` CLI environment
+5. install the live `ft` CLI into the user tool path from the local checkout
 6. install the `ft` zsh completion artifact into the XDG data tree
 
 After bootstrap, open a fresh shell if you want the new completion loaded cleanly.
@@ -186,10 +195,67 @@ The current baseline keeps the hooks intentionally light:
 
 - file hygiene checks for YAML, JSON, merge markers, trailing whitespace, and EOF handling
 - `markdownlint-cli2` for repo Markdown, aligned with the VS Code markdownlint ecosystem
-- `ansible-playbook --syntax-check` for the repo-owned host playbook
+- `ANSIBLE_CONFIG="$PWD/ansible/ansible.cfg" ansible-playbook --syntax-check`
+  for the repo-owned host playbook
 - `ansible-lint` for the Ansible tree under `ansible/`
 - `ruff` lint and format for Python
 - `zsh -n` syntax checks for repo-owned Zsh entrypoints under `scripts/` plus `bootstrap.zsh`
+
+## Workspace Daily-Driver Loop
+
+The repo now also includes an Ubuntu-first daily-driver container path for
+mounted development work.
+
+Start with:
+
+```zsh
+ft workspace doctor ubuntu-base
+ft workspace build ubuntu-base
+ft workspace up ubuntu-base
+ft workspace enter ubuntu-base
+```
+
+This path is intentionally different from the disposable target loop:
+
+- `ft container ...` is for validation targets and parity testing
+- `ft workspace ...` is for live mounted day-to-day development
+
+Current first-pass behavior:
+
+- the workspace bind-mounts the live `dev-container-fortress` checkout
+- it bind-mounts a sibling `../shell-config` checkout automatically when present
+- it persists a small state set for cache, share, GitHub CLI, GitLab CLI, AWS, and Azure paths under the Dev Fortress XDG state tree
+- on WSL-backed hosts, it mounts `C:\Windows\System32` read-only into the container and defaults browser-based auth flows to the built-in host browser helper unless `BROWSER` or `GH_BROWSER` is already set
+
+Current auth limitation to keep in mind:
+
+- browser launch from the workspace container is supported
+- localhost callback OAuth is not guaranteed in plain Docker workspaces
+- for tools such as AWS CLI SSO, prefer device-code flows in workspace
+  containers, for example `aws sso login --use-device-code`
+- native hosts can keep their normal localhost callback flows
+
+Use `ft workspace exec ubuntu-base -- zsh -lc 'pwd'` for one-off commands and
+`ft workspace reset ubuntu-base` when you want to remove both the container and
+its tagged image cleanly.
+
+For auth-oriented runtime checks, use:
+
+```zsh
+ft workspace auth doctor ubuntu-gitforge
+ft workspace auth validate ubuntu-gitforge
+```
+
+If you want the most feature-complete current workspace for day-to-day use and
+cross-layer validation, prefer:
+
+```zsh
+ft workspace doctor ubuntu-full
+ft workspace build ubuntu-full
+ft workspace up ubuntu-full
+ft workspace auth validate ubuntu-full
+ft workspace enter ubuntu-full
+```
 
 ## Preferred Container Development Loop
 
