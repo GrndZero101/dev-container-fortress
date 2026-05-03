@@ -31,7 +31,9 @@ RUN apk add --no-cache \
     git \
     gzip \
     openssh-server \
+    neovim \
     python3 \
+    ripgrep \
     rsync \
     sudo \
     tar \
@@ -110,15 +112,18 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh
 RUN uv python install 3.14
 RUN uv tool install --python 3.14 ${XDG_DATA_HOME}/dev-container-fortress/ft
 RUN ft completion install zsh
-RUN ft install \
+RUN --mount=type=cache,target=/home/vscode/.cache/dev-container-fortress/tools,uid=1000,gid=1000 \
+    ft install \
     --manifest ${XDG_DATA_HOME}/dev-container-fortress/ft/tools/tools.toml \
     --target alpine
 
 RUN uv --version \
   && test -f ${XDG_DATA_HOME}/dev-container-fortress/completions/zsh/_ft \
-  && ft plan --manifest ${XDG_DATA_HOME}/dev-container-fortress/ft/tools/tools.toml --target alpine \
+  && ft plan --manifest ${XDG_DATA_HOME}/dev-container-fortress/ft/tools/tools.toml --target alpine --use-manifest-version \
   && tenv --version \
   && starship --version \
   && zoxide --version \
   && atuin --version \
+  && nvim --version \
+  && rg --version \
   && fzf --version

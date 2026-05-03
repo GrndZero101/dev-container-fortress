@@ -3,8 +3,12 @@
 This document describes how to use `dev-container-fortress` directly on a workstation.
 
 > [!IMPORTANT]
-> The direct workstation path is still in scaffold phase.
-> The repository has local bootstrap, Brew bundle definitions, and Ansible structure, but the full host provisioning flow is not complete yet.
+> The direct workstation path is still maturing, but it is no longer only scaffold.
+> The current first-class local host path is Ubuntu under WSL2 using the shared
+> `ft host ...` and Ansible bootstrap flow against `localhost`.
+
+For the current WSL2-first local bootstrap path, use
+[WSL Bootstrap Runbook](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/wsl-bootstrap.md).
 
 ## Current Status
 
@@ -13,19 +17,33 @@ Works today:
 - local workspace bootstrap with `uv`
 - local development and testing of the `ft` tool
 - repository linting and tests
+- Ubuntu WSL2 local bootstrap through `ft host bootstrap localhost`
+- `shell-config` clone and bootstrap during host provisioning
+- fortress profile-local `zinit` installation during host provisioning
+- Ubuntu Linuxbrew uplift after the native bootstrap substrate is in place
+- Ubuntu Docker CE bootstrap for `workstation` and `cloud` targets
+
+Current host-tooling policy:
+
+- Homebrew is the preferred steady-state source for host userland tools
+- native package managers are still used for bootstrap-floor prerequisites such
+  as Docker Engine and similar base dependencies
+- container-specific heavy tools should live in Dev Fortress images rather than
+  being treated as required host userland by default
 
 Scaffolded but not complete yet:
 
-- full Ansible-driven workstation provisioning
-- host-side `shell-config` cloning and bootstrap integration
+- cross-platform workstation parity beyond the Ubuntu-first path
 - tmux integration
 - host-side corporate CA support
+- full host-side validation coverage outside the currently documented Ubuntu and disposable-target loops
 
 Implemented foundation work now available:
 
 - host-target modeling through `ft host ...`
 - XDG-aligned Dev Fortress SSH key path conventions
 - generated minimal Ansible inventory output from the shared host-target model
+- local-target bootstrap through `ansible_connection = "local"`
 
 ## Local Workspace Bootstrap
 
@@ -42,7 +60,8 @@ This will:
 2. create or refresh the local project environment
 3. install the Python dependencies needed for local development
 4. make repo-local tooling such as `pre-commit`, `pytest`, and `ruff` available through `uv run`
-5. install the `ft` zsh completion artifact into the XDG data tree
+5. install the live `ft` CLI into the user tool path from the local checkout
+6. install the `ft` zsh completion artifact into the XDG data tree
 
 ## Validate the Local Tooling
 
@@ -68,7 +87,8 @@ The current baseline keeps the hooks intentionally light:
 
 - file hygiene checks for YAML, JSON, merge markers, trailing whitespace, and EOF handling
 - `markdownlint-cli2` for repo Markdown, aligned with the VS Code markdownlint ecosystem
-- `ansible-playbook --syntax-check` for the repo-owned host playbook
+- `ANSIBLE_CONFIG="$PWD/ansible/ansible.cfg" ansible-playbook --syntax-check`
+  for the repo-owned host playbook
 - `ansible-lint` for the Ansible tree under `ansible/`
 - `ruff` lint and format for Python
 - `zsh -n` syntax checks for repo-owned Zsh entrypoints under `scripts/` plus `bootstrap.zsh`
@@ -166,12 +186,16 @@ ansible-playbook \
   /home/timl/projects/tboss/dev-container-fortress/ansible/playbooks/host.yml
 ```
 
-Today that playbook is intentionally thin, but it is now a real convergence
-loop for the first supported Linux baselines. It proves reachability and the
-shared target contract, ensures the target user's XDG base directories exist,
-converges baseline packages on Ubuntu and Alpine, and reports whether baseline
-tools such as `python3`, `git`, and `zsh` are present. Full workstation-style
-roles are still follow-up work.
+Today that playbook is still intentionally narrow, but it is now a real
+convergence loop for the first supported Linux baselines. It proves
+reachability and the shared target contract, ensures the target user's XDG
+base directories exist, converges baseline packages on Ubuntu and Alpine,
+converges the native bootstrap substrate, installs Docker CE on Ubuntu
+`workstation` and `cloud` targets, clones and bootstraps `shell-config`,
+installs the fortress profile-local `zinit` checkout, applies Ubuntu Linuxbrew
+uplift where enabled, and reports current readiness state for handoff. Full
+workstation-style roles such as tmux and editor automation are still follow-up
+work.
 
 See [Ansible README](/home/timl/projects/tboss/dev-container-fortress/ansible/README.md) for the current host-automation layer status.
 
@@ -229,10 +253,31 @@ Today the real host loop converges:
 
 - XDG base directories for the target user
 - baseline package prerequisites on supported Linux families such as Ubuntu and Alpine
-- shell-config readiness checks for `python3`, `git`, and `zsh`
+- shell-config clone and bootstrap
+- fortress profile-local `zinit` installation
+- login-shell convergence to `zsh` for remote SSH targets
+- Docker CE plus the `buildx` and Compose plugins on Ubuntu workstation/cloud targets
+- Ubuntu Linuxbrew bootstrap and the current fortress-facing formula set
 
-It does not yet converge the full workstation stack such as Homebrew, tmux,
-editor tooling, or shell-config installation. Those remain follow-up milestones.
+The current Ubuntu/WSL Linuxbrew tool pool now includes a broader operator
+baseline such as `tmux`, `helix`, `neovim`, `yazi`, `lazygit`,
+`kubernetes-cli`, `gopass`, `pass`, `rustic`, `syncthing`, `television`,
+`git-delta`, and the existing shell-facing tools.
+
+For Neovim specifically, host bootstrap now also clones
+`kickstart.nvim` into `${XDG_CONFIG_HOME:-$HOME/.config}/nvim-kickstart`
+and installs an `nvim-kickstart` launcher in `${HOME}/.local/bin`. That keeps
+the IDE-style starter config available without overwriting an existing
+`~/.config/nvim`.
+
+It does not yet converge the full workstation stack such as tmux
+configuration/integration, editor configuration, corporate CA handling, or
+broader non-Ubuntu workstation parity. Those remain follow-up milestones.
+
+> [!NOTE]
+> Docker access without `sudo` still depends on refreshed group membership after
+> the bootstrap run. On a fresh host, use `newgrp docker` or log in again after
+> the Docker role has added your user to the `docker` group.
 
 ## Corporate CA Status
 

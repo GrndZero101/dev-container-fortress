@@ -1,0 +1,51 @@
+---
+- name: Check for shell-config bootstrap script before zinit install
+  ansible.builtin.stat:
+    path: "{{ dev_container_fortress_shell_config_dir_effective }}/scripts/csm"
+  register: dev_fortress_shell_config_zinit_csm_stat
+
+- name: Check for installed fortress zinit repository
+  ansible.builtin.stat:
+    path: "{{ dev_container_fortress_shell_config_zinit_home_effective }}/zinit.zsh"
+  register: dev_fortress_shell_config_zinit_repo_stat
+
+- name: Ensure isolated ZDOTDIR exists for shell-config zinit install
+  ansible.builtin.file:
+    path: >-
+      {{ dev_container_fortress_xdg_cache_home_effective }}/
+      dev-container-fortress/csm-bootstrap-zdotdir
+    state: directory
+    mode: "0755"
+  when: dev_container_fortress_shell_config_zinit_manage_effective | bool
+
+- name: Predict fortress zinit install in check mode when missing
+  ansible.builtin.debug:
+    msg: >-
+      fortress zinit would be installed at
+      {{ dev_container_fortress_shell_config_zinit_home_effective }}
+  changed_when: true
+  when:
+    - dev_container_fortress_shell_config_zinit_manage_effective | bool
+    - dev_fortress_shell_config_zinit_csm_stat.stat.exists
+    - ansible_check_mode
+    - not dev_fortress_shell_config_zinit_repo_stat.stat.exists
+
+- name: Install fortress zinit plugin manager
+  ansible.builtin.command:
+    argv:
+      - zsh
+      - -f
+      - "{{ dev_container_fortress_shell_config_dir_effective }}/scripts/csm"
+      - install-zinit
+  environment:
+    ZDOTDIR: >-
+      {{ dev_container_fortress_xdg_cache_home_effective }}/
+      dev-container-fortress/csm-bootstrap-zdotdir
+  register: dev_fortress_shell_config_zinit_install
+  changed_when: >-
+    'install-zinit: installed zinit ->' in dev_fortress_shell_config_zinit_install.stdout
+  when:
+    - dev_container_fortress_shell_config_zinit_manage_effective | bool
+    - dev_fortress_shell_config_zinit_csm_stat.stat.exists
+    - not ansible_check_mode
+    - not dev_fortress_shell_config_zinit_repo_stat.stat.exists

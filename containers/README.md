@@ -10,8 +10,8 @@ For user-facing build and run instructions, see [Container Usage](/home/timl/pro
 
 ## Strategy
 
-- Use the distro package manager for base system dependencies
-- Use Python + `uv` for pinned tool installation
+- Use the distro package manager only for base system dependencies
+- Use Python + `uv` plus the packaged downloader for the managed tool pool
 - Avoid Homebrew inside containers
 - Keep Ubuntu and Alpine variants aligned where practical
 - Use a non-root runtime user for day-to-day development inside the container
@@ -39,7 +39,23 @@ The Ubuntu and Alpine Dockerfiles now use a shared split bootstrap strategy:
 - install Alpine's split `zsh-vcs` package so native zsh prompt fallback can still use `vcs_info`
 - on Alpine, restore user-local bin discovery through `/etc/profile.d` because login shells source `/etc/profile`, which otherwise resets `PATH` to system directories only
 
-The Dockerfiles now resolve and install `tenv`, `starship`, `zoxide`, and `atuin` through the packaged downloader entrypoint, while `fzf` comes from the distro package manager.
+The Dockerfiles now resolve and install the current downloader-managed tool
+subset through the packaged downloader entrypoint. `fzf` still comes from the
+distro package manager today because it is not yet represented in the
+downloader manifest. For downloader-managed tools backed by GitHub releases, the
+container build now resolves the latest upstream release at install time by
+default rather than relying only on the manifest's fallback version field. The
+current active subset now includes `atuin`, `bat`, `bats`, `fd`, `glow`, `gum`,
+`jq`, `lazygit`, `neovim`, `oh-my-posh`, `ripgrep`, `starship`, `tenv`, and
+`zoxide`.
+
+`ripgrep` is intentionally hybrid today: Ubuntu gets `rg` from the downloader,
+while Alpine gets the native `apk` package because upstream does not currently
+publish the needed musl `arm64` release artifact.
+
+`neovim` is also hybrid today: Ubuntu gets `nvim` from the downloader, while
+Alpine uses the native `apk` package because the upstream Linux tarballs are
+not musl-targeted.
 
 The Python tool installer currently provides:
 
@@ -48,6 +64,7 @@ The Python tool installer currently provides:
 - installation planning
 - archive download and extraction
 - checksum verification from upstream checksum manifests
+- XDG cache reuse for downloaded assets, keyed by tool, target, OS, arch, and resolved version
 - `tenv`, `starship`, `zoxide`, and `atuin` installation for Linux `amd64` and `arm64`
 - target-specific asset selection for Ubuntu versus Alpine where needed
 
@@ -55,7 +72,8 @@ Planned follow-up work:
 
 - optional signature verification where upstream supports it
 - host-side corporate CA support through Ansible
-- broader tool coverage beyond the current interaction baseline
+- expand the downloader-managed subset toward the declared shared parity target
+  in [tool-pool manifest](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/ft/tools/tool-pool.toml)
 
 ## Devcontainer Targets
 

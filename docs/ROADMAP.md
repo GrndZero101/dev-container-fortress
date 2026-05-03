@@ -266,7 +266,7 @@ Details:
 
 ### `M5` Host Bootstrap Expansion
 
-Status: `next`
+Status: `done`
 
 Objective:
 Expand host provisioning from “reachable and inspectable” into a meaningful
@@ -275,14 +275,59 @@ host setup path.
 Exit criteria:
 
 - host playbook provisions a small but real baseline
-- shell-config bootstrap handoff is automated where intended
+- shell-config installation and bootstrap are automated where intended
+- shell-config is validated first on a minimally prepared Linux host before
+  Homebrew becomes the preferred steady-state tool substrate
 - host-side prerequisite handling is clearer across Linux, macOS, and WSL
 - reruns on previously configured or manually aligned hosts level-set drift
   safely rather than assuming a pristine machine
 - bootstrap assumptions and carve-outs are documented
 
+Delivered:
+
+- verified Ubuntu-first WSL2 bootstrap path against `localhost`
+- real host baseline through Ansible roles for XDG layout, native bootstrap
+  prerequisites, `shell-config`, fortress profile-local `zinit`, readiness
+  reporting, and Ubuntu Linuxbrew uplift
+- convergent local validation through `ft host validate` with final
+  `PLAY RECAP` parsing and `changed=0` enforcement
+- explicit documentation for the remaining local WSL login-shell carve-out
+
 Details:
 [M5 draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M5-host-bootstrap-expansion.md)
+
+### `M5a` Disposable Daily-Driver Container
+
+Status: `next`
+
+Objective:
+Define and prove the first real day-to-day development container workflow so a
+thin host such as disposable Ubuntu EC2 can run a bind-mounted Fortress
+workstation container for live development.
+
+Candidate areas:
+
+- first-class `ft` workflow for a mounted daily-driver container
+- bind-mounted live working copies of `dev-container-fortress` and `shell-config`
+- explicit persisted-state and auth mount policy
+- optional heavy tool layers such as `gh`, `glab`, `aws`, and `az`
+- proof of the provision -> bootstrap -> develop -> destroy EC2 loop
+
+Design rule:
+
+- keep the host thin and convergent; keep the real workstation inside the container
+- keep container tool layers repo-owned and image-managed rather than
+  Homebrew-backed
+- keep host userland tooling aligned to the Homebrew-preferred steady-state
+  substrate established in `M5`
+
+Recommended command direction:
+
+- introduce `ft workspace ...` for the mounted workstation path
+- keep `ft container ...` focused on disposable validation targets
+
+Details:
+[M5a draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M5a-disposable-daily-driver-container.md)
 
 ### `M6` Operator CLI Maturity
 
@@ -300,6 +345,30 @@ Exit criteria:
 
 Details:
 [M6 draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M6-operator-cli-maturity.md)
+
+### `M6a` Python Maintainability Refactor
+
+Status: `next`
+
+Objective:
+Refactor the growing Python implementation behind `ft` into smaller,
+domain-oriented modules so the codebase stays DRY, KISS, YAGNI, and easier to
+change safely as the operator surface expands.
+
+Exit criteria:
+
+- `ft/src/ft/cli.py` is reduced to thin Typer command wiring and light argument
+  handling
+- host, SSH, infra, interactive selection, and container logic are split into
+  focused modules with coherent responsibilities
+- new behavior is added behind reusable functions rather than copied across CLI
+  commands
+- tests are less concentrated in one monolithic CLI test file
+- the refactor does not change the public `ft` command surface unintentionally
+
+Details:
+Track as a maintainability-focused follow-on once the current M5 operator loop
+stabilizes.
 
 ### `M7` Local Verification Workflow
 

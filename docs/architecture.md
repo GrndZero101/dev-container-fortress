@@ -21,8 +21,19 @@ That responsibility belongs to the external `shell-config` repository.
 Use:
 
 - Ansible for orchestration
-- Homebrew for packages and userland tools
+- Homebrew for preferred packages and userland tools after the host has crossed
+  the minimal bootstrap boundary
 - `tenv` for Terraform and OpenTofu version selection
+
+Host-side policy should stay explicit:
+
+- Ansible converges and validates host state
+- Homebrew is the preferred steady-state source of host userland tools across
+  macOS and supported Linux host targets such as Ubuntu, WSL2, and EC2 Ubuntu
+- minimal native package-manager usage is allowed for bootstrap-floor
+  prerequisites such as Docker Engine or basic transport dependencies
+- host-oriented tool decisions should not drift into per-tool ad hoc installer
+  logic when a Homebrew-backed steady state exists
 
 Host automation should be designed as a convergent desired-state system rather
 than as a one-shot bootstrap script.
@@ -46,6 +57,10 @@ Recommended host-automation rules:
 - keep reruns safe on already-configured hosts
 - fail clearly when a host falls outside the supported convergence contract
 - document carve-outs rather than hiding them in role logic
+- keep minimal native bootstrap prerequisites separate from the later
+  Homebrew-preferred steady-state toolchain
+- validate `shell-config` first on a minimally prepared host so shell-level
+  assumptions are visible before richer userland tooling is added
 
 When implementing Ansible roles, prefer built-in Ansible modules over shell
 commands or wrapper scripts whenever a built-in module can express the desired
@@ -69,6 +84,16 @@ Use:
 - `tenv` as the first packaged DevOps tool
 - a non-root runtime user for interactive development
 - `ft` as the long-term operator CLI for container lifecycle, validation, and future environment automation
+
+Container-side policy should stay separate from the host story:
+
+- container userland tools should be installed through repo-owned Dev Fortress
+  mechanisms such as `ft`, shared installer scripts, and image-managed build
+  logic
+- vendor installers may still be used inside that repo-owned path when they are
+  the cleanest supported source for a given container target
+- Homebrew should not become the default package substrate inside the Dev
+  Fortress container images
 
 See [Container Standards](./container-standards.md) for the current runtime
 contract and design rules that Ubuntu and Alpine should follow.

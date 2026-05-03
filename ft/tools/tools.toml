@@ -1,10 +1,12 @@
 [tools.tenv]
 description = "Terraform and OpenTofu version manager."
 version = "4.8.3"
+version_source = "github_latest"
+release_tag_prefix = "v"
 enabled = true
 install_root = "/usr/local/bin"
 healthcheck = ["tenv", "--version"]
-variables = { github_repo = "tofuutils/tenv", release_tag = "v4.8.3", asset_prefix = "tenv_v4.8.3" }
+variables = { github_repo = "tofuutils/tenv", asset_prefix = "tenv_v{version}" }
 
 [tools.tenv.integrity]
 checksum_url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{asset_prefix}_checksums.txt"
@@ -31,10 +33,12 @@ binary_path = "tenv"
 [tools.starship]
 description = "Cross-shell prompt renderer."
 version = "1.24.2"
+version_source = "github_latest"
+release_tag_prefix = "v"
 enabled = true
 install_root = "/usr/local/bin"
 healthcheck = ["starship", "--version"]
-variables = { github_repo = "starship/starship", release_tag = "v1.24.2", asset_prefix = "starship" }
+variables = { github_repo = "starship/starship", asset_prefix = "starship" }
 
 [tools.starship.integrity]
 checksum_url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}.sha256"
@@ -61,10 +65,12 @@ checksum_asset = "{filename}"
 [tools.zoxide]
 description = "Smarter cd command with shell integrations."
 version = "0.9.8"
+version_source = "github_latest"
+release_tag_prefix = "v"
 enabled = true
 install_root = "/usr/local/bin"
 healthcheck = ["zoxide", "--version"]
-variables = { github_repo = "ajeetdsouza/zoxide", release_tag = "v0.9.8", asset_prefix = "zoxide-0.9.8" }
+variables = { github_repo = "ajeetdsouza/zoxide", asset_prefix = "zoxide-{version}" }
 
 [[tools.zoxide.assets]]
 os = "linux"
@@ -85,10 +91,12 @@ binary_path = "zoxide"
 [tools.atuin]
 description = "Shell history and search tool."
 version = "18.13.6"
+version_source = "github_latest"
+release_tag_prefix = "v"
 enabled = true
 install_root = "/usr/local/bin"
 healthcheck = ["atuin", "--version"]
-variables = { github_repo = "atuinsh/atuin", release_tag = "v18.13.6", asset_prefix = "atuin" }
+variables = { github_repo = "atuinsh/atuin", asset_prefix = "atuin" }
 
 [tools.atuin.integrity]
 checksum_url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}.sha256"
@@ -137,10 +145,12 @@ checksum_asset = "{filename}"
 [tools.gum]
 description = "Human-friendly terminal UI helper for local operator flows."
 version = "0.16.0"
-enabled = false
+version_source = "github_latest"
+release_tag_prefix = "v"
+enabled = true
 install_root = "/usr/local/bin"
 healthcheck = ["gum", "--version"]
-variables = { github_repo = "charmbracelet/gum", release_tag = "v0.16.0", asset_prefix = "gum_0.16.0" }
+variables = { github_repo = "charmbracelet/gum", asset_prefix = "gum_{version}" }
 
 [[tools.gum.assets]]
 os = "linux"
@@ -148,7 +158,7 @@ arch = "amd64"
 filename = "{asset_prefix}_Linux_x86_64.tar.gz"
 url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
 archive = "tar.gz"
-binary_path = "gum"
+binary_path = "{asset_prefix}_Linux_x86_64/gum"
 
 [[tools.gum.assets]]
 os = "linux"
@@ -156,39 +166,107 @@ arch = "arm64"
 filename = "{asset_prefix}_Linux_arm64.tar.gz"
 url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
 archive = "tar.gz"
-binary_path = "gum"
+binary_path = "{asset_prefix}_Linux_arm64/gum"
 
-[tools.glow]
-description = "Terminal markdown renderer for operator-facing documentation."
-version = "2.1.1"
-enabled = false
+[tools.jq]
+description = "Portable command-line JSON processor."
+version = "1.8.1"
+version_source = "github_latest"
+release_tag_prefix = "jq-"
+enabled = true
 install_root = "/usr/local/bin"
-healthcheck = ["glow", "--version"]
-variables = { github_repo = "charmbracelet/glow", release_tag = "v2.1.1", asset_prefix = "glow_2.1.1" }
+healthcheck = ["jq", "--version"]
+variables = { github_repo = "jqlang/jq" }
 
-[[tools.glow.assets]]
+[[tools.jq.assets]]
+os = "linux"
+arch = "amd64"
+filename = "jq-linux-amd64"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "raw"
+binary_path = "jq"
+
+[[tools.jq.assets]]
+os = "linux"
+arch = "arm64"
+filename = "jq-linux-arm64"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "raw"
+binary_path = "jq"
+
+[tools.lazygit]
+description = "Terminal UI for git workflows."
+version = "0.61.1"
+version_source = "github_latest"
+release_tag_prefix = "v"
+enabled = true
+install_root = "/usr/local/bin"
+healthcheck = ["lazygit", "--version"]
+variables = { github_repo = "jesseduffield/lazygit", asset_prefix = "lazygit_{version}" }
+
+[tools.lazygit.integrity]
+checksum_url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/checksums.txt"
+checksum_format = "sha256sum"
+
+[[tools.lazygit.assets]]
 os = "linux"
 arch = "amd64"
 filename = "{asset_prefix}_linux_x86_64.tar.gz"
 url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
 archive = "tar.gz"
-binary_path = "glow"
+binary_path = "lazygit"
+checksum_asset = "{filename}"
 
-[[tools.glow.assets]]
+[[tools.lazygit.assets]]
 os = "linux"
 arch = "arm64"
 filename = "{asset_prefix}_linux_arm64.tar.gz"
 url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
 archive = "tar.gz"
-binary_path = "glow"
+binary_path = "lazygit"
+checksum_asset = "{filename}"
+
+[tools.glow]
+description = "Terminal markdown renderer for operator-facing documentation."
+version = "2.1.2"
+version_source = "github_latest"
+release_tag_prefix = "v"
+enabled = true
+install_root = "/usr/local/bin"
+healthcheck = ["glow", "--version"]
+variables = { github_repo = "charmbracelet/glow", asset_prefix = "glow_{version}" }
+
+[tools.glow.integrity]
+checksum_url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/checksums.txt"
+checksum_format = "sha256sum"
+
+[[tools.glow.assets]]
+os = "linux"
+arch = "amd64"
+filename = "{asset_prefix}_Linux_x86_64.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "{asset_prefix}_Linux_x86_64/glow"
+checksum_asset = "{filename}"
+
+[[tools.glow.assets]]
+os = "linux"
+arch = "arm64"
+filename = "{asset_prefix}_Linux_arm64.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "{asset_prefix}_Linux_arm64/glow"
+checksum_asset = "{filename}"
 
 [tools.bats]
 description = "Bash Automated Testing System for shell integration tests."
 version = "1.13.0"
-enabled = false
+version_source = "github_latest"
+release_tag_prefix = "v"
+enabled = true
 install_root = "/usr/local/bin"
 healthcheck = ["bats", "--version"]
-variables = { github_repo = "bats-core/bats-core", release_tag = "v1.13.0", asset_prefix = "bats-core-1.13.0" }
+variables = { github_repo = "bats-core/bats-core", asset_prefix = "bats-core-{version}" }
 
 [[tools.bats.assets]]
 os = "linux"
@@ -197,6 +275,7 @@ filename = "{asset_prefix}.tar.gz"
 url_template = "https://github.com/{github_repo}/archive/refs/tags/{release_tag}.tar.gz"
 archive = "tar.gz"
 binary_path = "{asset_prefix}/bin/bats"
+support_paths = ["{asset_prefix}/libexec"]
 
 [[tools.bats.assets]]
 os = "linux"
@@ -205,3 +284,197 @@ filename = "{asset_prefix}.tar.gz"
 url_template = "https://github.com/{github_repo}/archive/refs/tags/{release_tag}.tar.gz"
 archive = "tar.gz"
 binary_path = "{asset_prefix}/bin/bats"
+support_paths = ["{asset_prefix}/libexec"]
+
+[tools.bat]
+description = "Cat clone with syntax highlighting and Git integration."
+version = "0.26.1"
+version_source = "github_latest"
+release_tag_prefix = "v"
+enabled = true
+install_root = "/usr/local/bin"
+healthcheck = ["bat", "--version"]
+variables = { github_repo = "sharkdp/bat", asset_prefix = "bat-{release_tag}" }
+
+[[tools.bat.assets]]
+os = "linux"
+arch = "amd64"
+target = "ubuntu"
+filename = "{asset_prefix}-x86_64-unknown-linux-gnu.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "{asset_prefix}-x86_64-unknown-linux-gnu/bat"
+
+[[tools.bat.assets]]
+os = "linux"
+arch = "arm64"
+target = "ubuntu"
+filename = "{asset_prefix}-aarch64-unknown-linux-gnu.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "{asset_prefix}-aarch64-unknown-linux-gnu/bat"
+
+[[tools.bat.assets]]
+os = "linux"
+arch = "amd64"
+target = "alpine"
+filename = "{asset_prefix}-x86_64-unknown-linux-musl.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "{asset_prefix}-x86_64-unknown-linux-musl/bat"
+
+[[tools.bat.assets]]
+os = "linux"
+arch = "arm64"
+target = "alpine"
+filename = "{asset_prefix}-aarch64-unknown-linux-musl.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "{asset_prefix}-aarch64-unknown-linux-musl/bat"
+
+[tools.fd]
+description = "Simple and fast find alternative."
+version = "10.4.2"
+version_source = "github_latest"
+release_tag_prefix = "v"
+enabled = true
+install_root = "/usr/local/bin"
+healthcheck = ["fd", "--version"]
+variables = { github_repo = "sharkdp/fd", asset_prefix = "fd-{release_tag}" }
+
+[[tools.fd.assets]]
+os = "linux"
+arch = "amd64"
+target = "ubuntu"
+filename = "{asset_prefix}-x86_64-unknown-linux-gnu.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "{asset_prefix}-x86_64-unknown-linux-gnu/fd"
+
+[[tools.fd.assets]]
+os = "linux"
+arch = "arm64"
+target = "ubuntu"
+filename = "{asset_prefix}-aarch64-unknown-linux-gnu.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "{asset_prefix}-aarch64-unknown-linux-gnu/fd"
+
+[[tools.fd.assets]]
+os = "linux"
+arch = "amd64"
+target = "alpine"
+filename = "{asset_prefix}-x86_64-unknown-linux-musl.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "{asset_prefix}-x86_64-unknown-linux-musl/fd"
+
+[[tools.fd.assets]]
+os = "linux"
+arch = "arm64"
+target = "alpine"
+filename = "{asset_prefix}-aarch64-unknown-linux-musl.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "{asset_prefix}-aarch64-unknown-linux-musl/fd"
+
+[tools.oh-my-posh]
+description = "Cross-shell prompt theme engine."
+version = "29.10.0"
+version_source = "github_latest"
+release_tag_prefix = "v"
+enabled = true
+install_root = "/usr/local/bin"
+healthcheck = ["oh-my-posh", "version"]
+variables = { github_repo = "JanDeDobbeleer/oh-my-posh" }
+
+[tools.oh-my-posh.integrity]
+checksum_url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/checksums.txt"
+checksum_format = "sha256sum"
+
+[[tools.oh-my-posh.assets]]
+os = "linux"
+arch = "amd64"
+filename = "posh-linux-amd64"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "raw"
+binary_path = "oh-my-posh"
+checksum_asset = "{filename}"
+
+[tools.ripgrep]
+description = "Fast recursive code search with the rg command."
+version = "15.1.0"
+version_source = "github_latest"
+enabled = true
+enabled_targets = ["ubuntu"]
+install_root = "/usr/local/bin"
+healthcheck = ["rg", "--version"]
+variables = { github_repo = "BurntSushi/ripgrep", asset_prefix = "ripgrep-{version}" }
+
+[tools.ripgrep.integrity]
+checksum_url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}.sha256"
+checksum_format = "sha256sum"
+
+[[tools.ripgrep.assets]]
+os = "linux"
+arch = "amd64"
+target = "ubuntu"
+filename = "{asset_prefix}-x86_64-unknown-linux-musl.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "{asset_prefix}-x86_64-unknown-linux-musl/rg"
+checksum_asset = "{filename}"
+
+[[tools.ripgrep.assets]]
+os = "linux"
+arch = "arm64"
+target = "ubuntu"
+filename = "{asset_prefix}-aarch64-unknown-linux-gnu.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "{asset_prefix}-aarch64-unknown-linux-gnu/rg"
+checksum_asset = "{filename}"
+
+[tools.neovim]
+description = "Modern Vim-based editor with embedded Lua and LSP ecosystem."
+version = "0.12.1"
+version_source = "github_latest"
+release_tag_prefix = "v"
+enabled = true
+enabled_targets = ["ubuntu"]
+install_root = "/usr/local/bin"
+healthcheck = ["nvim", "--version"]
+variables = { github_repo = "neovim/neovim", asset_prefix = "nvim" }
+
+[[tools.neovim.assets]]
+os = "linux"
+arch = "amd64"
+filename = "{asset_prefix}-linux-x86_64.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "{asset_prefix}-linux-x86_64/bin/nvim"
+support_paths = [
+  "{asset_prefix}-linux-x86_64/lib",
+  "{asset_prefix}-linux-x86_64/share",
+]
+
+[[tools.neovim.assets]]
+os = "linux"
+arch = "arm64"
+filename = "{asset_prefix}-linux-arm64.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "{asset_prefix}-linux-arm64/bin/nvim"
+support_paths = [
+  "{asset_prefix}-linux-arm64/lib",
+  "{asset_prefix}-linux-arm64/share",
+]
+
+[[tools.oh-my-posh.assets]]
+os = "linux"
+arch = "arm64"
+filename = "posh-linux-arm64"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "raw"
+binary_path = "oh-my-posh"
+checksum_asset = "{filename}"

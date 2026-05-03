@@ -10,10 +10,14 @@
       - dev_container_fortress_shell_config_branch_effective | length > 0
       - dev_container_fortress_shell_config_dir_effective | length > 0
       - dev_container_fortress_shell_config_profile_effective | length > 0
+      - dev_container_fortress_shell_config_zinit_home_effective | length > 0
+      - dev_container_fortress_native_bootstrap_required_commands is defined
+      - dev_container_fortress_native_bootstrap_required_commands | length > 0
     fail_msg: >-
       Dev Fortress bootstrap expects the generated inventory contract plus
       gathered facts for the target user, home directory, and shell-config
-      integration settings.
+      integration settings and the declared native bootstrap prerequisite
+      command contract.
     success_msg: Target contract and gathered facts look usable.
 
 - name: Record normalized target contract details
@@ -22,5 +26,11 @@
       target: "{{ inventory_hostname }}"
       kind: "{{ dev_fortress_target_kind }}"
       tags: "{{ dev_fortress_target_tags }}"
+      connection: "{{ ansible_connection | default('ssh') }}"
       user: "{{ ansible_facts['user_id'] }}"
       home: "{{ ansible_facts['env']['HOME'] }}"
+      native_bootstrap_required_commands: >-
+        {{ dev_container_fortress_native_bootstrap_required_commands }}
+      shell_config_zinit_manage: >-
+        {{ dev_container_fortress_shell_config_zinit_manage_effective | bool }}
+      shell_config_zinit_home: "{{ dev_container_fortress_shell_config_zinit_home_effective }}"

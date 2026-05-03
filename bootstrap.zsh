@@ -115,7 +115,17 @@ ensure_uv() {
 # Returns:
 #   None.
 print_path_refresh_hint() {
-  if [[ "${UV_WAS_INSTALLED}" != "1" ]]; then
+  local need_hint=0
+
+  if [[ "${UV_WAS_INSTALLED}" == "1" ]]; then
+    need_hint=1
+  fi
+
+  if ! command -v ft >/dev/null 2>&1; then
+    need_hint=1
+  fi
+
+  if [[ "${need_hint}" != "1" ]]; then
     return
   fi
 
@@ -150,6 +160,16 @@ sync_workspace() {
 #   None.
 # Returns:
 #   None.
+install_ft_cli() {
+  log_step "Installing ft CLI into the user tool path"
+  uv tool install --python "${FORTRESS_PYTHON_VERSION}" --editable --force "${BOOTSTRAP_DIR}/ft"
+}
+
+# Purpose: Install the ft zsh completion artifact into the user's XDG data tree.
+# Arguments:
+#   None.
+# Returns:
+#   None.
 install_ft_completion() {
   log_step "Installing ft zsh completion into the XDG data tree"
   uv run ft completion install zsh
@@ -163,6 +183,7 @@ main() {
 
   cd "${BOOTSTRAP_DIR}"
   sync_workspace
+  install_ft_cli
   install_ft_completion
   log_step "Bootstrap complete"
   print_path_refresh_hint
