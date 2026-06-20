@@ -218,6 +218,8 @@ ft container build ubuntu \
 | [docs/workstation-usage.md](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md) | Operators | Host-target and workstation flow status |
 | [docs/wsl-bootstrap.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/wsl-bootstrap.md) | Operators | Step-by-step bootstrap path for Ubuntu under WSL2 |
 | [docs/target-validation.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/target-validation.md) | Operators | Current three-target validation runbook across Ubuntu, Alpine, and EC2 |
+| [docs/secrets-management.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/secrets-management.md) | Operators | First-pass GPG and `pass` secrets baseline for workspace profiles |
+| [docs/backup-restore.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/backup-restore.md) | Operators | General `rustic`-oriented backup and restore direction |
 | [docs/devcontainer-usage.md](/home/timl/projects/tboss/dev-container-fortress/docs/devcontainer-usage.md) | Operators | VS Code devcontainer usage |
 | [docs/architecture.md](/home/timl/projects/tboss/dev-container-fortress/docs/architecture.md) | Maintainers | Layering and control-plane direction |
 | [docs/container-standards.md](/home/timl/projects/tboss/dev-container-fortress/docs/container-standards.md) | Maintainers | Container runtime/build contract |

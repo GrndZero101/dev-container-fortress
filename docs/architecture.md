@@ -92,8 +92,18 @@ Container-side policy should stay separate from the host story:
   logic
 - vendor installers may still be used inside that repo-owned path when they are
   the cleanest supported source for a given container target
+- complex cryptographic substrate such as GnuPG and pinentry may use the base
+  image package manager for now when upstream binary distribution is not a
+  clean fit and distro integration matters
+- that exception should stay narrow, documented, and validated by command
+  checks; it should not become a general escape hatch for normal userland tools
 - Homebrew should not become the default package substrate inside the Dev
   Fortress container images
+
+For host targets, Homebrew remains the preferred path for newer steady-state
+tooling where it is supported. For container targets, the base image package
+manager is acceptable for GPG-class substrate until a stronger repo-owned
+installer proves worth the added build and maintenance cost.
 
 See [Container Standards](./container-standards.md) for the current runtime
 contract and design rules that Ubuntu and Alpine should follow.

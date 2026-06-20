@@ -12,13 +12,13 @@ workflows across both persistent and ephemeral environments.
 
 ## Exit Criteria
 
-- [ ] GPG setup and key-management workflow is documented for local use
+- [x] GPG setup and key-management workflow is documented for local use
 - [ ] Backup, restore, transfer, and offline key-handling guidance exists
-- [ ] `pass` or `gopass` setup is documented and integrated with the chosen GPG workflow
+- [x] `pass` or `gopass` setup is documented and integrated with the chosen GPG workflow
 - [ ] `op` CLI integration expectations are documented and wired where appropriate
 - [ ] Secure backup and restore guidance exists for secret material across multiple environments
-- [ ] The secrets workflow includes an explicit restore story for fresh or disposable environments
-- [ ] The supported secrets-management baseline is explicit in operator docs
+- [x] The secrets workflow includes an explicit restore story for fresh or disposable environments
+- [x] The supported secrets-management baseline is explicit in operator docs
 
 ## Non-Goals
 
@@ -31,15 +31,15 @@ workflows across both persistent and ephemeral environments.
 
 ### M7a-1 Define the GPG key lifecycle
 
-- [ ] Problem: there is no standardized key-management story for daily-driver use
-- [ ] Scope: define generation, backup, restore, transfer, subkeys, and offline handling expectations
-- [ ] Acceptance: the local GPG lifecycle is documented clearly enough for operator setup
+- [x] Problem: there is no standardized key-management story for daily-driver use
+- [x] Scope: define generation, backup, restore, transfer, subkeys, and offline handling expectations
+- [x] Acceptance: the local GPG lifecycle is documented clearly enough for operator setup
 
 ### M7a-2 Add password-store baseline
 
-- [ ] Problem: there is no chosen password-store workflow for the fortress environment
-- [ ] Scope: define and document `pass` or `gopass` setup with the chosen GPG key flow
-- [ ] Acceptance: the baseline password-store path is explicit and repeatable
+- [x] Problem: there is no chosen password-store workflow for the fortress environment
+- [x] Scope: define and document `pass` or `gopass` setup with the chosen GPG key flow
+- [x] Acceptance: the baseline password-store path is explicit and repeatable
 
 ### M7a-3 Add OP CLI integration contract
 
@@ -61,15 +61,28 @@ workflows across both persistent and ephemeral environments.
 
 ### M7a-6 Document ephemeral-environment restore workflow
 
-- [ ] Problem: daily-driver use requires restoring secrets into fresh or disposable environments without guesswork
-- [ ] Scope: document how the secrets baseline is restored into containers, new hosts, or rebuilt workstations
-- [ ] Acceptance: the ephemeral restore path is documented clearly enough for repeat use
+- [x] Problem: daily-driver use requires restoring secrets into fresh or disposable environments without guesswork
+- [x] Scope: document how the secrets baseline is restored into containers, new hosts, or rebuilt workstations
+- [x] Acceptance: the ephemeral restore path is documented clearly enough for repeat use
 
 ## Verification Notes
 
 - [ ] Supported local secrets workflow can be followed from docs without tribal knowledge
 - [ ] Backup and restore flow is explicit for both persistent and ephemeral environments
 - [ ] Secrets tooling expectations are aligned across README, workstation docs, and roadmap
+
+## Implementation Notes
+
+- `ubuntu-secrets` now uses an image-building `secrets` layer.
+- The first supported baseline is GPG plus `pass`, not `gopass`.
+- Container GPG and pinentry are intentionally base-package-manager backed for
+  now; host targets should use Homebrew where supported for newer steady-state
+  tooling.
+- `rustic` is now framed as a general backup/restore primitive with secrets as
+  the first profile, not as a secrets-only tool.
+- Workspace runtime mounts now include `gnupg` and `password-store`.
+- Private key material remains a runtime restore concern and is not passed into
+  Docker builds.
 
 ## Branch and Merge Plan
 

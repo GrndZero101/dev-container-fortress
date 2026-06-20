@@ -4,8 +4,9 @@ mode = "image_build"
 build_arg = "WORKSPACE_TOOL_LAYER_GITFORGE"
 
 [tool_layers.secrets]
-description = "Reserved marker for the future secrets baseline and restore contract."
-mode = "state_only"
+description = "Installs the first-pass GPG-backed pass secrets baseline."
+mode = "image_build"
+build_arg = "WORKSPACE_TOOL_LAYER_SECRETS"
 
 [tool_layers.aws]
 description = "Persists AWS CLI state and marks the profile for AWS-oriented workflows."
@@ -31,10 +32,10 @@ persisted_mounts = ["cache", "share", "gh", "glab"]
 tool_layers = ["gitforge"]
 
 [profiles.ubuntu-secrets]
-description = "Ubuntu workspace reserved for future secrets-baseline integration."
+description = "Ubuntu workspace with the first-pass GPG-backed pass secrets baseline."
 container_target = "ubuntu"
 working_directory = "/workspace/dev-container-fortress"
-persisted_mounts = ["cache", "share"]
+persisted_mounts = ["cache", "share", "gnupg", "password-store"]
 tool_layers = ["secrets"]
 
 [profiles.ubuntu-cloud-aws]
@@ -52,8 +53,8 @@ persisted_mounts = ["cache", "share", "azure"]
 tool_layers = ["azure"]
 
 [profiles.ubuntu-full]
-description = "Ubuntu workspace that combines the current optional layer markers, with gitforge and AWS now changing the built image."
+description = "Ubuntu workspace that combines the current optional image-building layers plus cloud state markers."
 container_target = "ubuntu"
 working_directory = "/workspace/dev-container-fortress"
-persisted_mounts = ["cache", "share", "gh", "glab", "aws", "azure"]
+persisted_mounts = ["cache", "share", "gh", "glab", "aws", "azure", "gnupg", "password-store"]
 tool_layers = ["gitforge", "secrets", "aws", "azure"]

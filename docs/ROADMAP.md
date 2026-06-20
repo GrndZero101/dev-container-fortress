@@ -395,6 +395,18 @@ Objective:
 Establish a secrets-management baseline suitable for daily-driver operator
 workflows across both persistent and ephemeral environments.
 
+Current first-pass decision:
+
+- use GPG plus `pass` as the supported local baseline
+- install secrets tooling through the `ubuntu-secrets` workspace image layer
+- keep container GPG and pinentry on the base package manager for now while
+  host targets prefer Homebrew where supported
+- mount GPG and password-store state at runtime rather than baking secrets into
+  Docker images
+- treat `rustic` as the likely general backup/restore primitive, with secrets
+  as the first high-value profile
+- leave `gopass`, `op`, and concrete `rustic` automation as follow-up work
+
 Exit criteria:
 
 - GPG setup and key-management workflow is documented for local use

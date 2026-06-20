@@ -145,6 +145,15 @@ def test_workspace_auth_group_uses_help_when_no_args_are_passed() -> None:
     assert "doctor" in result.stdout
 
 
+def test_workspace_secrets_group_uses_help_when_no_args_are_passed() -> None:
+    """Workspace secrets subcommands should show help on empty invocation."""
+    result = runner.invoke(app, ["workspace", "secrets"])
+
+    assert result.exit_code == 0
+    assert "Bootstrap and inspect disposable secrets state" in result.stdout
+    assert "init-test" in result.stdout
+
+
 def test_infra_group_uses_help_when_no_args_are_passed() -> None:
     """Infra subcommands should show help on empty invocation."""
     result = runner.invoke(app, ["infra"])
@@ -821,6 +830,14 @@ def test_workspace_profile_manifest_includes_named_profiles() -> None:
     assert sorted(manifest.tool_layers) == ["aws", "azure", "gitforge", "secrets"]
     assert manifest.tool_layers["gitforge"].mode == "image_build"
     assert manifest.tool_layers["gitforge"].build_arg == "WORKSPACE_TOOL_LAYER_GITFORGE"
+    assert manifest.tool_layers["secrets"].mode == "image_build"
+    assert manifest.tool_layers["secrets"].build_arg == "WORKSPACE_TOOL_LAYER_SECRETS"
+    assert manifest.profiles["ubuntu-secrets"].persisted_mounts == [
+        "cache",
+        "share",
+        "gnupg",
+        "password-store",
+    ]
 
 
 def test_workspace_build_uses_resolved_profile(monkeypatch: object) -> None:
@@ -1094,6 +1111,268 @@ def test_workspace_auth_validate_supports_json_output(monkeypatch: object) -> No
     assert '"success": true' in result.stdout.lower()
 
 
+def test_validate_workspace_auth_runtime_reports_secrets_readiness(
+    monkeypatch: object,
+) -> None:
+    """Secrets auth validation should distinguish mounted and initialized state."""
+    from ft.cli import _validate_workspace_auth_runtime
+    from ft.models import WorkspaceProfileDefinition
+
+    monkeypatch.setattr(
+        "ft.cli._run_command",
+        lambda command: subprocess.CompletedProcess(command, 0, stdout="", stderr=""),
+    )
+
+    outputs = {
+        "browser_helper": "ready\n",
+        "browser_env": "unset\n",
+        "host_browser_socket": "unset\n",
+        "gpg_command": "/usr/bin/gpg\n",
+        "pass_command": "/usr/bin/pass\n",
+        "gpg_home_present": "present\n",
+        "gpg_secret_key_present": "missing\n",
+        "password_store_present": "present\n",
+        "password_store_initialized": "missing\n",
+    }
+
+    def fake_shell_text(container_name: str, command: str) -> tuple[bool, str]:
+        if "ft-host-browser-open" in command:
+            return True, outputs["browser_helper"]
+        if "BROWSER" in command:
+            return True, outputs["browser_env"]
+        if "DEV_FORTRESS_HOST_BROWSER_SOCKET" in command:
+            return True, outputs["host_browser_socket"]
+        if "command -v -- 'gpg'" in command:
+            return True, outputs["gpg_command"]
+        if "command -v -- 'pass'" in command:
+            return True, outputs["pass_command"]
+        if '[ -d "${HOME}/.gnupg" ]' in command:
+            return True, outputs["gpg_home_present"]
+        if "gpg --batch --list-secret-keys" in command:
+            return True, outputs["gpg_secret_key_present"]
+        if '[ -d "${HOME}/.password-store" ]' in command:
+            return True, outputs["password_store_present"]
+        if '[ -f "${HOME}/.password-store/.gpg-id" ]' in command:
+            return True, outputs["password_store_initialized"]
+        raise AssertionError(f"unexpected shell check: {command}")
+
+    monkeypatch.setattr("ft.cli._shell_text", fake_shell_text)
+    monkeypatch.setattr(
+        "ft.cli._load_workspace_profile_manifest",
+        lambda: WorkspaceProfileManifest.model_validate(
+            {
+                "tool_layers": {
+                    "secrets": {
+                        "description": "secrets",
+                        "mode": "image_build",
+                        "build_arg": "WORKSPACE_TOOL_LAYER_SECRETS",
+                    }
+                },
+                "profiles": {
+                    "ubuntu-secrets": {
+                        "description": "secrets",
+                        "container_target": "ubuntu",
+                        "tool_layers": ["secrets"],
+                    }
+                },
+            }
+        ),
+    )
+
+    profile = WorkspaceProfileDefinition(
+        description="secrets",
+        container_target="ubuntu",
+        tool_layers=["secrets"],
+    )
+
+    report = _validate_workspace_auth_runtime("ubuntu-secrets", profile)
+    check_map = {check["check"]: check for check in report["checks"]}
+
+    assert report["success"] is True
+    assert check_map["gpg_home_present"]["stat"] == "OK"
+    assert check_map["gpg_secret_key_present"]["stat"] == "INFO"
+    assert check_map["password_store_present"]["stat"] == "OK"
+    assert check_map["password_store_initialized"]["stat"] == "INFO"
+
+
+def test_workspace_secrets_init_test_creates_disposable_state(
+    monkeypatch: object,
+) -> None:
+    """Disposable secrets bootstrap should initialize missing test state."""
+    from ft.cli import _init_test_workspace_secrets
+    from ft.models import WorkspaceProfileDefinition
+
+    reports = [
+        {
+            "success": True,
+            "checks": [
+                {
+                    "stat": "INFO",
+                    "check": "gpg_secret_key_present",
+                    "detail": "missing",
+                },
+                {
+                    "stat": "INFO",
+                    "check": "password_store_initialized",
+                    "detail": "missing",
+                },
+            ],
+        },
+        {
+            "success": True,
+            "checks": [
+                {
+                    "stat": "OK",
+                    "check": "gpg_secret_key_present",
+                    "detail": "present",
+                },
+                {
+                    "stat": "OK",
+                    "check": "password_store_initialized",
+                    "detail": "initialized",
+                },
+            ],
+        },
+    ]
+    shell_commands: list[str] = []
+
+    monkeypatch.setattr("ft.cli._workspace_exists", lambda profile_name: True)
+    monkeypatch.setattr(
+        "ft.cli._validate_workspace_auth_runtime",
+        lambda profile_name, profile: reports.pop(0),
+    )
+
+    def fake_shell_text(container_name: str, command: str) -> tuple[bool, str]:
+        shell_commands.append(command)
+        return True, "initialized disposable secrets with key ABC123\n"
+
+    monkeypatch.setattr("ft.cli._shell_text", fake_shell_text)
+
+    profile = WorkspaceProfileDefinition(
+        description="secrets",
+        container_target="ubuntu",
+        tool_layers=["secrets"],
+    )
+
+    report = _init_test_workspace_secrets("ubuntu-secrets", profile)
+    check_map = {check["check"]: check for check in report["checks"]}
+
+    assert report["success"] is True
+    assert report["disposable"] is True
+    assert len(shell_commands) == 1
+    assert "gpg --batch --generate-key" in shell_commands[0]
+    assert check_map["init_test"]["stat"] == "OK"
+    assert check_map["gpg_secret_key_present"]["stat"] == "OK"
+    assert check_map["password_store_initialized"]["stat"] == "OK"
+
+
+def test_workspace_secrets_init_test_refuses_existing_state(
+    monkeypatch: object,
+) -> None:
+    """Disposable secrets bootstrap should not overwrite existing state by default."""
+    from ft.cli import _init_test_workspace_secrets
+    from ft.models import WorkspaceProfileDefinition
+
+    monkeypatch.setattr("ft.cli._workspace_exists", lambda profile_name: True)
+    monkeypatch.setattr(
+        "ft.cli._validate_workspace_auth_runtime",
+        lambda profile_name, profile: {
+            "success": True,
+            "checks": [
+                {
+                    "stat": "OK",
+                    "check": "gpg_secret_key_present",
+                    "detail": "present",
+                },
+                {
+                    "stat": "OK",
+                    "check": "password_store_initialized",
+                    "detail": "initialized",
+                },
+            ],
+        },
+    )
+
+    profile = WorkspaceProfileDefinition(
+        description="secrets",
+        container_target="ubuntu",
+        tool_layers=["secrets"],
+    )
+
+    report = _init_test_workspace_secrets("ubuntu-secrets", profile)
+    check_map = {check["check"]: check for check in report["checks"]}
+
+    assert report["success"] is False
+    assert check_map["existing_secrets_state"]["stat"] == "FAIL"
+
+
+def test_workspace_secrets_init_test_force_uses_alias_safe_cleanup(
+    monkeypatch: object,
+) -> None:
+    """Forced disposable bootstrap should bypass shell aliases during cleanup."""
+    from ft.cli import _init_test_workspace_secrets
+    from ft.models import WorkspaceProfileDefinition
+
+    reports = [
+        {
+            "success": True,
+            "checks": [
+                {
+                    "stat": "OK",
+                    "check": "gpg_secret_key_present",
+                    "detail": "present",
+                },
+                {
+                    "stat": "OK",
+                    "check": "password_store_initialized",
+                    "detail": "initialized",
+                },
+            ],
+        },
+        {
+            "success": True,
+            "checks": [
+                {
+                    "stat": "OK",
+                    "check": "gpg_secret_key_present",
+                    "detail": "present",
+                },
+                {
+                    "stat": "OK",
+                    "check": "password_store_initialized",
+                    "detail": "initialized",
+                },
+            ],
+        },
+    ]
+    shell_commands: list[str] = []
+
+    monkeypatch.setattr("ft.cli._workspace_exists", lambda profile_name: True)
+    monkeypatch.setattr(
+        "ft.cli._validate_workspace_auth_runtime",
+        lambda profile_name, profile: reports.pop(0),
+    )
+
+    def fake_shell_text(container_name: str, command: str) -> tuple[bool, str]:
+        shell_commands.append(command)
+        return True, "initialized disposable secrets with key ABC123\n"
+
+    monkeypatch.setattr("ft.cli._shell_text", fake_shell_text)
+
+    profile = WorkspaceProfileDefinition(
+        description="secrets",
+        container_target="ubuntu",
+        tool_layers=["secrets"],
+    )
+
+    report = _init_test_workspace_secrets("ubuntu-secrets", profile, force=True)
+
+    assert report["success"] is True
+    assert shell_commands[0].startswith("command find ")
+    assert shell_commands[1].startswith("command find ")
+    assert "gpg --batch --generate-key" in shell_commands[2]
+
+
 def test_workspace_mount_plan_supports_json_output(
     tmp_path: Path, monkeypatch: object
 ) -> None:
@@ -1278,15 +1557,38 @@ def test_workspace_auth_checks_report_wsl_browser_strategy(
     assert "/usr/local/bin/ft-host-browser-open" in check_map["browser_strategy"]["detail"]
 
 
-def test_workspace_auth_checks_warn_for_secrets_layer(
+def test_workspace_auth_checks_report_secrets_baseline(
     tmp_path: Path, monkeypatch: object
 ) -> None:
-    """Workspace auth checks should warn when the secrets layer is selected but not implemented."""
+    """Workspace auth checks should report the first-pass secrets baseline."""
     from ft.cli import _workspace_auth_checks
     from ft.models import WorkspaceProfileDefinition
 
     monkeypatch.delenv("SSH_AUTH_SOCK", raising=False)
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+
+    profile = WorkspaceProfileDefinition(
+        description="secrets",
+        persisted_mounts=["cache", "share", "gnupg", "password-store"],
+        tool_layers=["secrets"],
+    )
+
+    checks = _workspace_auth_checks("ubuntu-secrets", profile)
+    check_map = {check["check"]: check for check in checks}
+
+    assert check_map["gpg_state"]["stat"] == "WARN"
+    assert check_map["password_store_state"]["stat"] == "WARN"
+    assert check_map["secrets_baseline"]["stat"] == "OK"
+
+
+def test_workspace_auth_checks_warn_when_secrets_mounts_are_missing(
+    monkeypatch: object,
+) -> None:
+    """Secrets profiles should warn if runtime GPG or pass mounts are omitted."""
+    from ft.cli import _workspace_auth_checks
+    from ft.models import WorkspaceProfileDefinition
+
+    monkeypatch.delenv("SSH_AUTH_SOCK", raising=False)
 
     profile = WorkspaceProfileDefinition(
         description="secrets",
@@ -1298,6 +1600,8 @@ def test_workspace_auth_checks_warn_for_secrets_layer(
     check_map = {check["check"]: check for check in checks}
 
     assert check_map["secrets_baseline"]["stat"] == "WARN"
+    assert "gnupg" in check_map["secrets_baseline"]["detail"]
+    assert "password-store" in check_map["secrets_baseline"]["detail"]
 
 
 def test_workspace_layer_command_checks_include_gitforge_commands(
@@ -1374,6 +1678,44 @@ def test_workspace_layer_command_checks_include_aws_command(
     )
 
     assert _workspace_layer_command_checks(profile) == ["aws"]
+
+
+def test_workspace_layer_command_checks_include_secrets_commands(
+    monkeypatch: object,
+) -> None:
+    """Secrets image-build layers should require GPG and pass at validation time."""
+    from ft.cli import _workspace_layer_command_checks
+    from ft.models import WorkspaceProfileDefinition, WorkspaceProfileManifest
+
+    monkeypatch.setattr(
+        "ft.cli._load_workspace_profile_manifest",
+        lambda: WorkspaceProfileManifest.model_validate(
+            {
+                "tool_layers": {
+                    "secrets": {
+                        "description": "secrets",
+                        "mode": "image_build",
+                        "build_arg": "WORKSPACE_TOOL_LAYER_SECRETS",
+                    }
+                },
+                "profiles": {
+                    "ubuntu-secrets": {
+                        "description": "secrets",
+                        "container_target": "ubuntu",
+                        "tool_layers": ["secrets"],
+                    }
+                },
+            }
+        ),
+    )
+
+    profile = WorkspaceProfileDefinition(
+        description="secrets",
+        container_target="ubuntu",
+        tool_layers=["secrets"],
+    )
+
+    assert _workspace_layer_command_checks(profile) == ["gpg", "pass"]
 
 
 def test_workspace_up_configures_wsl_browser_bridge(
@@ -1462,6 +1804,8 @@ def test_workspace_up_configures_wsl_browser_bridge(
         "/tmp/dev-fortress-host-services/browser-open.sock"
         in run_command
     )
+    assert "DEV_FORTRESS_WORKSPACE=1" in run_command
+    assert "DEV_FORTRESS_AWS_LOGIN_MODE=device-code" in run_command
     assert "BROWSER=/usr/local/bin/ft-host-browser-open" in run_command
     assert "GH_BROWSER=/usr/local/bin/ft-host-browser-open" in run_command
     assert "WSL_DISTRO_NAME=dev-fortress" in run_command

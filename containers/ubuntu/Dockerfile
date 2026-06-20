@@ -7,6 +7,7 @@ ARG SHELL_CONFIG_LOCAL_DIR=""
 ARG SHELL_CONFIG_PROFILE_DEFAULT="zsh-tll-citadel-dev-fortress"
 ARG SHELL_CONFIG_INSTALL_ZINIT="1"
 ARG WORKSPACE_TOOL_LAYER_GITFORGE="0"
+ARG WORKSPACE_TOOL_LAYER_SECRETS="0"
 ARG WORKSPACE_TOOL_LAYER_AWS="0"
 
 FROM ${UV_DISTROLESS_IMAGE} AS uv-distroless
@@ -52,6 +53,7 @@ ARG SHELL_CONFIG_LOCAL_DIR=""
 ARG SHELL_CONFIG_PROFILE_DEFAULT="zsh-tll-citadel-dev-fortress"
 ARG SHELL_CONFIG_INSTALL_ZINIT="1"
 ARG WORKSPACE_TOOL_LAYER_GITFORGE="0"
+ARG WORKSPACE_TOOL_LAYER_SECRETS="0"
 ARG WORKSPACE_TOOL_LAYER_AWS="0"
 
 COPY --from=uv-distroless /uv /uvx /usr/local/bin/
@@ -122,6 +124,11 @@ RUN if [ "${WORKSPACE_TOOL_LAYER_GITFORGE}" = "1" ]; then \
       && sudo apt-get install -y --no-install-recommends gh glab \
       && sudo rm -rf /var/lib/apt/lists/*; \
     fi
+RUN if [ "${WORKSPACE_TOOL_LAYER_SECRETS}" = "1" ]; then \
+      sudo apt-get update \
+      && sudo apt-get install -y --no-install-recommends gnupg pass pinentry-curses \
+      && sudo rm -rf /var/lib/apt/lists/*; \
+    fi
 RUN if [ "${WORKSPACE_TOOL_LAYER_AWS}" = "1" ]; then \
       sudo /usr/local/bin/install-aws-cli; \
     fi
@@ -136,5 +143,6 @@ RUN uv --version \
   && nvim --version \
   && rg --version \
   && if [ "${WORKSPACE_TOOL_LAYER_GITFORGE}" = "1" ]; then gh --version && glab --version; fi \
+  && if [ "${WORKSPACE_TOOL_LAYER_SECRETS}" = "1" ]; then gpg --version && pass --version; fi \
   && if [ "${WORKSPACE_TOOL_LAYER_AWS}" = "1" ]; then aws --version; fi \
   && fzf --version

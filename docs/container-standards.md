@@ -66,6 +66,18 @@ That means they should:
 - Repo-owned runtime tool configuration should be explicit and data-driven.
 - External binary downloads should prefer pinned versions and checksum
   verification.
+- The base image package manager should normally be limited to bootstrap
+  substrate and OS-integrated dependencies.
+- GPG-class cryptographic substrate is a documented exception for now:
+  containers may install `gnupg`, `pinentry-curses`, and equivalent distro
+  packages through `apt`, `apk`, or the target base package manager when that is
+  safer and simpler than source-building a crypto stack.
+- This exception is not a precedent for ordinary userland tools. Tools such as
+  `rustic`, `lazygit`, `yazi`, and similar standalone CLIs should continue to
+  prefer the repo-owned downloader or image-managed installer path.
+- Host targets that support Homebrew should prefer Homebrew for newer GPG,
+  password-store, backup, and daily-driver tooling after native bootstrap is
+  complete.
 
 ## Shell Contract
 
@@ -99,6 +111,8 @@ The Ubuntu image currently implements this contract by:
 - using XDG-style home-directory layout
 - installing `ft` as a `uv` tool
 - installing `tenv` through `ft`
+- installing the first-pass secrets layer's GPG substrate through Ubuntu
+  packages when that optional layer is enabled
 
 ## Current Alpine Reference
 

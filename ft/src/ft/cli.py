@@ -33,6 +33,7 @@ from ft.models import (
     WorkspaceToolLayerDefinition,
 )
 from ft.platforms import detect_architecture, detect_system
+from ft.secrets import run_secret_readiness_checks
 from ft.settings import FtSettings
 from ft.tool_pool import default_tool_pool_manifest_path, load_tool_pool_manifest
 
@@ -78,6 +79,13 @@ workspace_auth_app = typer.Typer(
         "workspace containers."
     ),
 )
+workspace_secrets_app = typer.Typer(
+    no_args_is_help=False,
+    help=(
+        "Bootstrap and inspect disposable secrets state for mounted Dev Fortress "
+        "workspace containers."
+    ),
+)
 infra_app = typer.Typer(
     no_args_is_help=False,
     help=(
@@ -104,6 +112,7 @@ app.add_typer(container_app, name="container")
 app.add_typer(host_app, name="host")
 app.add_typer(workspace_app, name="workspace")
 workspace_app.add_typer(workspace_auth_app, name="auth")
+workspace_app.add_typer(workspace_secrets_app, name="secrets")
 app.add_typer(infra_app, name="infra")
 infra_app.add_typer(aws_disposable_ubuntu_app, name="aws-disposable-ubuntu")
 app.add_typer(completion_app, name="completion")
@@ -167,6 +176,14 @@ def workspace_callback(context: typer.Context) -> None:
 @workspace_auth_app.callback(invoke_without_command=True)
 def workspace_auth_callback(context: typer.Context) -> None:
     """Render workspace-auth help when no subcommand is passed."""
+    if context.invoked_subcommand is None:
+        console.print(context.get_help())
+        raise typer.Exit()
+
+
+@workspace_secrets_app.callback(invoke_without_command=True)
+def workspace_secrets_callback(context: typer.Context) -> None:
+    """Render workspace-secrets help when no subcommand is passed."""
     if context.invoked_subcommand is None:
         console.print(context.get_help())
         raise typer.Exit()
@@ -644,6 +661,8 @@ def _workspace_persisted_host_path(profile_name: str, mount_name: str) -> Path:
         "glab": _workspace_state_root() / profile_name / "config-glab",
         "aws": Path.home() / ".aws",
         "azure": _workspace_state_root() / profile_name / "azure",
+        "gnupg": _workspace_state_root() / profile_name / "gnupg",
+        "password-store": _workspace_state_root() / profile_name / "password-store",
     }
     if mount_name not in mapping:
         raise ValueError(f"unsupported workspace persisted mount: {mount_name}")
@@ -659,6 +678,8 @@ def _workspace_persisted_container_path(mount_name: str) -> str:
         "glab": "/home/vscode/.config/glab",
         "aws": "/home/vscode/.aws",
         "azure": "/home/vscode/.azure",
+        "gnupg": "/home/vscode/.gnupg",
+        "password-store": "/home/vscode/.password-store",
     }
     if mount_name not in mapping:
         raise ValueError(f"unsupported workspace persisted mount: {mount_name}")
@@ -980,6 +1001,8 @@ def _workspace_auth_checks(
         ("glab", "gitlab_cli_state"),
         ("aws", "aws_cli_state"),
         ("azure", "azure_cli_state"),
+        ("gnupg", "gpg_state"),
+        ("password-store", "password_store_state"),
     ]
     for mount_name, check_name in mount_checks:
         if mount_name not in profile.persisted_mounts:
@@ -997,11 +1020,29 @@ def _workspace_auth_checks(
         )
 
     if "secrets" in profile.tool_layers:
-        add_check(
-            stat="WARN",
-            check="secrets_baseline",
-            detail="workspace secrets baseline is not implemented yet; see M7a",
-        )
+        missing_mounts = [
+            mount_name
+            for mount_name in ("gnupg", "password-store")
+            if mount_name not in profile.persisted_mounts
+        ]
+        if missing_mounts:
+            add_check(
+                stat="WARN",
+                check="secrets_baseline",
+                detail=(
+                    "secrets layer selected but profile is missing persisted mounts: "
+                    + ", ".join(missing_mounts)
+                ),
+            )
+        else:
+            add_check(
+                stat="OK",
+                check="secrets_baseline",
+                detail=(
+                    "first-pass baseline: runtime-mounted ~/.gnupg and "
+                    "~/.password-store for GPG-backed pass"
+                ),
+            )
     else:
         add_check(
             stat="INFO",
@@ -1020,6 +1061,8 @@ def _workspace_layer_command_checks(
     for layer_name, _ in _workspace_image_build_layers(profile):
         if layer_name == "gitforge":
             checks.extend(["gh", "glab", "xdg-open"])
+        if layer_name == "secrets":
+            checks.extend(["gpg", "pass"])
         if layer_name == "aws":
             checks.append("aws")
     return checks
@@ -1264,11 +1307,193 @@ def _validate_workspace_auth_runtime(
             detail=normalized_output or "unknown",
         )
 
+    if "secrets" in profile.tool_layers:
+        for check in run_secret_readiness_checks(
+            lambda command: _shell_text(container_name, command)
+        ):
+            add_result(
+                stat=check["stat"],
+                check=check["check"],
+                detail=check["detail"],
+            )
+
     return {
         "profile": profile_name,
         "container": container_name,
         "success": success,
         "checks": checks,
+    }
+
+
+def _workspace_check_map(report: dict[str, object]) -> dict[str, dict[str, str]]:
+    """Return validation checks keyed by check name."""
+    return {
+        str(check["check"]): {
+            "stat": str(check["stat"]),
+            "detail": str(check["detail"]),
+        }
+        for check in report["checks"]
+    }
+
+
+def _workspace_secrets_disposable_bootstrap_command() -> str:
+    """Return the shell command that creates disposable GPG/pass test state."""
+    return r"""
+set -eu
+test_identity='Dev Fortress Disposable Test <dev-fortress-test@example.invalid>'
+key_batch="$(mktemp)"
+cleanup() {
+  rm -f "${key_batch}"
+}
+trap cleanup EXIT
+umask 077
+{
+  print -r -- '%no-protection'
+  print -r -- 'Key-Type: eddsa'
+  print -r -- 'Key-Curve: ed25519'
+  print -r -- 'Key-Usage: sign'
+  print -r -- 'Subkey-Type: ecdh'
+  print -r -- 'Subkey-Curve: cv25519'
+  print -r -- 'Subkey-Usage: encrypt'
+  print -r -- 'Name-Real: Dev Fortress Disposable Test'
+  print -r -- 'Name-Email: dev-fortress-test@example.invalid'
+  print -r -- 'Expire-Date: 7d'
+  print -r -- '%commit'
+} > "${key_batch}"
+gpg --batch --generate-key "${key_batch}"
+key_id="$(
+  gpg --batch --list-secret-keys --with-colons dev-fortress-test@example.invalid \
+    | awk -F: '$1 == "sec" { print $5; exit }'
+)"
+if [ -z "${key_id}" ]; then
+  print -u2 -- 'failed to resolve disposable test GPG key id'
+  exit 1
+fi
+pass init "${key_id}"
+printf '%s\n' 'dev-fortress disposable smoke secret' \
+  | pass insert -m -f dev-fortress/smoke-test >/dev/null
+pass show dev-fortress/smoke-test >/dev/null
+print -r -- "initialized disposable secrets with key ${key_id}"
+""".strip()
+
+
+def _init_test_workspace_secrets(
+    profile_name: str,
+    profile: WorkspaceProfileDefinition,
+    *,
+    force: bool = False,
+) -> dict[str, object]:
+    """Initialize disposable GPG/pass state inside a running workspace."""
+    container_name = _workspace_container_name(profile_name)
+    checks: list[dict[str, str]] = []
+
+    def add_result(*, stat: str, check: str, detail: str) -> None:
+        checks.append({"stat": stat, "check": check, "detail": detail})
+
+    if "secrets" not in profile.tool_layers:
+        add_result(
+            stat="FAIL",
+            check="profile",
+            detail=f"profile {profile_name} does not include the secrets layer",
+        )
+        return {
+            "profile": profile_name,
+            "container": container_name,
+            "success": False,
+            "checks": checks,
+        }
+
+    if not _workspace_exists(profile_name):
+        add_result(
+            stat="FAIL",
+            check="workspace",
+            detail=f"workspace not found: {container_name}",
+        )
+        return {
+            "profile": profile_name,
+            "container": container_name,
+            "success": False,
+            "checks": checks,
+        }
+
+    before_report = _validate_workspace_auth_runtime(profile_name, profile)
+    before_checks = _workspace_check_map(before_report)
+    has_secret_key = before_checks.get("gpg_secret_key_present", {}).get("stat") == "OK"
+    has_initialized_store = (
+        before_checks.get("password_store_initialized", {}).get("stat") == "OK"
+    )
+    if (has_secret_key or has_initialized_store) and not force:
+        add_result(
+            stat="FAIL",
+            check="existing_secrets_state",
+            detail=(
+                "secret key or initialized password store already exists; "
+                "rerun with --force only for disposable test state"
+            ),
+        )
+        return {
+            "profile": profile_name,
+            "container": container_name,
+            "success": False,
+            "checks": checks,
+        }
+
+    if force:
+        for cleanup_command in (
+            'command find "${HOME}/.gnupg" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +',
+            'command find "${HOME}/.password-store" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +',
+        ):
+            ok, output = _shell_text(container_name, cleanup_command)
+            if not ok:
+                add_result(
+                    stat="FAIL",
+                    check="cleanup",
+                    detail=output or "failed to remove disposable test state",
+                )
+                return {
+                    "profile": profile_name,
+                    "container": container_name,
+                    "success": False,
+                    "checks": checks,
+                }
+
+    ok, output = _shell_text(
+        container_name,
+        _workspace_secrets_disposable_bootstrap_command(),
+    )
+    add_result(
+        stat="OK" if ok else "FAIL",
+        check="init_test",
+        detail=_last_non_empty_line(output) or output or "bootstrap failed",
+    )
+    if not ok:
+        return {
+            "profile": profile_name,
+            "container": container_name,
+            "success": False,
+            "checks": checks,
+        }
+
+    after_report = _validate_workspace_auth_runtime(profile_name, profile)
+    after_checks = _workspace_check_map(after_report)
+    for check_name in (
+        "gpg_secret_key_present",
+        "password_store_initialized",
+    ):
+        check = after_checks.get(check_name, {"stat": "FAIL", "detail": "missing"})
+        add_result(
+            stat=check["stat"],
+            check=check_name,
+            detail=check["detail"],
+        )
+
+    success = all(check["stat"] != "FAIL" for check in checks)
+    return {
+        "profile": profile_name,
+        "container": container_name,
+        "success": success,
+        "checks": checks,
+        "disposable": True,
     }
 
 
@@ -3659,6 +3884,9 @@ def _up_workspace_profile(
     browser_bridge_socket = _ensure_workspace_host_browser_bridge(profile_name)
     for host_path, _ in mount_plan:
         host_path.mkdir(parents=True, exist_ok=True)
+    for mount_name in profile.persisted_mounts:
+        if mount_name == "gnupg":
+            _workspace_persisted_host_path(profile_name, mount_name).chmod(0o700)
 
     run_command = [
         "docker",
@@ -3672,6 +3900,8 @@ def _up_workspace_profile(
         "--workdir",
         profile.working_directory,
     ]
+    run_command.extend(["--env", "DEV_FORTRESS_WORKSPACE=1"])
+    run_command.extend(["--env", "DEV_FORTRESS_AWS_LOGIN_MODE=device-code"])
 
     ssh_auth_sock = os.environ.get("SSH_AUTH_SOCK")
     if ssh_auth_sock:
@@ -4839,6 +5069,59 @@ def workspace_auth_validate(
         _json_dump(report)
     else:
         console.print(f"[bold]validating auth for {resolved_profile_name}[/bold]")
+        console.print(f"{'stat':<4} {'check':<24} detail")
+        for check in report["checks"]:
+            _emit_validation_result(
+                stat=str(check["stat"]),
+                check=str(check["check"]),
+                detail=str(check["detail"]),
+            )
+    if not bool(report["success"]):
+        raise typer.Exit(code=1)
+
+
+@workspace_secrets_app.command("init-test")
+def workspace_secrets_init_test(
+    profile: Annotated[
+        str,
+        typer.Argument(
+            help="One named workspace profile from the repo-owned workspace manifest."
+        ),
+    ],
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            help=(
+                "Remove existing workspace GPG/pass state before creating "
+                "disposable test material."
+            ),
+        ),
+    ] = False,
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help="Render structured JSON for automation or agentic consumers.",
+        ),
+    ] = False,
+) -> None:
+    """Create disposable GPG/pass state for testing a secrets workspace."""
+    resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
+    report = _init_test_workspace_secrets(
+        resolved_profile_name,
+        resolved_profile,
+        force=force,
+    )
+    if json_output:
+        _json_dump(report)
+    else:
+        console.print(
+            f"[bold]initializing disposable secrets for {resolved_profile_name}[/bold]"
+        )
+        console.print(
+            "[yellow]warning:[/yellow] generated material is for testing only"
+        )
         console.print(f"{'stat':<4} {'check':<24} detail")
         for check in report["checks"]:
             _emit_validation_result(

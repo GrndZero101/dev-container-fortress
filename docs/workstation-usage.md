@@ -22,6 +22,7 @@ Works today:
 - fortress profile-local `zinit` installation during host provisioning
 - Ubuntu Linuxbrew uplift after the native bootstrap substrate is in place
 - Ubuntu Docker CE bootstrap for `workstation` and `cloud` targets
+- first-pass workspace secrets baseline through GPG plus `pass`
 
 Current host-tooling policy:
 
@@ -36,6 +37,7 @@ Scaffolded but not complete yet:
 - cross-platform workstation parity beyond the Ubuntu-first path
 - tmux integration
 - host-side corporate CA support
+- richer secrets backup automation, including a formal `rustic` restore loop
 - full host-side validation coverage outside the currently documented Ubuntu and disposable-target loops
 
 Implemented foundation work now available:

@@ -27,7 +27,8 @@ Still follow-on work:
 
 - richer profile layering beyond the initial Ubuntu-first base profile
 - stronger auth diagnostics
-- secrets baseline integration with `M7a`
+- deeper secrets backup and restore automation after the first-pass `pass`
+  baseline
 - disposable EC2 workflow proof as a documented end-to-end operator loop
 
 ## Goal
@@ -195,7 +196,7 @@ Recommended host-owned persisted roots:
 - `${HOME}/.aws`
 - `/state/workspace/<profile>/azure`
 - `/state/workspace/<profile>/gnupg`
-- `/state/workspace/<profile>/gopass`
+- `/state/workspace/<profile>/password-store`
 
 Recommended in-container mount targets:
 
@@ -206,10 +207,10 @@ Recommended in-container mount targets:
 - `${HOME}/.aws`
 - `${HOME}/.azure`
 - `${HOME}/.gnupg`
-- `${XDG_CONFIG_HOME}/gopass`
+- `${HOME}/.password-store`
 
-The precise GPG and password-store paths should remain provisional until `M7a`
-chooses the supported secrets baseline.
+The first supported secrets baseline is GPG plus `pass`; `gopass` remains a
+future alternative rather than the default contract.
 
 ### Working Directory
 
@@ -273,17 +274,25 @@ Current workspace-container auth guidance:
 Recommended first supported path:
 
 - mount a host-owned GPG state directory
-- mount a host-owned password-store or `gopass` config path
-- document one explicit supported agent model
+- mount a host-owned `pass` password store
+- keep private key material out of Docker image builds
+- document one explicit restore and agent model
 
-Do not claim support until:
+Current first-pass baseline:
 
-- key location
-- store location
-- restore flow
-- trustdb or agent expectations
+- `secrets` installs `gnupg`, `pinentry-curses`, and `pass`
+- `gnupg` is mounted at `${HOME}/.gnupg`
+- `password-store` is mounted at `${HOME}/.password-store`
+- `ft workspace auth doctor` reports the persisted state paths
 
-are explicit and documented.
+Do not broaden support until:
+
+- `gopass` has an explicit store and config contract
+- `op` CLI behavior is documented
+- `rustic` backup and restore is smoke-tested against a fresh environment
+
+See [Secrets Management](./secrets-management.md) for the current operator
+contract.
 
 ## Tool Layering Contract
 
@@ -293,7 +302,7 @@ Recommended first-pass layer split:
 
 - `base`: current shell and operator baseline
 - `gitforge`: add `gh` and `glab`
-- `secrets`: add `gpg`, `pass`, and or `gopass` once selected
+- `secrets`: add GPG-backed `pass`
 - `aws`: add AWS CLI
 - `azure`: add Azure CLI
 
@@ -307,7 +316,8 @@ Implemented first pass:
 
 - the repo-owned workspace manifest now declares layer metadata explicitly
 - `gitforge` is the first real `image_build` layer and enables a build-arg-driven Ubuntu workspace variant
-- `aws`, `azure`, and `secrets` remain honest `state_only` markers for now
+- `aws` and `secrets` are real `image_build` layers
+- `azure` remains an honest `state_only` marker for now
 - `ft workspace build` reports whether selected layers change the image or only affect runtime expectations
 - `ft workspace mount-plan --json` exposes the resolved layer metadata for automation and review
 
