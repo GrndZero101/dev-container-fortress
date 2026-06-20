@@ -16,6 +16,7 @@ from typer.testing import CliRunner
 from ft.cli import (
     _container_host_ssh_public_key_path,
     _effective_install_root,
+    _host_zsh_text,
     _host_target_manifest_toml,
     _last_non_empty_line,
     _parse_ansible_play_recap,
@@ -116,6 +117,7 @@ def test_host_group_uses_help_when_no_args_are_passed() -> None:
     assert "ssh-key" in result.stdout
     assert "ssh-key-enroll" in result.stdout
     assert "ssh" in result.stdout
+    assert "secrets" in result.stdout
     assert "doctor" in result.stdout
     assert "validate" in result.stdout
     assert "bootstrap" in result.stdout
@@ -152,6 +154,15 @@ def test_workspace_secrets_group_uses_help_when_no_args_are_passed() -> None:
     assert result.exit_code == 0
     assert "Bootstrap and inspect disposable secrets state" in result.stdout
     assert "init-test" in result.stdout
+
+
+def test_host_secrets_group_uses_help_when_no_args_are_passed() -> None:
+    """Host secrets subcommands should show help on empty invocation."""
+    result = runner.invoke(app, ["host", "secrets"])
+
+    assert result.exit_code == 0
+    assert "Validate host-side GPG and pass readiness" in result.stdout
+    assert "validate" in result.stdout
 
 
 def test_infra_group_uses_help_when_no_args_are_passed() -> None:
@@ -763,6 +774,175 @@ def test_host_show_includes_managed_known_hosts_path(
     assert result.exit_code == 0
     assert "known_hosts" in result.stdout
     assert "dev-fortress-ubuntu" in result.stdout
+
+
+def test_host_zsh_text_uses_remote_zsh_for_ssh_targets(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Host shell execution should preserve Dev Fortress' zsh-first contract."""
+    manifest = HostTargetManifest.model_validate(
+        {
+            "targets": [
+                {
+                    "name": "dev-fortress-ec2-dev",
+                    "kind": "cloud",
+                    "connection": "ssh",
+                    "host": "ec2.example.internal",
+                    "user": "ubuntu",
+                    "auth_method": "ssh_key",
+                    "ssh_key_name": "dev-fortress-ec2-dev",
+                }
+            ]
+        }
+    )
+    target = manifest.targets[0]
+    private_key_path = (
+        tmp_path
+        / "state"
+        / "dev-container-fortress"
+        / "ssh"
+        / "dev-fortress-ec2-dev"
+        / "dev_fortress_ed25519"
+    )
+    private_key_path.parent.mkdir(parents=True, exist_ok=True)
+    private_key_path.write_text("private", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: "/usr/bin/ssh")
+
+    def fake_run_command(command: list[str]) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="ready\n", stderr="")
+
+    monkeypatch.setattr("ft.cli._run_command", fake_run_command)
+
+    ok, output = _host_zsh_text(
+        target,
+        "print -r -- ready",
+        known_hosts_path=tmp_path / "known_hosts",
+    )
+
+    assert ok is True
+    assert output == "ready"
+    assert calls
+    command = calls[0]
+    assert command[0] == "ssh"
+    assert "-i" in command
+    assert str(private_key_path) in command
+    assert "StrictHostKeyChecking=yes" in " ".join(command)
+    assert command[-1].startswith("zsh -ilc ")
+    assert "print -r -- ready" in command[-1]
+
+
+def test_host_secrets_validate_local_reports_info_as_success(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Fresh local host secrets state should be informational, not failing."""
+    config_path = _write_host_config(tmp_path)
+    calls: list[tuple[str, str]] = []
+
+    def fake_host_zsh_text(
+        target: object,
+        command: str,
+        *,
+        known_hosts_path: Path | None = None,
+    ) -> tuple[bool, str]:
+        calls.append((target.name, command))
+        if "dev-fortress-zsh-ready" in command:
+            return True, "dev-fortress-zsh-ready\n"
+        if '[ -d "${HOME}/.gnupg" ]' in command:
+            return True, "present\n"
+        if "gpg --batch --list-secret-keys" in command:
+            return True, "missing\n"
+        if '[ -d "${HOME}/.password-store" ]' in command:
+            return True, "present\n"
+        if '[ -f "${HOME}/.password-store/.gpg-id" ]' in command:
+            return True, "missing\n"
+        raise AssertionError(f"unexpected host secrets check: {command}")
+
+    monkeypatch.setattr("ft.cli._host_zsh_text", fake_host_zsh_text)
+
+    result = runner.invoke(
+        app,
+        ["host", "secrets", "validate", "localhost", "--config", str(config_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "validating host secrets for localhost" in result.stdout
+    assert "gpg_secret_key_present" in result.stdout
+    assert "INFO" in result.stdout
+    assert calls[0][0] == "localhost"
+
+
+def test_host_secrets_validate_ssh_prepares_runtime_and_known_hosts(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """SSH host secrets validation should use the host target SSH readiness path."""
+    config_path = _write_host_config(tmp_path)
+    private_key_path = (
+        tmp_path
+        / "state"
+        / "dev-container-fortress"
+        / "ssh"
+        / "dev-fortress-ec2-dev"
+        / "dev_fortress_ed25519"
+    )
+    private_key_path.parent.mkdir(parents=True, exist_ok=True)
+    private_key_path.write_text("private", encoding="utf-8")
+    runtime_calls: list[str] = []
+    known_hosts_path = tmp_path / "known_hosts"
+    shell_calls: list[tuple[str, Path | None]] = []
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setattr(
+        "ft.cli._ensure_host_target_runtime_ready",
+        lambda target: runtime_calls.append(target.name) is None or True,
+    )
+    monkeypatch.setattr(
+        "ft.cli._refresh_managed_known_host",
+        lambda target: known_hosts_path,
+    )
+
+    def fake_host_zsh_text(
+        target: object,
+        command: str,
+        *,
+        known_hosts_path: Path | None = None,
+    ) -> tuple[bool, str]:
+        shell_calls.append((command, known_hosts_path))
+        if "dev-fortress-zsh-ready" in command:
+            return True, "dev-fortress-zsh-ready\n"
+        if '[ -d "${HOME}/.gnupg" ]' in command:
+            return True, "present\n"
+        if "gpg --batch --list-secret-keys" in command:
+            return True, "present\n"
+        if '[ -d "${HOME}/.password-store" ]' in command:
+            return True, "present\n"
+        if '[ -f "${HOME}/.password-store/.gpg-id" ]' in command:
+            return True, "initialized\n"
+        raise AssertionError(f"unexpected host secrets check: {command}")
+
+    monkeypatch.setattr("ft.cli._host_zsh_text", fake_host_zsh_text)
+
+    result = runner.invoke(
+        app,
+        [
+            "host",
+            "secrets",
+            "validate",
+            "dev-fortress-ec2-dev",
+            "--config",
+            str(config_path),
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert '"target": "dev-fortress-ec2-dev"' in result.stdout
+    assert runtime_calls == ["dev-fortress-ec2-dev"]
+    assert shell_calls
+    assert {call[1] for call in shell_calls} == {known_hosts_path}
 
 
 def test_root_cli_uses_help_when_no_args_are_passed() -> None:

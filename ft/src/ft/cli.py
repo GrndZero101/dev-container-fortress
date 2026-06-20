@@ -65,6 +65,13 @@ host_app = typer.Typer(
         "future provisioning workflows."
     ),
 )
+host_secrets_app = typer.Typer(
+    no_args_is_help=False,
+    help=(
+        "Validate host-side GPG and pass readiness using shared Dev Fortress "
+        "secrets checks."
+    ),
+)
 workspace_app = typer.Typer(
     no_args_is_help=False,
     help=(
@@ -110,6 +117,7 @@ completion_app = typer.Typer(
 app.add_typer(tool_app, name="tool")
 app.add_typer(container_app, name="container")
 app.add_typer(host_app, name="host")
+host_app.add_typer(host_secrets_app, name="secrets")
 app.add_typer(workspace_app, name="workspace")
 workspace_app.add_typer(workspace_auth_app, name="auth")
 workspace_app.add_typer(workspace_secrets_app, name="secrets")
@@ -160,6 +168,14 @@ def container_callback(context: typer.Context) -> None:
 @host_app.callback(invoke_without_command=True)
 def host_callback(context: typer.Context) -> None:
     """Render host-group help when no host subcommand is passed."""
+    if context.invoked_subcommand is None:
+        console.print(context.get_help())
+        raise typer.Exit()
+
+
+@host_secrets_app.callback(invoke_without_command=True)
+def host_secrets_callback(context: typer.Context) -> None:
+    """Render host-secrets help when no subcommand is passed."""
     if context.invoked_subcommand is None:
         console.print(context.get_help())
         raise typer.Exit()
@@ -2605,6 +2621,127 @@ def _probe_ssh_target(target: HostTargetDefinition) -> tuple[bool, str]:
     return False, _last_non_empty_line(
         result.stderr or result.stdout
     ) or "ssh probe failed"
+
+
+def _host_zsh_text(
+    target: HostTargetDefinition,
+    shell_command: str,
+    *,
+    known_hosts_path: Path | None = None,
+) -> tuple[bool, str]:
+    """Run one zsh login command on a local or SSH host target."""
+    if target.connection == "local":
+        result = _run_command(["zsh", "-ilc", shell_command])
+    else:
+        key_path = _host_ssh_private_key_path(target)
+        if key_path is None or not key_path.is_file():
+            return False, f"missing managed ssh key for {target.name}: {key_path}"
+        if shutil.which("ssh") is None:
+            return False, "ssh not found in PATH"
+        command = [
+            "ssh",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=5",
+            "-i",
+            str(key_path),
+            "-p",
+            str(target.port),
+            f"{target.user}@{target.host}",
+            f"zsh -ilc {shlex.quote(shell_command)}",
+        ]
+        if known_hosts_path is not None:
+            command[5:5] = [
+                "-o",
+                "StrictHostKeyChecking=yes",
+                "-o",
+                f"UserKnownHostsFile={known_hosts_path}",
+            ]
+        result = _run_command(command)
+    if result.returncode == 0:
+        return True, result.stdout.strip()
+    return False, (result.stderr or result.stdout).strip()
+
+
+def _validate_host_secrets_target(target: HostTargetDefinition) -> dict[str, object]:
+    """Validate GPG/pass readiness for one configured host target."""
+    checks: list[dict[str, str]] = []
+    known_hosts_path: Path | None = None
+
+    def add_result(*, stat: str, check: str, detail: str) -> None:
+        checks.append({"stat": stat, "check": check, "detail": detail})
+
+    if target.connection == "ssh":
+        if not _ensure_host_target_runtime_ready(target):
+            add_result(
+                stat="FAIL",
+                check="runtime",
+                detail="failed to prepare target runtime before secrets validation",
+            )
+            return {"target": target.name, "success": False, "checks": checks}
+        key_path = _host_ssh_private_key_path(target)
+        if key_path is None or not key_path.is_file():
+            add_result(
+                stat="FAIL",
+                check="ssh_key",
+                detail=f"missing managed ssh key for {target.name}: {key_path}",
+            )
+            return {"target": target.name, "success": False, "checks": checks}
+        try:
+            known_hosts_path = _refresh_managed_known_host(target)
+        except typer.Exit:
+            add_result(
+                stat="FAIL",
+                check="known_hosts",
+                detail="failed to refresh managed known_hosts entry",
+            )
+            return {"target": target.name, "success": False, "checks": checks}
+
+    probe_ok, probe_output = _host_zsh_text(
+        target,
+        "print -r -- dev-fortress-zsh-ready",
+        known_hosts_path=known_hosts_path,
+    )
+    if not probe_ok:
+        add_result(
+            stat="FAIL",
+            check="zsh_login",
+            detail=probe_output or "zsh login probe failed",
+        )
+        return {"target": target.name, "success": False, "checks": checks}
+    add_result(stat="OK", check="zsh_login", detail=_last_non_empty_line(probe_output))
+
+    for check in run_secret_readiness_checks(
+        lambda command: _host_zsh_text(
+            target,
+            command,
+            known_hosts_path=known_hosts_path,
+        )
+    ):
+        add_result(
+            stat=check["stat"],
+            check=check["check"],
+            detail=check["detail"],
+        )
+
+    return {
+        "target": target.name,
+        "success": all(check["stat"] != "FAIL" for check in checks),
+        "checks": checks,
+    }
+
+
+def _validate_host_secrets_targets(
+    targets: list[HostTargetDefinition],
+) -> dict[str, object]:
+    """Validate host-side secrets readiness across one or more targets."""
+    reports = [_validate_host_secrets_target(target) for target in targets]
+    return {
+        "success": all(bool(report["success"]) for report in reports),
+        "targets": [target.name for target in targets],
+        "reports": reports,
+    }
 
 
 def _build_host_doctor_report(
@@ -5129,6 +5266,59 @@ def workspace_secrets_init_test(
                 check=str(check["check"]),
                 detail=str(check["detail"]),
             )
+    if not bool(report["success"]):
+        raise typer.Exit(code=1)
+
+
+@host_secrets_app.command("validate")
+def host_secrets_validate(
+    target: Annotated[
+        str | None,
+        typer.Argument(
+            help=(
+                "Optional host target selector to validate. Supports exact names, "
+                "shell-style wildcards, and the alias 'all'. Defaults to all configured targets."
+            )
+        ),
+    ] = None,
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            exists=False,
+            dir_okay=False,
+            resolve_path=True,
+            help="Path to the host target TOML config.",
+        ),
+    ] = None,
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help="Render structured JSON for automation or agentic consumers.",
+        ),
+    ] = False,
+) -> None:
+    """Validate host-side GPG/pass readiness with shared secrets checks."""
+    _, manifest = _load_host_target_manifest(config)
+    resolved_targets = (
+        manifest.targets if target is None else _resolve_host_targets(target, manifest)
+    )
+    report = _validate_host_secrets_targets(resolved_targets)
+    if json_output:
+        _json_dump(report)
+    else:
+        for target_report in report["reports"]:
+            console.print(
+                f"[bold]validating host secrets for {target_report['target']}[/bold]"
+            )
+            console.print(f"{'stat':<4} {'check':<24} detail")
+            for check in target_report["checks"]:
+                _emit_validation_result(
+                    stat=str(check["stat"]),
+                    check=str(check["check"]),
+                    detail=str(check["detail"]),
+                )
     if not bool(report["success"]):
         raise typer.Exit(code=1)
 

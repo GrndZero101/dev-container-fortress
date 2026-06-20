@@ -202,10 +202,14 @@ explicit operator decision.
 
 ## Readiness Checks
 
-`ft workspace auth validate <profile>` reports secrets readiness in stages.
-The underlying GPG and password-store readiness checks are intentionally
-transport-agnostic so the same model can later be reused for host targets over
-local execution, SSH, or Ansible-backed validation.
+`ft workspace auth validate <profile>` reports workspace secrets readiness in
+stages. `ft host secrets validate <target>` runs the same GPG and
+password-store readiness checks against configured host targets over local or
+SSH execution.
+
+For host targets, Dev Fortress runs the probes through zsh login commands. A
+local or WSL2 workstation should use `connection = "local"`; remote targets
+should use the existing managed SSH target contract.
 
 For a fresh workspace, these are expected:
 
