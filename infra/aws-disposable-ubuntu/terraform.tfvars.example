@@ -2,6 +2,7 @@ aws_region        = "ap-southeast-1"
 name              = "dev-fortress-ec2-dev"
 instance_type     = "t4g.small"
 architecture      = "arm64"
+# subnet_id        = "subnet-..."
 aws_key_pair_name = "dev-fortress-ec2-dev-ssh"
 
 # Leave ssh_ingress_cidrs empty to auto-detect the current public IP with

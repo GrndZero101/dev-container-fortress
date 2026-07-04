@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 import shutil
@@ -15,6 +16,7 @@ from typer.testing import CliRunner
 
 from ft.cli import (
     _container_host_ssh_public_key_path,
+    _deploy_rsync_command,
     _effective_install_root,
     _host_zsh_text,
     _host_target_manifest_toml,
@@ -38,6 +40,47 @@ from ft.models import (
 )
 
 runner = CliRunner()
+
+
+def _load_spot_select_module() -> object:
+    """Load the stack-local capacity selector module for focused tests."""
+    module_path = (
+        Path(__file__).parents[2] / "infra" / "aws-disposable-ubuntu" / "spot_select.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "aws_disposable_spot_select", module_path
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _aws_price_list(hourly_price: str, instance_type: str = "t4g.medium") -> list[str]:
+    """Return one minimal AWS Pricing API PriceList payload."""
+    return [
+        json.dumps(
+            {
+                "product": {
+                    "attributes": {
+                        "instanceType": instance_type,
+                    }
+                },
+                "terms": {
+                    "OnDemand": {
+                        "test-term": {
+                            "priceDimensions": {
+                                "test-dimension": {
+                                    "pricePerUnit": {"USD": hourly_price}
+                                }
+                            }
+                        }
+                    }
+                },
+            }
+        )
+    ]
 
 
 def _write_host_config(tmp_path: Path) -> Path:
@@ -172,6 +215,18 @@ def test_infra_group_uses_help_when_no_args_are_passed() -> None:
     assert result.exit_code == 0
     assert "Run thin Terraform-backed infrastructure workflows" in result.stdout
     assert "aws-disposable-ubuntu" in result.stdout
+
+
+def test_deploy_group_uses_help_when_no_args_are_passed() -> None:
+    """Deploy subcommands should show help on empty invocation."""
+    result = runner.invoke(app, ["deploy"])
+
+    assert result.exit_code == 0
+    assert (
+        "Mirror local Dev Fortress checkouts to a remote host target" in result.stdout
+    )
+    assert "sync" in result.stdout
+    assert "exec" in result.stdout
 
 
 def test_host_target_resolution_supports_all_and_wildcards() -> None:
@@ -595,6 +650,1078 @@ def test_infra_aws_disposable_ubuntu_apply_auto_imports_target(
     assert import_calls == [(terraform_dir, None)]
 
 
+def test_infra_aws_disposable_ubuntu_capacity_select_wraps_stack_script(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Capacity select should delegate to the stack-local selector script."""
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "ft.cli._default_disposable_ubuntu_capacity_presets_dir",
+        lambda: tmp_path / "capacity-presets",
+    )
+
+    def fake_stream(
+        command: list[str],
+        *,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("ft.cli._run_streaming_command", fake_stream)
+
+    result = runner.invoke(
+        app,
+        [
+            "infra",
+            "aws-disposable-ubuntu",
+            "capacity",
+            "select",
+            "--market",
+            "on-demand",
+            "--region",
+            "ap-southeast-1",
+            "--instance-type",
+            "t4g.medium",
+            "--exclude-families",
+            "t*",
+            "--sort-by",
+            "discount",
+            "--max-vcpu",
+            "8",
+            "--max-memory-gib",
+            "32",
+            "--max-on-demand-hourly",
+            "1.25",
+            "--no-cache",
+            "--no-progress",
+            "--tfvars-path",
+            str(tmp_path / "capacity.auto.tfvars.json"),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert len(calls) == 1
+    assert calls[0][1].endswith("spot_select.py")
+    assert "--market" in calls[0]
+    assert calls[0][calls[0].index("--market") + 1] == "on-demand"
+    assert "--write-tfvars" in calls[0]
+    assert calls[0][calls[0].index("--instance-type") + 1] == "t4g.medium"
+    assert calls[0][calls[0].index("--exclude-families") + 1] == "t*"
+    assert calls[0][calls[0].index("--sort-by") + 1] == "discount"
+    assert calls[0][calls[0].index("--max-vcpu") + 1] == "8"
+    assert calls[0][calls[0].index("--max-memory-gib") + 1] == "32.0"
+    assert calls[0][calls[0].index("--max-on-demand-hourly") + 1] == "1.25"
+    assert calls[0][calls[0].index("--lookback-hours") + 1] == "168"
+    assert "--no-cache" in calls[0]
+    assert "--no-progress" in calls[0]
+    assert (tmp_path / "capacity-presets" / "last.json").is_file()
+
+
+def test_capacity_select_without_selection_options_does_not_update_last(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Operational options alone should not update the special last preset."""
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "ft.cli._default_disposable_ubuntu_capacity_presets_dir",
+        lambda: tmp_path / "capacity-presets",
+    )
+
+    def fake_stream(
+        command: list[str],
+        *,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("ft.cli._run_streaming_command", fake_stream)
+
+    result = runner.invoke(
+        app,
+        [
+            "infra",
+            "aws-disposable-ubuntu",
+            "capacity",
+            "select",
+            "--no-cache",
+            "--no-progress",
+            "--no-write-tfvars",
+            "--workers",
+            "1",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert calls
+    assert not (tmp_path / "capacity-presets" / "last.json").exists()
+
+
+def test_capacity_select_saves_named_preset(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Capacity select should save effective selector inputs as a named preset."""
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "ft.cli._default_disposable_ubuntu_capacity_presets_dir",
+        lambda: tmp_path / "capacity-presets",
+    )
+
+    def fake_stream(
+        command: list[str],
+        *,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("ft.cli._run_streaming_command", fake_stream)
+
+    result = runner.invoke(
+        app,
+        [
+            "infra",
+            "aws-disposable-ubuntu",
+            "capacity",
+            "select",
+            "--market",
+            "spot",
+            "--architecture",
+            "arm64",
+            "--min-vcpu",
+            "2",
+            "--min-memory-gib",
+            "8",
+            "--max-spot-monthly",
+            "50",
+            "--exclude-families",
+            "t*",
+            "--sort-by",
+            "discount",
+            "--save-preset",
+            "cheap-dev",
+            "--no-progress",
+            "--no-write-tfvars",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert calls
+    preset = json.loads(
+        (tmp_path / "capacity-presets" / "cheap-dev.json").read_text(encoding="utf-8")
+    )
+    last = json.loads(
+        (tmp_path / "capacity-presets" / "last.json").read_text(encoding="utf-8")
+    )
+    assert preset["architecture"] == "arm64"
+    assert preset["min_memory_gib"] == 8.0
+    assert preset["max_spot_monthly"] == 50.0
+    assert preset["exclude_families"] == "t*"
+    assert preset["sort_by"] == "discount"
+    assert preset == last
+
+
+def test_capacity_select_loads_preset_and_applies_cli_overrides(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Explicit CLI options should override loaded capacity preset values."""
+    calls: list[list[str]] = []
+    presets_dir = tmp_path / "capacity-presets"
+    presets_dir.mkdir()
+    (presets_dir / "cheap-dev.json").write_text(
+        json.dumps(
+            {
+                "market": "spot",
+                "region": "ap-southeast-1",
+                "architecture": "arm64",
+                "min_vcpu": 2,
+                "min_memory_gib": 8.0,
+                "max_vcpu": 8,
+                "max_memory_gib": 32.0,
+                "max_on_demand_hourly": None,
+                "families": None,
+                "exclude_families": "t*",
+                "instance_type": None,
+                "lookback_hours": 168,
+                "min_samples": 2,
+                "max_hourly_price": None,
+                "max_spot_monthly": 50.0,
+                "sort_by": "discount",
+                "volatility_weight": 2.0,
+                "top": 10,
+                "spot_history_fresh_ttl_minutes": 15.0,
+                "include_previous_generation": False,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "ft.cli._default_disposable_ubuntu_capacity_presets_dir",
+        lambda: presets_dir,
+    )
+
+    def fake_stream(
+        command: list[str],
+        *,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("ft.cli._run_streaming_command", fake_stream)
+
+    result = runner.invoke(
+        app,
+        [
+            "infra",
+            "aws-disposable-ubuntu",
+            "capacity",
+            "select",
+            "--load-preset",
+            "cheap-dev",
+            "--max-spot-monthly",
+            "80",
+            "--sort-by",
+            "score",
+            "--no-progress",
+            "--no-write-tfvars",
+        ],
+    )
+
+    assert result.exit_code == 0
+    command = calls[0]
+    assert command[command.index("--architecture") + 1] == "arm64"
+    assert command[command.index("--min-memory-gib") + 1] == "8.0"
+    assert command[command.index("--max-spot-monthly") + 1] == "80.0"
+    assert command[command.index("--sort-by") + 1] == "score"
+    last = json.loads((presets_dir / "last.json").read_text(encoding="utf-8"))
+    assert last["max_spot_monthly"] == 80.0
+    assert last["sort_by"] == "score"
+
+
+def test_capacity_select_last_loads_last_preset(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """--last should load the special last capacity preset."""
+    calls: list[list[str]] = []
+    presets_dir = tmp_path / "capacity-presets"
+    presets_dir.mkdir()
+    (presets_dir / "last.json").write_text(
+        json.dumps(
+            {
+                "market": "on-demand",
+                "region": "ap-southeast-1",
+                "architecture": None,
+                "min_vcpu": 2,
+                "min_memory_gib": 4.0,
+                "max_vcpu": None,
+                "max_memory_gib": None,
+                "max_on_demand_hourly": None,
+                "families": None,
+                "exclude_families": "",
+                "instance_type": "t4g.medium",
+                "lookback_hours": 168,
+                "min_samples": 2,
+                "max_hourly_price": None,
+                "max_spot_monthly": None,
+                "sort_by": "score",
+                "volatility_weight": 2.0,
+                "top": 10,
+                "spot_history_fresh_ttl_minutes": 15.0,
+                "include_previous_generation": False,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "ft.cli._default_disposable_ubuntu_capacity_presets_dir",
+        lambda: presets_dir,
+    )
+
+    def fake_stream(
+        command: list[str],
+        *,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("ft.cli._run_streaming_command", fake_stream)
+
+    result = runner.invoke(
+        app,
+        [
+            "infra",
+            "aws-disposable-ubuntu",
+            "capacity",
+            "select",
+            "--last",
+            "--no-progress",
+            "--no-write-tfvars",
+        ],
+    )
+
+    assert result.exit_code == 0
+    command = calls[0]
+    assert command[command.index("--market") + 1] == "on-demand"
+    assert command[command.index("--instance-type") + 1] == "t4g.medium"
+
+
+def test_spot_selector_defaults_to_one_week_lookback() -> None:
+    """Spot selector default lookback should cover one week of history."""
+    module = _load_spot_select_module()
+
+    args = module.build_parser().parse_args([])
+
+    assert args.lookback_hours == 168
+
+
+def test_spot_selector_ranks_spot_candidates(monkeypatch: object) -> None:
+    """Stack-local selector should rank spot candidates and emit Terraform inputs."""
+    module = _load_spot_select_module()
+
+    def fake_run_aws(region: str, args: list[str]) -> dict[str, object]:
+        if args[:2] == ["ec2", "describe-instance-types"]:
+            return {
+                "InstanceTypes": [
+                    {
+                        "InstanceType": "t4g.small",
+                        "ProcessorInfo": {"SupportedArchitectures": ["arm64"]},
+                        "VCpuInfo": {"DefaultVCpus": 2},
+                        "MemoryInfo": {"SizeInMiB": 2048},
+                    },
+                    {
+                        "InstanceType": "t4g.medium",
+                        "ProcessorInfo": {"SupportedArchitectures": ["arm64"]},
+                        "VCpuInfo": {"DefaultVCpus": 2},
+                        "MemoryInfo": {"SizeInMiB": 4096},
+                    },
+                ]
+            }
+        if args[:2] == ["ec2", "describe-vpcs"]:
+            return {"Vpcs": [{"VpcId": "vpc-123"}]}
+        if args[:2] == ["ec2", "describe-subnets"]:
+            return {
+                "Subnets": [
+                    {
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SubnetId": "subnet-a",
+                    },
+                    {
+                        "AvailabilityZone": "ap-southeast-1b",
+                        "SubnetId": "subnet-b",
+                    },
+                ]
+            }
+        if args[:2] == ["pricing", "get-products"]:
+            return {"PriceList": _aws_price_list("0.020")}
+        if args[:2] == ["ec2", "describe-spot-price-history"]:
+            return {
+                "SpotPriceHistory": [
+                    {
+                        "InstanceType": "t4g.medium",
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SpotPrice": "0.010",
+                        "Timestamp": "2026-06-21T00:00:00+00:00",
+                    },
+                    {
+                        "InstanceType": "t4g.medium",
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SpotPrice": "0.011",
+                        "Timestamp": "2026-06-21T01:00:00+00:00",
+                    },
+                    {
+                        "InstanceType": "t4g.medium",
+                        "AvailabilityZone": "ap-southeast-1b",
+                        "SpotPrice": "0.007",
+                        "Timestamp": "2026-06-21T00:00:00+00:00",
+                    },
+                    {
+                        "InstanceType": "t4g.medium",
+                        "AvailabilityZone": "ap-southeast-1b",
+                        "SpotPrice": "0.008",
+                        "Timestamp": "2026-06-21T01:00:00+00:00",
+                    },
+                ]
+            }
+        raise AssertionError(args)
+
+    monkeypatch.setattr(module, "_run_aws", fake_run_aws)
+    args = module.build_parser().parse_args(
+        [
+            "--market",
+            "spot",
+            "--region",
+            "ap-southeast-1",
+            "--architecture",
+            "arm64",
+            "--min-vcpu",
+            "2",
+            "--min-memory-gib",
+            "4",
+            "--families",
+            "t4g",
+            "--no-cache",
+        ]
+    )
+
+    payload = module.select_capacity(args)
+
+    assert payload["selected"]["instance_type"] == "t4g.medium"
+    assert payload["selected"]["availability_zone"] == "ap-southeast-1b"
+    assert payload["selected"]["on_demand_price"] == 0.02
+    assert payload["selected"]["spot_savings_per_hour"] == pytest.approx(0.012)
+    assert payload["selected"]["spot_discount_pct"] == pytest.approx(60.0)
+    assert payload["terraform_tfvars"] == {
+        "architecture": "arm64",
+        "enable_spot": True,
+        "instance_type": "t4g.medium",
+        "spot_max_price": "0.00880",
+        "subnet_id": "subnet-b",
+    }
+
+
+def test_spot_selector_excludes_families(monkeypatch: object) -> None:
+    """Family exclusions should subtract from the candidate set."""
+    module = _load_spot_select_module()
+
+    def fake_run_aws(region: str, args: list[str]) -> dict[str, object]:
+        if args[:2] == ["ec2", "describe-instance-types"]:
+            return {
+                "InstanceTypes": [
+                    {
+                        "InstanceType": "t4g.large",
+                        "ProcessorInfo": {"SupportedArchitectures": ["arm64"]},
+                        "VCpuInfo": {"DefaultVCpus": 2},
+                        "MemoryInfo": {"SizeInMiB": 8192},
+                    },
+                    {
+                        "InstanceType": "m7g.large",
+                        "ProcessorInfo": {"SupportedArchitectures": ["arm64"]},
+                        "VCpuInfo": {"DefaultVCpus": 2},
+                        "MemoryInfo": {"SizeInMiB": 8192},
+                    },
+                ]
+            }
+        if args[:2] == ["ec2", "describe-vpcs"]:
+            return {"Vpcs": [{"VpcId": "vpc-123"}]}
+        if args[:2] == ["ec2", "describe-subnets"]:
+            return {
+                "Subnets": [
+                    {
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SubnetId": "subnet-a",
+                    }
+                ]
+            }
+        if args[:2] == ["pricing", "get-products"]:
+            return {"PriceList": _aws_price_list("0.100")}
+        if args[:2] == ["ec2", "describe-spot-price-history"]:
+            return {
+                "SpotPriceHistory": [
+                    {
+                        "InstanceType": "m7g.large",
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SpotPrice": "0.040",
+                        "Timestamp": "2026-06-21T00:00:00+00:00",
+                    },
+                    {
+                        "InstanceType": "m7g.large",
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SpotPrice": "0.041",
+                        "Timestamp": "2026-06-21T01:00:00+00:00",
+                    },
+                ]
+            }
+        raise AssertionError(args)
+
+    monkeypatch.setattr(module, "_run_aws", fake_run_aws)
+    args = module.build_parser().parse_args(
+        [
+            "--market",
+            "spot",
+            "--families",
+            "t*,m*",
+            "--exclude-families",
+            "t*",
+            "--min-memory-gib",
+            "8",
+            "--no-cache",
+        ]
+    )
+
+    payload = module.select_capacity(args)
+
+    assert payload["selected"]["instance_type"] == "m7g.large"
+    assert all(candidate["family"] != "t4g" for candidate in payload["candidates"])
+
+
+def test_spot_selector_includes_family_patterns(monkeypatch: object) -> None:
+    """Family allow-lists should support fnmatch patterns."""
+    module = _load_spot_select_module()
+
+    def fake_run_aws(region: str, args: list[str]) -> dict[str, object]:
+        if args[:2] == ["ec2", "describe-instance-types"]:
+            return {
+                "InstanceTypes": [
+                    {
+                        "InstanceType": "m7g.large",
+                        "ProcessorInfo": {"SupportedArchitectures": ["arm64"]},
+                        "VCpuInfo": {"DefaultVCpus": 2},
+                        "MemoryInfo": {"SizeInMiB": 8192},
+                    },
+                    {
+                        "InstanceType": "r7g.large",
+                        "ProcessorInfo": {"SupportedArchitectures": ["arm64"]},
+                        "VCpuInfo": {"DefaultVCpus": 2},
+                        "MemoryInfo": {"SizeInMiB": 16384},
+                    },
+                    {
+                        "InstanceType": "c7g.large",
+                        "ProcessorInfo": {"SupportedArchitectures": ["arm64"]},
+                        "VCpuInfo": {"DefaultVCpus": 2},
+                        "MemoryInfo": {"SizeInMiB": 4096},
+                    },
+                ]
+            }
+        if args[:2] == ["ec2", "describe-vpcs"]:
+            return {"Vpcs": [{"VpcId": "vpc-123"}]}
+        if args[:2] == ["ec2", "describe-subnets"]:
+            return {
+                "Subnets": [
+                    {
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SubnetId": "subnet-a",
+                    }
+                ]
+            }
+        if args[:2] == ["pricing", "get-products"]:
+            return {"PriceList": _aws_price_list("0.100")}
+        if args[:2] == ["ec2", "describe-spot-price-history"]:
+            instance_type = args[args.index("--instance-types") + 1]
+            return {
+                "SpotPriceHistory": [
+                    {
+                        "InstanceType": instance_type,
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SpotPrice": "0.040",
+                        "Timestamp": "2026-06-21T00:00:00+00:00",
+                    },
+                    {
+                        "InstanceType": instance_type,
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SpotPrice": "0.041",
+                        "Timestamp": "2026-06-21T01:00:00+00:00",
+                    },
+                ]
+            }
+        raise AssertionError(args)
+
+    monkeypatch.setattr(module, "_run_aws", fake_run_aws)
+    args = module.build_parser().parse_args(
+        [
+            "--market",
+            "spot",
+            "--families",
+            "m*,r*",
+            "--min-memory-gib",
+            "8",
+            "--no-cache",
+        ]
+    )
+
+    payload = module.select_capacity(args)
+
+    assert {candidate["family"] for candidate in payload["candidates"]} == {
+        "m7g",
+        "r7g",
+    }
+
+
+def test_spot_selector_can_sort_by_discount(monkeypatch: object) -> None:
+    """Discount sorting should choose the highest percentage discount candidate."""
+    module = _load_spot_select_module()
+
+    def fake_run_aws(region: str, args: list[str]) -> dict[str, object]:
+        if args[:2] == ["ec2", "describe-instance-types"]:
+            return {
+                "InstanceTypes": [
+                    {
+                        "InstanceType": "t4g.large",
+                        "ProcessorInfo": {"SupportedArchitectures": ["arm64"]},
+                        "VCpuInfo": {"DefaultVCpus": 2},
+                        "MemoryInfo": {"SizeInMiB": 8192},
+                    },
+                    {
+                        "InstanceType": "m7g.large",
+                        "ProcessorInfo": {"SupportedArchitectures": ["arm64"]},
+                        "VCpuInfo": {"DefaultVCpus": 2},
+                        "MemoryInfo": {"SizeInMiB": 8192},
+                    },
+                ]
+            }
+        if args[:2] == ["ec2", "describe-vpcs"]:
+            return {"Vpcs": [{"VpcId": "vpc-123"}]}
+        if args[:2] == ["ec2", "describe-subnets"]:
+            return {
+                "Subnets": [
+                    {
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SubnetId": "subnet-a",
+                    }
+                ]
+            }
+        if args[:2] == ["pricing", "get-products"]:
+            return {
+                "PriceList": [
+                    *_aws_price_list("0.020", "t4g.large"),
+                    *_aws_price_list("0.200", "m7g.large"),
+                ]
+            }
+        if args[:2] == ["ec2", "describe-spot-price-history"]:
+            instance_type = args[args.index("--instance-types") + 1]
+            spot_price = "0.010" if instance_type == "t4g.large" else "0.040"
+            return {
+                "SpotPriceHistory": [
+                    {
+                        "InstanceType": instance_type,
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SpotPrice": spot_price,
+                        "Timestamp": "2026-06-21T00:00:00+00:00",
+                    },
+                    {
+                        "InstanceType": instance_type,
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SpotPrice": spot_price,
+                        "Timestamp": "2026-06-21T01:00:00+00:00",
+                    },
+                ]
+            }
+        raise AssertionError(args)
+
+    monkeypatch.setattr(module, "_run_aws", fake_run_aws)
+    args = module.build_parser().parse_args(
+        [
+            "--market",
+            "spot",
+            "--families",
+            "t4g,m7g",
+            "--min-memory-gib",
+            "8",
+            "--sort-by",
+            "discount",
+            "--no-cache",
+        ]
+    )
+
+    payload = module.select_capacity(args)
+
+    assert payload["selected"]["instance_type"] == "m7g.large"
+    assert payload["selected"]["spot_discount_pct"] == pytest.approx(80.0)
+
+
+def test_spot_selector_applies_size_and_price_ceilings(monkeypatch: object) -> None:
+    """Maximum ceilings should remove oversized or over-budget candidates."""
+    module = _load_spot_select_module()
+
+    def fake_run_aws(region: str, args: list[str]) -> dict[str, object]:
+        if args[:2] == ["ec2", "describe-instance-types"]:
+            return {
+                "InstanceTypes": [
+                    {
+                        "InstanceType": "m7g.large",
+                        "ProcessorInfo": {"SupportedArchitectures": ["arm64"]},
+                        "VCpuInfo": {"DefaultVCpus": 2},
+                        "MemoryInfo": {"SizeInMiB": 8192},
+                    },
+                    {
+                        "InstanceType": "m7g.2xlarge",
+                        "ProcessorInfo": {"SupportedArchitectures": ["arm64"]},
+                        "VCpuInfo": {"DefaultVCpus": 8},
+                        "MemoryInfo": {"SizeInMiB": 32768},
+                    },
+                    {
+                        "InstanceType": "r7g.large",
+                        "ProcessorInfo": {"SupportedArchitectures": ["arm64"]},
+                        "VCpuInfo": {"DefaultVCpus": 2},
+                        "MemoryInfo": {"SizeInMiB": 16384},
+                    },
+                ]
+            }
+        if args[:2] == ["ec2", "describe-vpcs"]:
+            return {"Vpcs": [{"VpcId": "vpc-123"}]}
+        if args[:2] == ["ec2", "describe-subnets"]:
+            return {
+                "Subnets": [
+                    {
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SubnetId": "subnet-a",
+                    }
+                ]
+            }
+        if args[:2] == ["pricing", "get-products"]:
+            return {
+                "PriceList": [
+                    *_aws_price_list("0.080", "m7g.large"),
+                    *_aws_price_list("0.300", "m7g.2xlarge"),
+                    *_aws_price_list("0.200", "r7g.large"),
+                ]
+            }
+        if args[:2] == ["ec2", "describe-spot-price-history"]:
+            instance_type = args[args.index("--instance-types") + 1]
+            spot_price = "0.080" if instance_type == "r7g.large" else "0.040"
+            return {
+                "SpotPriceHistory": [
+                    {
+                        "InstanceType": instance_type,
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SpotPrice": spot_price,
+                        "Timestamp": "2026-06-21T00:00:00+00:00",
+                    },
+                    {
+                        "InstanceType": instance_type,
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SpotPrice": spot_price,
+                        "Timestamp": "2026-06-21T01:00:00+00:00",
+                    },
+                ]
+            }
+        raise AssertionError(args)
+
+    monkeypatch.setattr(module, "_run_aws", fake_run_aws)
+    args = module.build_parser().parse_args(
+        [
+            "--market",
+            "spot",
+            "--families",
+            "m*,r*",
+            "--min-memory-gib",
+            "8",
+            "--max-vcpu",
+            "4",
+            "--max-memory-gib",
+            "16",
+            "--max-on-demand-hourly",
+            "0.25",
+            "--max-spot-monthly",
+            "35",
+            "--no-cache",
+        ]
+    )
+
+    payload = module.select_capacity(args)
+
+    assert payload["selected"]["instance_type"] == "m7g.large"
+    assert {candidate["instance_type"] for candidate in payload["candidates"]} == {
+        "m7g.large"
+    }
+    assert payload["requested"]["max_spot_monthly"] == 35.0
+
+
+def test_spot_selector_uses_x86_defaults_for_amd64(monkeypatch: object) -> None:
+    """amd64 should use x86 default families instead of ARM families."""
+    module = _load_spot_select_module()
+
+    def fake_run_aws(region: str, args: list[str]) -> dict[str, object]:
+        if args[:2] == ["ec2", "describe-instance-types"]:
+            return {
+                "InstanceTypes": [
+                    {
+                        "InstanceType": "m7i.large",
+                        "ProcessorInfo": {"SupportedArchitectures": ["x86_64"]},
+                        "VCpuInfo": {"DefaultVCpus": 2},
+                        "MemoryInfo": {"SizeInMiB": 8192},
+                    },
+                    {
+                        "InstanceType": "t4g.large",
+                        "ProcessorInfo": {"SupportedArchitectures": ["arm64"]},
+                        "VCpuInfo": {"DefaultVCpus": 2},
+                        "MemoryInfo": {"SizeInMiB": 8192},
+                    },
+                ]
+            }
+        if args[:2] == ["ec2", "describe-vpcs"]:
+            return {"Vpcs": [{"VpcId": "vpc-123"}]}
+        if args[:2] == ["ec2", "describe-subnets"]:
+            return {
+                "Subnets": [
+                    {
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SubnetId": "subnet-a",
+                    }
+                ]
+            }
+        if args[:2] == ["pricing", "get-products"]:
+            return {"PriceList": _aws_price_list("0.120")}
+        if args[:2] == ["ec2", "describe-spot-price-history"]:
+            assert "m7i.large" in args
+            return {
+                "SpotPriceHistory": [
+                    {
+                        "InstanceType": "m7i.large",
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SpotPrice": "0.050",
+                        "Timestamp": "2026-06-21T00:00:00+00:00",
+                    },
+                    {
+                        "InstanceType": "m7i.large",
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SpotPrice": "0.051",
+                        "Timestamp": "2026-06-21T01:00:00+00:00",
+                    },
+                ]
+            }
+        raise AssertionError(args)
+
+    monkeypatch.setattr(module, "_run_aws", fake_run_aws)
+    args = module.build_parser().parse_args(
+        [
+            "--market",
+            "spot",
+            "--architecture",
+            "amd64",
+            "--min-memory-gib",
+            "8",
+            "--no-cache",
+        ]
+    )
+
+    payload = module.select_capacity(args)
+
+    assert payload["requested"]["architecture"] == "amd64"
+    assert "m7i" in payload["requested"]["families"]
+    assert payload["selected"]["instance_type"] == "m7i.large"
+    assert payload["terraform_tfvars"]["architecture"] == "amd64"
+
+
+def test_spot_selector_without_architecture_uses_all_families(
+    monkeypatch: object,
+) -> None:
+    """Omitting architecture should not apply an implicit family allow-list."""
+    module = _load_spot_select_module()
+
+    def fake_run_aws(region: str, args: list[str]) -> dict[str, object]:
+        if args[:2] == ["ec2", "describe-instance-types"]:
+            assert not any(
+                str(arg).startswith("Name=processor-info.supported-architecture")
+                for arg in args
+            )
+            return {
+                "InstanceTypes": [
+                    {
+                        "InstanceType": "m7i.large",
+                        "ProcessorInfo": {"SupportedArchitectures": ["x86_64"]},
+                        "VCpuInfo": {"DefaultVCpus": 2},
+                        "MemoryInfo": {"SizeInMiB": 8192},
+                    },
+                    {
+                        "InstanceType": "t4g.large",
+                        "ProcessorInfo": {"SupportedArchitectures": ["arm64"]},
+                        "VCpuInfo": {"DefaultVCpus": 2},
+                        "MemoryInfo": {"SizeInMiB": 8192},
+                    },
+                ]
+            }
+        if args[:2] == ["ec2", "describe-vpcs"]:
+            return {"Vpcs": [{"VpcId": "vpc-123"}]}
+        if args[:2] == ["ec2", "describe-subnets"]:
+            return {
+                "Subnets": [
+                    {
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SubnetId": "subnet-a",
+                    }
+                ]
+            }
+        if args[:2] == ["pricing", "get-products"]:
+            return {"PriceList": _aws_price_list("0.120")}
+        if args[:2] == ["ec2", "describe-spot-price-history"]:
+            instance_type = args[args.index("--instance-types") + 1]
+            return {
+                "SpotPriceHistory": [
+                    {
+                        "InstanceType": instance_type,
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SpotPrice": "0.050",
+                        "Timestamp": "2026-06-21T00:00:00+00:00",
+                    },
+                    {
+                        "InstanceType": instance_type,
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SpotPrice": "0.051",
+                        "Timestamp": "2026-06-21T01:00:00+00:00",
+                    },
+                ]
+            }
+        raise AssertionError(args)
+
+    monkeypatch.setattr(module, "_run_aws", fake_run_aws)
+    args = module.build_parser().parse_args(
+        [
+            "--market",
+            "spot",
+            "--min-memory-gib",
+            "8",
+            "--no-cache",
+        ]
+    )
+
+    payload = module.select_capacity(args)
+
+    assert payload["requested"]["architecture"] is None
+    assert payload["requested"]["families"] == []
+    assert {candidate["instance_type"] for candidate in payload["candidates"]} == {
+        "m7i.large",
+        "t4g.large",
+    }
+
+
+def test_spot_selector_reuses_cached_metadata(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Cacheable metadata should be reused across selector runs."""
+    module = _load_spot_select_module()
+    call_counts: dict[tuple[str, str], int] = {}
+
+    def count(args: list[str]) -> None:
+        key = (args[0], args[1])
+        call_counts[key] = call_counts.get(key, 0) + 1
+
+    def fake_run_aws(region: str, args: list[str]) -> dict[str, object]:
+        count(args)
+        if args[:2] == ["ec2", "describe-instance-types"]:
+            return {
+                "InstanceTypes": [
+                    {
+                        "InstanceType": "t4g.medium",
+                        "ProcessorInfo": {"SupportedArchitectures": ["arm64"]},
+                        "VCpuInfo": {"DefaultVCpus": 2},
+                        "MemoryInfo": {"SizeInMiB": 4096},
+                    }
+                ]
+            }
+        if args[:2] == ["ec2", "describe-vpcs"]:
+            return {"Vpcs": [{"VpcId": "vpc-123"}]}
+        if args[:2] == ["ec2", "describe-subnets"]:
+            return {
+                "Subnets": [
+                    {
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SubnetId": "subnet-a",
+                    }
+                ]
+            }
+        if args[:2] == ["pricing", "get-products"]:
+            return {"PriceList": _aws_price_list("0.040")}
+        if args[:2] == ["ec2", "describe-instance-type-offerings"]:
+            return {
+                "InstanceTypeOfferings": [
+                    {
+                        "InstanceType": "t4g.medium",
+                        "Location": "ap-southeast-1a",
+                    }
+                ]
+            }
+        raise AssertionError(args)
+
+    monkeypatch.setattr(module, "_run_aws", fake_run_aws)
+    argv = [
+        "--market",
+        "on-demand",
+        "--cache-root",
+        str(tmp_path / "cache"),
+    ]
+
+    module.select_capacity(module.build_parser().parse_args(argv))
+    module.select_capacity(module.build_parser().parse_args(argv))
+
+    assert call_counts[("ec2", "describe-instance-types")] == 1
+    assert call_counts[("ec2", "describe-vpcs")] == 1
+    assert call_counts[("ec2", "describe-subnets")] == 1
+    assert call_counts[("pricing", "get-products")] == 1
+    assert call_counts[("ec2", "describe-instance-type-offerings")] == 1
+
+
+def test_spot_selector_can_emit_on_demand_tfvars(monkeypatch: object) -> None:
+    """On-demand mode should disable Spot while preserving selected host shape."""
+    module = _load_spot_select_module()
+
+    def fake_run_aws(region: str, args: list[str]) -> dict[str, object]:
+        if args[:2] == ["ec2", "describe-instance-types"]:
+            return {
+                "InstanceTypes": [
+                    {
+                        "InstanceType": "t4g.medium",
+                        "ProcessorInfo": {"SupportedArchitectures": ["arm64"]},
+                        "VCpuInfo": {"DefaultVCpus": 2},
+                        "MemoryInfo": {"SizeInMiB": 4096},
+                    }
+                ]
+            }
+        if args[:2] == ["ec2", "describe-vpcs"]:
+            return {"Vpcs": [{"VpcId": "vpc-123"}]}
+        if args[:2] == ["ec2", "describe-subnets"]:
+            return {
+                "Subnets": [
+                    {
+                        "AvailabilityZone": "ap-southeast-1a",
+                        "SubnetId": "subnet-a",
+                    }
+                ]
+            }
+        if args[:2] == ["pricing", "get-products"]:
+            return {"PriceList": _aws_price_list("0.040")}
+        if args[:2] == ["ec2", "describe-instance-type-offerings"]:
+            return {
+                "InstanceTypeOfferings": [
+                    {
+                        "InstanceType": "t4g.medium",
+                        "Location": "ap-southeast-1a",
+                    }
+                ]
+            }
+        raise AssertionError(args)
+
+    monkeypatch.setattr(module, "_run_aws", fake_run_aws)
+    args = module.build_parser().parse_args(
+        [
+            "--market",
+            "on-demand",
+            "--region",
+            "ap-southeast-1",
+            "--instance-type",
+            "t4g.medium",
+            "--no-cache",
+        ]
+    )
+
+    payload = module.select_capacity(args)
+
+    assert payload["selected"]["market"] == "on-demand"
+    assert payload["selected"]["on_demand_price"] == 0.04
+    assert payload["selected"]["on_demand_price_monthly"] == pytest.approx(29.22)
+    assert payload["terraform_tfvars"] == {
+        "architecture": "arm64",
+        "enable_spot": False,
+        "instance_type": "t4g.medium",
+        "spot_max_price": None,
+        "subnet_id": "subnet-a",
+    }
+
+
 def test_host_ssh_key_path_uses_xdg_state(tmp_path: Path, monkeypatch: object) -> None:
     """Host ssh-key-path should resolve into the XDG-managed Dev Fortress state root."""
     config_path = _write_host_config(tmp_path)
@@ -758,6 +1885,225 @@ def test_host_ssh_interactive_uses_selected_target(
 
     assert result.exit_code == 0
     assert calls == ["dev-fortress-ubuntu"]
+
+
+def test_deploy_rsync_command_excludes_state_and_uses_managed_ssh(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Deploy rsync command should avoid local state and reuse managed SSH."""
+    config_path = _write_host_config(tmp_path)
+    manifest = HostTargetManifest.model_validate(
+        tomllib.loads(config_path.read_text(encoding="utf-8"))
+    )
+    target = next(
+        item for item in manifest.targets if item.name == "dev-fortress-ec2-dev"
+    )
+    private_key_path = (
+        tmp_path
+        / "state"
+        / "dev-container-fortress"
+        / "ssh"
+        / "dev-fortress-ec2-dev"
+        / "dev_fortress_ed25519"
+    )
+    private_key_path.parent.mkdir(parents=True, exist_ok=True)
+    private_key_path.write_text("private", encoding="utf-8")
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "ft.cli._refresh_managed_known_host",
+        lambda target: tmp_path / "known_hosts",
+    )
+
+    command = _deploy_rsync_command(
+        source=tmp_path / "dev-container-fortress",
+        target=target,
+        remote_path="~/workspaces/dev-fortress/dev-container-fortress",
+        dry_run=True,
+        delete=True,
+    )
+
+    assert command[:4] == ["rsync", "-az", "--human-readable", "--itemize-changes"]
+    assert "--dry-run" in command
+    assert "--delete" in command
+    assert ".git" in command
+    assert ".venv" in command
+    assert ".terraform" in command
+    assert "-e" in command
+    assert str(private_key_path) in command[command.index("-e") + 1]
+    assert command[-1] == (
+        "ubuntu@ec2.example.internal:~/workspaces/dev-fortress/dev-container-fortress/"
+    )
+
+
+def test_deploy_sync_mirrors_dev_and_shell_config(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Deploy sync should mirror both local authoritative checkouts."""
+    config_path = _write_host_config(tmp_path)
+    shell_config_checkout = tmp_path / "shell-config"
+    shell_config_checkout.mkdir()
+    private_key_path = (
+        tmp_path
+        / "state"
+        / "dev-container-fortress"
+        / "ssh"
+        / "dev-fortress-ec2-dev"
+        / "dev_fortress_ed25519"
+    )
+    private_key_path.parent.mkdir(parents=True, exist_ok=True)
+    private_key_path.write_text("private", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "ft.cli._refresh_managed_known_host",
+        lambda target: tmp_path / "known_hosts",
+    )
+    monkeypatch.setattr("ft.cli._ensure_host_target_runtime_ready", lambda target: True)
+
+    def fake_stream(
+        command: list[str],
+        *,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("ft.cli._run_streaming_command", fake_stream)
+
+    result = runner.invoke(
+        app,
+        [
+            "deploy",
+            "sync",
+            "dev-fortress-ec2-dev",
+            "--config",
+            str(config_path),
+            "--remote-root",
+            "~/workspaces/dev-fortress",
+            "--shell-config-checkout",
+            str(shell_config_checkout),
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert len(calls) == 3
+    assert calls[0][0] == "ssh"
+    assert calls[0][-1] == (
+        "mkdir -p -- "
+        "~/workspaces/dev-fortress/dev-container-fortress "
+        "~/workspaces/dev-fortress/shell-config"
+    )
+    assert calls[1][0] == "rsync"
+    assert calls[2][0] == "rsync"
+    assert calls[1][-1].endswith(":~/workspaces/dev-fortress/dev-container-fortress/")
+    assert calls[2][-1].endswith(":~/workspaces/dev-fortress/shell-config/")
+    assert "synced dev-fortress-ec2-dev -> ~/workspaces/dev-fortress" in result.stdout
+
+
+def test_deploy_sync_requires_shell_config_checkout_by_default(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Deploy sync should make shell-config drift explicit by default."""
+    config_path = _write_host_config(tmp_path)
+    private_key_path = (
+        tmp_path
+        / "state"
+        / "dev-container-fortress"
+        / "ssh"
+        / "dev-fortress-ec2-dev"
+        / "dev_fortress_ed25519"
+    )
+    private_key_path.parent.mkdir(parents=True, exist_ok=True)
+    private_key_path.write_text("private", encoding="utf-8")
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "ft.cli._refresh_managed_known_host",
+        lambda target: tmp_path / "known_hosts",
+    )
+    monkeypatch.setattr("ft.cli._ensure_host_target_runtime_ready", lambda target: True)
+    monkeypatch.setattr("ft.cli._workspace_default_shell_config_checkout", lambda: None)
+
+    result = runner.invoke(
+        app,
+        [
+            "deploy",
+            "sync",
+            "dev-fortress-ec2-dev",
+            "--config",
+            str(config_path),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "no shell-config checkout found" in result.output
+
+
+def test_deploy_exec_runs_from_remote_dev_checkout(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Deploy exec should run commands from the mirrored remote repo."""
+    config_path = _write_host_config(tmp_path)
+    private_key_path = (
+        tmp_path
+        / "state"
+        / "dev-container-fortress"
+        / "ssh"
+        / "dev-fortress-ec2-dev"
+        / "dev_fortress_ed25519"
+    )
+    private_key_path.parent.mkdir(parents=True, exist_ok=True)
+    private_key_path.write_text("private", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "ft.cli._refresh_managed_known_host",
+        lambda target: tmp_path / "known_hosts",
+    )
+    monkeypatch.setattr("ft.cli._ensure_host_target_runtime_ready", lambda target: True)
+
+    def fake_stream(
+        command: list[str],
+        *,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("ft.cli._run_streaming_command", fake_stream)
+
+    result = runner.invoke(
+        app,
+        [
+            "deploy",
+            "exec",
+            "dev-fortress-ec2-dev",
+            "--config",
+            str(config_path),
+            "--remote-root",
+            "~/workspaces/dev-fortress",
+            "--",
+            "uv",
+            "run",
+            "ft",
+            "doctor",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert calls
+    assert calls[0][0] == "ssh"
+    assert calls[0][-1] == (
+        "cd ~/workspaces/dev-fortress/dev-container-fortress && uv run ft doctor"
+    )
 
 
 def test_host_show_includes_managed_known_hosts_path(
@@ -955,6 +2301,7 @@ def test_root_cli_uses_help_when_no_args_are_passed() -> None:
     assert "container" in result.stdout
     assert "workspace" in result.stdout
     assert "host" in result.stdout
+    assert "deploy" in result.stdout
     assert "doctor" in result.stdout
     assert "completion" in result.stdout
 
@@ -1254,7 +2601,9 @@ def test_workspace_auth_doctor_supports_json_output(monkeypatch: object) -> None
 
     monkeypatch.setattr("ft.cli._run_workspace_auth_doctor", fake_auth_doctor)
 
-    result = runner.invoke(app, ["workspace", "auth", "doctor", "--json", "ubuntu-base"])
+    result = runner.invoke(
+        app, ["workspace", "auth", "doctor", "--json", "ubuntu-base"]
+    )
 
     assert result.exit_code == 0
     assert calls == [("ubuntu-base", True)]
@@ -1275,9 +2624,7 @@ def test_workspace_auth_validate_supports_json_output(monkeypatch: object) -> No
             "profile": profile_name,
             "container": f"dev-fortress-workspace-{profile_name}",
             "success": True,
-            "checks": [
-                {"stat": "OK", "check": "browser_helper", "detail": "ready"}
-            ],
+            "checks": [{"stat": "OK", "check": "browser_helper", "detail": "ready"}],
         },
     )
 
@@ -1734,7 +3081,9 @@ def test_workspace_auth_checks_report_wsl_browser_strategy(
     check_map = {check["check"]: check for check in checks}
 
     assert check_map["browser_strategy"]["stat"] == "OK"
-    assert "/usr/local/bin/ft-host-browser-open" in check_map["browser_strategy"]["detail"]
+    assert (
+        "/usr/local/bin/ft-host-browser-open" in check_map["browser_strategy"]["detail"]
+    )
 
 
 def test_workspace_auth_checks_report_secrets_baseline(
@@ -1971,18 +3320,14 @@ def test_workspace_up_configures_wsl_browser_bridge(
     assert _up_workspace_profile("ubuntu-gitforge", profile) is True
     run_command = commands[-1]
     assert "--volume" in run_command
-    assert (
-        f"{browser_bridge_dir}:/tmp/dev-fortress-host-services"
-        in run_command
-    )
+    assert f"{browser_bridge_dir}:/tmp/dev-fortress-host-services" in run_command
     assert f"{windows_system_path}:{windows_system_path}:ro" in run_command
     assert f"{wsl_init_path}:{wsl_init_path}:ro" in run_command
     assert f"{wsl_interop_root}:{wsl_interop_root}" in run_command
     assert "--env" in run_command
     assert (
         "DEV_FORTRESS_HOST_BROWSER_SOCKET="
-        "/tmp/dev-fortress-host-services/browser-open.sock"
-        in run_command
+        "/tmp/dev-fortress-host-services/browser-open.sock" in run_command
     )
     assert "DEV_FORTRESS_WORKSPACE=1" in run_command
     assert "DEV_FORTRESS_AWS_LOGIN_MODE=device-code" in run_command
@@ -3360,7 +4705,7 @@ def test_install_tool_preserves_support_directories(tmp_path: Path) -> None:
 
     launcher = bin_dir / "demo-tool"
     launcher.write_text(
-        "#!/bin/sh\nexec \"$(dirname \"$0\")/../libexec/demo-tool/demo-tool\" \"$@\"\n",
+        '#!/bin/sh\nexec "$(dirname "$0")/../libexec/demo-tool/demo-tool" "$@"\n',
         encoding="utf-8",
     )
     launcher.chmod(0o755)
@@ -3473,7 +4818,9 @@ def test_install_tool_merges_support_directories_without_replacing_existing_data
     assert (install_root.parent / "lib" / "nvim" / "libnvim.so").exists()
 
 
-def test_install_tool_reuses_cached_downloads(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_install_tool_reuses_cached_downloads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Verified cached assets should be reused without redownloading."""
     source_root = tmp_path / "source" / "demo-tool-1.0.0"
     source_root.mkdir(parents=True)
@@ -3536,7 +4883,9 @@ def test_install_tool_reuses_cached_downloads(tmp_path: Path, monkeypatch: pytes
         cache_root=cache_root,
     )
 
-    assert sorted(download_calls) == sorted([archive_path.as_uri(), checksum_path.as_uri()])
+    assert sorted(download_calls) == sorted(
+        [archive_path.as_uri(), checksum_path.as_uri()]
+    )
     assert (second_install_root / "demo-tool").exists()
 
 
@@ -3558,7 +4907,9 @@ def test_install_tool_cache_key_separates_target_variants(
 
     monkeypatch.setattr(
         "ft.installer._download",
-        lambda url, destination: shutil.copy2(Path(url.removeprefix("file://")), destination),
+        lambda url, destination: shutil.copy2(
+            Path(url.removeprefix("file://")), destination
+        ),
     )
 
     tool = ToolDefinition(

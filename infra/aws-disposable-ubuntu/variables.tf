@@ -16,6 +16,12 @@ variable "instance_type" {
   default     = "t4g.small"
 }
 
+variable "subnet_id" {
+  description = "Optional subnet ID to launch into. When null, the first default VPC subnet is used."
+  type        = string
+  default     = null
+}
+
 variable "architecture" {
   description = "Instance architecture used to choose the Ubuntu AMI."
   type        = string

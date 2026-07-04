@@ -35,7 +35,7 @@ resource "aws_security_group" "ssh" {
 resource "aws_instance" "this" {
   ami                         = data.aws_ssm_parameter.ubuntu_ami.value
   instance_type               = var.instance_type
-  subnet_id                   = sort(data.aws_subnets.default.ids)[0]
+  subnet_id                   = coalesce(var.subnet_id, sort(data.aws_subnets.default.ids)[0])
   vpc_security_group_ids      = [aws_security_group.ssh.id]
   key_name                    = aws_key_pair.this.key_name
   iam_instance_profile        = var.enable_session_manager ? aws_iam_instance_profile.session_manager[0].name : null

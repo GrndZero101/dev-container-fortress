@@ -47,9 +47,7 @@ app = typer.Typer(
 )
 tool_app = typer.Typer(
     no_args_is_help=False,
-    help=(
-        "Manage tool installation plans and installs from the shared manifest."
-    ),
+    help=("Manage tool installation plans and installs from the shared manifest."),
 )
 container_app = typer.Typer(
     no_args_is_help=False,
@@ -100,12 +98,23 @@ infra_app = typer.Typer(
         "existing Dev Fortress host loop."
     ),
 )
+deploy_app = typer.Typer(
+    no_args_is_help=False,
+    help=(
+        "Mirror local Dev Fortress checkouts to a remote host target and run "
+        "remote validation commands."
+    ),
+)
 aws_disposable_ubuntu_app = typer.Typer(
     no_args_is_help=False,
     help=(
         "Operate the disposable Ubuntu AWS Terraform stack with Dev Fortress "
         "managed SSH keys and host-target import wiring."
     ),
+)
+aws_disposable_ubuntu_capacity_app = typer.Typer(
+    no_args_is_help=False,
+    help=("Select EC2 capacity inputs for the disposable Ubuntu Terraform stack."),
 )
 completion_app = typer.Typer(
     no_args_is_help=False,
@@ -122,12 +131,31 @@ app.add_typer(workspace_app, name="workspace")
 workspace_app.add_typer(workspace_auth_app, name="auth")
 workspace_app.add_typer(workspace_secrets_app, name="secrets")
 app.add_typer(infra_app, name="infra")
+app.add_typer(deploy_app, name="deploy")
 infra_app.add_typer(aws_disposable_ubuntu_app, name="aws-disposable-ubuntu")
+aws_disposable_ubuntu_app.add_typer(aws_disposable_ubuntu_capacity_app, name="capacity")
 app.add_typer(completion_app, name="completion")
 
 console = Console()
 KNOWN_CONTAINER_TARGETS = ("ubuntu", "alpine")
 SUPPORTED_SHELL_CONFIG_SOURCES = ("github", "local")
+DEFAULT_DEPLOY_REMOTE_ROOT = "~/workspaces/dev-fortress"
+DEPLOY_RSYNC_EXCLUDES = (
+    ".git",
+    ".venv",
+    ".cache",
+    ".local",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".terraform",
+    "terraform.tfstate",
+    "terraform.tfstate.backup",
+    "__pycache__",
+    "*.pyc",
+    ".DS_Store",
+    ".zsh_history",
+    "uv.lock.*",
+)
 ANSIBLE_PLAY_RECAP_PATTERN = re.compile(
     r"^(?:.*\|\s*)?(?P<target>[^\n:|]+?)\s*:\s*"
     r"ok=(?P<ok>\d+)\s+"
@@ -213,9 +241,25 @@ def infra_callback(context: typer.Context) -> None:
         raise typer.Exit()
 
 
+@deploy_app.callback(invoke_without_command=True)
+def deploy_callback(context: typer.Context) -> None:
+    """Render deploy-group help when no deploy subcommand is passed."""
+    if context.invoked_subcommand is None:
+        console.print(context.get_help())
+        raise typer.Exit()
+
+
 @aws_disposable_ubuntu_app.callback(invoke_without_command=True)
 def aws_disposable_ubuntu_callback(context: typer.Context) -> None:
     """Render disposable-Ubuntu infra help when no subcommand is passed."""
+    if context.invoked_subcommand is None:
+        console.print(context.get_help())
+        raise typer.Exit()
+
+
+@aws_disposable_ubuntu_capacity_app.callback(invoke_without_command=True)
+def aws_disposable_ubuntu_capacity_callback(context: typer.Context) -> None:
+    """Render disposable-Ubuntu capacity help when no subcommand is passed."""
     if context.invoked_subcommand is None:
         console.print(context.get_help())
         raise typer.Exit()
@@ -585,7 +629,8 @@ def _workspace_tool_layer_definitions(
     """Return resolved tool-layer definitions for one workspace profile."""
     manifest = _load_workspace_profile_manifest()
     return [
-        (layer_name, manifest.tool_layers[layer_name]) for layer_name in profile.tool_layers
+        (layer_name, manifest.tool_layers[layer_name])
+        for layer_name in profile.tool_layers
     ]
 
 
@@ -749,9 +794,7 @@ def _workspace_container_host_browser_bridge_dir() -> str:
 
 def _workspace_container_host_browser_socket() -> str:
     """Return the in-container Unix socket path for host browser bridge traffic."""
-    return (
-        f"{_workspace_container_host_browser_bridge_dir()}/browser-open.sock"
-    )
+    return f"{_workspace_container_host_browser_bridge_dir()}/browser-open.sock"
 
 
 def _workspace_host_browser_opener_command() -> list[str] | None:
@@ -799,9 +842,12 @@ def _ensure_workspace_host_browser_bridge(profile_name: str) -> Path | None:
         existing_signature = ""
         if command_path.is_file():
             existing_signature = command_path.read_text(encoding="utf-8").strip()
-        if existing_pid > 0 and socket_path.exists() and _workspace_pid_is_alive(
-            existing_pid
-        ) and existing_signature == opener_signature:
+        if (
+            existing_pid > 0
+            and socket_path.exists()
+            and _workspace_pid_is_alive(existing_pid)
+            and existing_signature == opener_signature
+        ):
             return socket_path
         if existing_pid > 0 and _workspace_pid_is_alive(existing_pid):
             try:
@@ -896,7 +942,9 @@ def _workspace_mount_plan_payload(
                 "description": layer_definition.description,
                 "build_arg": layer_definition.build_arg,
             }
-            for layer_name, layer_definition in _workspace_tool_layer_definitions(profile)
+            for layer_name, layer_definition in _workspace_tool_layer_definitions(
+                profile
+            )
         ],
         "image_build_layers": [
             layer_name for layer_name, _ in _workspace_image_build_layers(profile)
@@ -1105,7 +1153,9 @@ def _build_workspace_auth_doctor_report(
                 "mode": layer_definition.mode,
                 "description": layer_definition.description,
             }
-            for layer_name, layer_definition in _workspace_tool_layer_definitions(profile)
+            for layer_name, layer_definition in _workspace_tool_layer_definitions(
+                profile
+            )
         ],
         "checks": checks,
         "next_step": next_step,
@@ -1278,7 +1328,7 @@ def _validate_workspace_auth_runtime(
                 "aws_state",
                 (
                     'if [ -f "${HOME}/.aws/config" ] || [ -f "${HOME}/.aws/credentials" ]; '
-                    'then print -r -- configured; else print -r -- missing; fi'
+                    "then print -r -- configured; else print -r -- missing; fi"
                 ),
                 "configured",
             ),
@@ -1286,7 +1336,7 @@ def _validate_workspace_auth_runtime(
                 "aws_sso_cache",
                 (
                     'if [ -d "${HOME}/.aws/sso/cache" ]; '
-                    'then print -r -- present; else print -r -- missing; fi'
+                    "then print -r -- present; else print -r -- missing; fi"
                 ),
                 "present",
             ),
@@ -1313,7 +1363,7 @@ def _validate_workspace_auth_runtime(
             container_name,
             (
                 'if [ -d "${HOME}/.azure" ] && [ "$(ls -A "${HOME}/.azure" 2>/dev/null)" ]; '
-                'then print -r -- configured; else print -r -- missing; fi'
+                "then print -r -- configured; else print -r -- missing; fi"
             ),
         )
         normalized_output = _last_non_empty_line(output)
@@ -1552,7 +1602,7 @@ def _validate_workspace_profile(
         ("path_local_bin", 'print -r -- "$PATH"', "/home/vscode/.local/bin"),
         (
             "workspace_repo_mount",
-            'test -d /workspace/dev-container-fortress && print -r -- mounted',
+            "test -d /workspace/dev-container-fortress && print -r -- mounted",
             "mounted",
         ),
     ]
@@ -1562,7 +1612,7 @@ def _validate_workspace_profile(
         shell_checks.append(
             (
                 "shell_config_mount",
-                'test -d /workspace/shell-config && print -r -- mounted',
+                "test -d /workspace/shell-config && print -r -- mounted",
                 "mounted",
             )
         )
@@ -1790,6 +1840,150 @@ def _default_disposable_ubuntu_terraform_dir() -> Path:
 def _default_disposable_ubuntu_seed_config_path() -> Path:
     """Return the repo-local seed host manifest for the disposable Ubuntu stack."""
     return _default_disposable_ubuntu_terraform_dir() / "hosts.seed.toml"
+
+
+def _default_disposable_ubuntu_capacity_tfvars_path() -> Path:
+    """Return the local generated capacity tfvars path for the Ubuntu stack."""
+    return _default_disposable_ubuntu_terraform_dir() / "capacity.auto.tfvars.json"
+
+
+def _default_disposable_ubuntu_capacity_presets_dir() -> Path:
+    """Return the repo-local capacity selector presets directory."""
+    return _default_disposable_ubuntu_terraform_dir() / "capacity-presets"
+
+
+def _disposable_ubuntu_capacity_selector_script() -> Path:
+    """Return the stack-local EC2 capacity selector script."""
+    return _default_disposable_ubuntu_terraform_dir() / "spot_select.py"
+
+
+CAPACITY_PRESET_FIELDS = (
+    "market",
+    "region",
+    "architecture",
+    "min_vcpu",
+    "min_memory_gib",
+    "max_vcpu",
+    "max_memory_gib",
+    "max_on_demand_hourly",
+    "families",
+    "exclude_families",
+    "instance_type",
+    "lookback_hours",
+    "min_samples",
+    "max_hourly_price",
+    "max_spot_monthly",
+    "sort_by",
+    "volatility_weight",
+    "top",
+    "spot_history_fresh_ttl_minutes",
+    "include_previous_generation",
+)
+
+CAPACITY_LAST_SELECTION_FIELDS = (
+    "market",
+    "region",
+    "architecture",
+    "min_vcpu",
+    "min_memory_gib",
+    "max_vcpu",
+    "max_memory_gib",
+    "max_on_demand_hourly",
+    "families",
+    "exclude_families",
+    "instance_type",
+    "lookback_hours",
+    "min_samples",
+    "max_hourly_price",
+    "max_spot_monthly",
+    "sort_by",
+    "volatility_weight",
+    "include_previous_generation",
+)
+
+
+def _capacity_preset_path(name: str) -> Path:
+    """Return the JSON path for one named capacity selector preset."""
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", name):
+        raise typer.BadParameter(
+            "preset names may only contain letters, numbers, dots, underscores, and hyphens",
+            param_hint="--load-preset/--save-preset",
+        )
+    return _default_disposable_ubuntu_capacity_presets_dir() / f"{name}.json"
+
+
+def _load_capacity_preset(name: str) -> dict[str, object]:
+    """Load one capacity selector preset JSON object."""
+    path = _capacity_preset_path(name)
+    if not path.is_file():
+        raise typer.BadParameter(
+            f"capacity preset not found: {name}",
+            param_hint="--load-preset",
+        )
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise typer.BadParameter(
+            f"capacity preset is not valid JSON: {path}",
+            param_hint="--load-preset",
+        ) from error
+    if not isinstance(payload, dict):
+        raise typer.BadParameter(
+            f"capacity preset must be a JSON object: {path}",
+            param_hint="--load-preset",
+        )
+    unknown_fields = sorted(set(payload) - set(CAPACITY_PRESET_FIELDS))
+    if unknown_fields:
+        raise typer.BadParameter(
+            f"capacity preset has unsupported fields: {', '.join(unknown_fields)}",
+            param_hint="--load-preset",
+        )
+    return payload
+
+
+def _save_capacity_preset(name: str, payload: dict[str, object]) -> Path:
+    """Save one capacity selector preset JSON object."""
+    path = _capacity_preset_path(name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    persisted = {key: payload[key] for key in CAPACITY_PRESET_FIELDS}
+    path.write_text(
+        json.dumps(persisted, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _capacity_parameter_was_explicit(
+    context: typer.Context,
+    parameter_name: str,
+) -> bool:
+    """Return whether a capacity select parameter came from the command line."""
+    source_getter = getattr(context, "get_parameter_source", None)
+    if source_getter is None:
+        return False
+    source = source_getter(parameter_name)
+    return getattr(source, "name", None) == "COMMANDLINE"
+
+
+def _resolve_capacity_preset_values(
+    context: typer.Context,
+    current_values: dict[str, object],
+    preset_values: dict[str, object],
+) -> dict[str, object]:
+    """Merge loaded preset values with explicit command-line overrides."""
+    resolved = dict(current_values)
+    for field, preset_value in preset_values.items():
+        if not _capacity_parameter_was_explicit(context, field):
+            resolved[field] = preset_value
+    return resolved
+
+
+def _capacity_selection_was_explicit(context: typer.Context) -> bool:
+    """Return whether any selection-affecting capacity option was explicit."""
+    return any(
+        _capacity_parameter_was_explicit(context, field)
+        for field in CAPACITY_LAST_SELECTION_FIELDS
+    )
 
 
 def _terraform_output_payload(terraform_dir: Path) -> dict[str, object]:
@@ -2333,6 +2527,216 @@ def _host_ssh_command(target: HostTargetDefinition) -> list[str]:
         )
     command.append(f"{target.user}@{target.host}")
     return command
+
+
+def _host_ssh_base_command(target: HostTargetDefinition) -> list[str]:
+    """Return an SSH command without the remote login argument."""
+    command = _host_ssh_command(target)
+    return command[:-1]
+
+
+def _remote_deploy_path(remote_root: str, checkout_name: str) -> str:
+    """Return a remote checkout path under the deploy root."""
+    normalized_root = remote_root.rstrip("/")
+    if not normalized_root:
+        raise typer.BadParameter(
+            "remote root must not be empty",
+            param_hint="--remote-root",
+        )
+    if any(character.isspace() for character in normalized_root):
+        raise typer.BadParameter(
+            "remote root paths with whitespace are not supported yet",
+            param_hint="--remote-root",
+        )
+    if any(character in normalized_root for character in ("'", '"', "\\", "`", "$")):
+        raise typer.BadParameter(
+            "remote root contains unsupported shell metacharacters",
+            param_hint="--remote-root",
+        )
+    return f"{normalized_root}/{checkout_name}"
+
+
+def _remote_shell_quote(path: str) -> str:
+    """Quote one remote shell path while preserving a leading ``~/``."""
+    if path.startswith("~/"):
+        return "~/" + shlex.quote(path[2:])
+    return shlex.quote(path)
+
+
+def _deploy_target_remote(target: HostTargetDefinition) -> str:
+    """Return the rsync/ssh remote target string for one host target."""
+    return f"{target.user}@{target.host}"
+
+
+def _deploy_ssh_transport(target: HostTargetDefinition) -> str:
+    """Return the SSH transport string passed to rsync."""
+    return shlex.join(_host_ssh_base_command(target))
+
+
+def _deploy_rsync_command(
+    *,
+    source: Path,
+    target: HostTargetDefinition,
+    remote_path: str,
+    dry_run: bool,
+    delete: bool,
+) -> list[str]:
+    """Build the one-way rsync command for one local checkout."""
+    command = [
+        "rsync",
+        "-az",
+        "--human-readable",
+        "--itemize-changes",
+    ]
+    if dry_run:
+        command.append("--dry-run")
+    if delete:
+        command.append("--delete")
+    for pattern in DEPLOY_RSYNC_EXCLUDES:
+        command.extend(["--exclude", pattern])
+    command.extend(
+        [
+            "-e",
+            _deploy_ssh_transport(target),
+            f"{source}/",
+            f"{_deploy_target_remote(target)}:{remote_path}/",
+        ]
+    )
+    return command
+
+
+def _run_deploy_remote_command(
+    target: HostTargetDefinition,
+    shell_command: str,
+    *,
+    quiet: bool = False,
+) -> int:
+    """Run one remote shell command through the target's managed SSH transport."""
+    command = [
+        *_host_ssh_base_command(target),
+        _deploy_target_remote(target),
+        shell_command,
+    ]
+    if quiet:
+        return _run_command(command).returncode
+    return _run_streaming_command(command).returncode
+
+
+def _deploy_shell_config_checkout(
+    shell_config_checkout: Path | None,
+    *,
+    skip_shell_config: bool,
+) -> Path | None:
+    """Resolve the optional shell-config checkout for deploy sync."""
+    if skip_shell_config:
+        return None
+    resolved = _workspace_runtime_shell_config_checkout(shell_config_checkout)
+    if resolved is None:
+        raise typer.BadParameter(
+            (
+                "no shell-config checkout found; keep shell-config as a sibling "
+                "checkout, pass --shell-config-checkout, or use --skip-shell-config"
+            ),
+            param_hint="--shell-config-checkout",
+        )
+    return resolved
+
+
+def _sync_deploy_checkouts(
+    target: HostTargetDefinition,
+    *,
+    remote_root: str,
+    shell_config_checkout: Path | None,
+    skip_shell_config: bool,
+    dry_run: bool,
+    delete: bool,
+    quiet: bool = False,
+) -> dict[str, object]:
+    """Synchronize local Dev Fortress checkouts to one remote target."""
+    if target.connection != "ssh":
+        raise typer.BadParameter(
+            f"target {target.name!r} does not use ssh transport",
+            param_hint="target",
+        )
+    if shutil.which("rsync") is None:
+        console.print("rsync not found in PATH")
+        raise typer.Exit(code=1)
+    if not _ensure_host_target_runtime_ready(target):
+        console.print(f"failed to prepare runtime for {target.name} before deploy")
+        raise typer.Exit(code=1)
+
+    dev_remote_path = _remote_deploy_path(remote_root, "dev-container-fortress")
+    shell_remote_path = _remote_deploy_path(remote_root, "shell-config")
+    resolved_shell_config = _deploy_shell_config_checkout(
+        shell_config_checkout,
+        skip_shell_config=skip_shell_config,
+    )
+
+    mkdir_paths = [_remote_shell_quote(dev_remote_path)]
+    if resolved_shell_config is not None:
+        mkdir_paths.append(_remote_shell_quote(shell_remote_path))
+    mkdir_command = "mkdir -p -- " + " ".join(mkdir_paths)
+    if _run_deploy_remote_command(target, mkdir_command, quiet=quiet) != 0:
+        raise typer.Exit(code=1)
+
+    sync_plan: list[tuple[str, Path, str]] = [
+        ("dev-container-fortress", _repo_root(), dev_remote_path),
+    ]
+    if resolved_shell_config is not None:
+        sync_plan.append(("shell-config", resolved_shell_config, shell_remote_path))
+
+    reports: list[dict[str, object]] = []
+    success = True
+    for name, source, remote_path in sync_plan:
+        if not quiet:
+            console.print(f"[bold]syncing {name}[/bold]")
+        command = _deploy_rsync_command(
+            source=source,
+            target=target,
+            remote_path=remote_path,
+            dry_run=dry_run,
+            delete=delete,
+        )
+        result = _run_command(command) if quiet else _run_streaming_command(command)
+        success = success and result.returncode == 0
+        reports.append(
+            {
+                "name": name,
+                "source": str(source),
+                "remote_path": remote_path,
+                "returncode": result.returncode,
+            }
+        )
+
+    return {
+        "success": success,
+        "target": target.name,
+        "remote_root": remote_root,
+        "dry_run": dry_run,
+        "delete": delete,
+        "checkouts": reports,
+    }
+
+
+def _deploy_exec_command(
+    target: HostTargetDefinition,
+    *,
+    remote_root: str,
+    command: list[str],
+) -> int:
+    """Run one command from the mirrored remote Dev Fortress checkout."""
+    if target.connection != "ssh":
+        raise typer.BadParameter(
+            f"target {target.name!r} does not use ssh transport",
+            param_hint="target",
+        )
+    if not _ensure_host_target_runtime_ready(target):
+        console.print(f"failed to prepare runtime for {target.name} before deploy")
+        return 1
+    remote_dev_path = _remote_deploy_path(remote_root, "dev-container-fortress")
+    inner_command = shlex.join(command or ["pwd"])
+    shell_command = f"cd {_remote_shell_quote(remote_dev_path)} && {inner_command}"
+    return _run_deploy_remote_command(target, shell_command)
 
 
 def _ssh_single_host_target(target: HostTargetDefinition) -> int:
@@ -3888,7 +4292,9 @@ def _build_workspace_doctor_report(
     overall_success = overall_success and docker_ok
 
     image_tag = _workspace_image_tag(profile_name)
-    image_present = _run_command(["docker", "image", "inspect", image_tag]).returncode == 0
+    image_present = (
+        _run_command(["docker", "image", "inspect", image_tag]).returncode == 0
+    )
     add_check(
         stat="OK" if image_present else "WARN",
         check="image",
@@ -3907,7 +4313,9 @@ def _build_workspace_doctor_report(
     add_check(
         stat="OK" if dev_repo_path.is_dir() else "FAIL",
         check="dev_repo_checkout",
-        detail=str(dev_repo_path) if dev_repo_path.is_dir() else f"missing {dev_repo_path}",
+        detail=str(dev_repo_path)
+        if dev_repo_path.is_dir()
+        else f"missing {dev_repo_path}",
     )
     overall_success = overall_success and dev_repo_path.is_dir()
 
@@ -3932,7 +4340,9 @@ def _build_workspace_doctor_report(
             f"`ft workspace doctor {profile_name}`."
         )
     elif not image_present:
-        next_step = f"build the workspace image with `ft workspace build {profile_name}`."
+        next_step = (
+            f"build the workspace image with `ft workspace build {profile_name}`."
+        )
     elif container_status == "missing":
         next_step = f"start the workspace with `ft workspace up {profile_name}`."
     else:
@@ -4058,10 +4468,7 @@ def _up_workspace_profile(
         run_command.extend(
             [
                 "--volume",
-                (
-                    f"{host_bridge_dir}:"
-                    f"{_workspace_container_host_browser_bridge_dir()}"
-                ),
+                (f"{host_bridge_dir}:{_workspace_container_host_browser_bridge_dir()}"),
                 "--env",
                 (
                     "DEV_FORTRESS_HOST_BROWSER_SOCKET="
@@ -5720,6 +6127,620 @@ def infra_aws_disposable_ubuntu_destroy(
     )
     if exit_code != 0:
         raise typer.Exit(code=exit_code)
+
+
+@aws_disposable_ubuntu_capacity_app.command("select")
+def infra_aws_disposable_ubuntu_capacity_select(
+    context: typer.Context,
+    market: Annotated[
+        str,
+        typer.Option(
+            "--market",
+            help="Capacity market to select: spot for cheaper disposable hosts or on-demand for stability.",
+        ),
+    ] = "spot",
+    region: Annotated[
+        str,
+        typer.Option(
+            "--region",
+            help="AWS region to inspect for instance capacity.",
+        ),
+    ] = "ap-southeast-1",
+    architecture: Annotated[
+        str | None,
+        typer.Option(
+            "--architecture",
+            help="Optional instance architecture filter: arm64, amd64, or x86_64.",
+        ),
+    ] = None,
+    min_vcpu: Annotated[
+        int,
+        typer.Option(
+            "--min-vcpu",
+            min=1,
+            help="Minimum vCPU count.",
+        ),
+    ] = 2,
+    min_memory_gib: Annotated[
+        float,
+        typer.Option(
+            "--min-memory-gib",
+            min=0.5,
+            help="Minimum memory in GiB.",
+        ),
+    ] = 4.0,
+    max_vcpu: Annotated[
+        int | None,
+        typer.Option(
+            "--max-vcpu",
+            min=1,
+            help="Optional maximum vCPU count ceiling.",
+        ),
+    ] = None,
+    max_memory_gib: Annotated[
+        float | None,
+        typer.Option(
+            "--max-memory-gib",
+            min=0.5,
+            help="Optional maximum memory ceiling in GiB.",
+        ),
+    ] = None,
+    max_on_demand_hourly: Annotated[
+        float | None,
+        typer.Option(
+            "--max-on-demand-hourly",
+            min=0.0,
+            help="Optional maximum on-demand USD hourly price ceiling.",
+        ),
+    ] = None,
+    families: Annotated[
+        str | None,
+        typer.Option(
+            "--families",
+            help="Optional comma-separated EC2 family patterns to consider, in fallback preference order.",
+        ),
+    ] = None,
+    exclude_families: Annotated[
+        str,
+        typer.Option(
+            "--exclude-families",
+            help="Comma-separated EC2 family patterns to remove from the candidate set.",
+        ),
+    ] = "",
+    instance_type: Annotated[
+        str | None,
+        typer.Option(
+            "--instance-type",
+            help="Optional exact instance type override within the requested spec.",
+        ),
+    ] = None,
+    lookback_hours: Annotated[
+        int,
+        typer.Option(
+            "--lookback-hours",
+            min=1,
+            help="Spot price history window used for spot selection.",
+        ),
+    ] = 168,
+    min_samples: Annotated[
+        int,
+        typer.Option(
+            "--min-samples",
+            min=1,
+            help="Minimum spot price history samples required per instance type and AZ.",
+        ),
+    ] = 2,
+    max_hourly_price: Annotated[
+        float | None,
+        typer.Option(
+            "--max-hourly-price",
+            min=0.0,
+            help="Optional maximum current spot price in USD per hour.",
+        ),
+    ] = None,
+    max_spot_monthly: Annotated[
+        float | None,
+        typer.Option(
+            "--max-spot-monthly",
+            min=0.0,
+            help="Optional maximum current spot price in USD per month.",
+        ),
+    ] = None,
+    sort_by: Annotated[
+        str,
+        typer.Option(
+            "--sort-by",
+            help="Candidate ordering: score, spot-price, discount, savings, on-demand-price, vcpu, or memory.",
+        ),
+    ] = "score",
+    volatility_weight: Annotated[
+        float,
+        typer.Option(
+            "--volatility-weight",
+            min=0.0,
+            help="Multiplier applied to spot price standard deviation while ranking.",
+        ),
+    ] = 2.0,
+    load_preset: Annotated[
+        str | None,
+        typer.Option(
+            "--load-preset",
+            help="Load capacity selector inputs from a named preset before applying explicit CLI overrides.",
+        ),
+    ] = None,
+    save_preset: Annotated[
+        str | None,
+        typer.Option(
+            "--save-preset",
+            help="Save the effective capacity selector inputs as a named preset after successful selection.",
+        ),
+    ] = None,
+    last: Annotated[
+        bool,
+        typer.Option(
+            "--last",
+            help="Load the special last capacity selector preset.",
+        ),
+    ] = False,
+    top: Annotated[
+        int,
+        typer.Option(
+            "--top",
+            min=1,
+            help="Number of ranked candidates to include in JSON output.",
+        ),
+    ] = 10,
+    workers: Annotated[
+        int,
+        typer.Option(
+            "--workers",
+            min=1,
+            help="Maximum concurrent Spot history fetch workers.",
+        ),
+    ] = 8,
+    spot_history_fresh_ttl_minutes: Annotated[
+        float,
+        typer.Option(
+            "--spot-history-fresh-ttl-minutes",
+            min=0.0,
+            help="Minutes to trust cached Spot history before refreshing incrementally.",
+        ),
+    ] = 15,
+    include_previous_generation: Annotated[
+        bool,
+        typer.Option(
+            "--include-previous-generation",
+            help="Include previous-generation EC2 instance types.",
+        ),
+    ] = False,
+    cache: Annotated[
+        bool,
+        typer.Option(
+            "--cache/--no-cache",
+            help="Reuse XDG-local AWS discovery cache where possible.",
+        ),
+    ] = True,
+    refresh_cache: Annotated[
+        bool,
+        typer.Option(
+            "--refresh-cache",
+            help="Ignore cached AWS discovery data and repopulate it.",
+        ),
+    ] = False,
+    cache_root: Annotated[
+        Path | None,
+        typer.Option(
+            "--cache-root",
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+            help="Override the selector cache directory.",
+        ),
+    ] = None,
+    instance_types_cache_ttl_hours: Annotated[
+        float,
+        typer.Option(
+            "--instance-types-cache-ttl-hours",
+            min=0.0,
+            help="TTL for EC2 instance type metadata cache.",
+        ),
+    ] = 168,
+    subnets_cache_ttl_hours: Annotated[
+        float,
+        typer.Option(
+            "--subnets-cache-ttl-hours",
+            min=0.0,
+            help="TTL for default VPC subnet discovery cache.",
+        ),
+    ] = 1,
+    offerings_cache_ttl_hours: Annotated[
+        float,
+        typer.Option(
+            "--offerings-cache-ttl-hours",
+            min=0.0,
+            help="TTL for instance type AZ offerings cache.",
+        ),
+    ] = 6,
+    pricing_cache_ttl_hours: Annotated[
+        float,
+        typer.Option(
+            "--pricing-cache-ttl-hours",
+            min=0.0,
+            help="TTL for on-demand pricing cache.",
+        ),
+    ] = 24,
+    progress: Annotated[
+        bool | None,
+        typer.Option(
+            "--progress/--no-progress",
+            help="Show selector progress on stderr. Defaults to auto when stderr is a TTY.",
+        ),
+    ] = None,
+    write_tfvars: Annotated[
+        bool,
+        typer.Option(
+            "--write-tfvars/--no-write-tfvars",
+            help="Write Terraform auto tfvars for the selected capacity mode.",
+        ),
+    ] = True,
+    tfvars_path: Annotated[
+        Path,
+        typer.Option(
+            "--tfvars-path",
+            dir_okay=False,
+            resolve_path=True,
+            help="Terraform auto tfvars path to write when --write-tfvars is enabled.",
+        ),
+    ] = _default_disposable_ubuntu_capacity_tfvars_path(),
+) -> None:
+    """Select Spot or on-demand EC2 inputs for the disposable Ubuntu stack."""
+    if load_preset is not None and last:
+        raise typer.BadParameter(
+            "--load-preset and --last cannot be used together",
+            param_hint="--load-preset",
+        )
+
+    capacity_values: dict[str, object] = {
+        "market": market,
+        "region": region,
+        "architecture": architecture,
+        "min_vcpu": min_vcpu,
+        "min_memory_gib": min_memory_gib,
+        "max_vcpu": max_vcpu,
+        "max_memory_gib": max_memory_gib,
+        "max_on_demand_hourly": max_on_demand_hourly,
+        "families": families,
+        "exclude_families": exclude_families,
+        "instance_type": instance_type,
+        "lookback_hours": lookback_hours,
+        "min_samples": min_samples,
+        "max_hourly_price": max_hourly_price,
+        "max_spot_monthly": max_spot_monthly,
+        "sort_by": sort_by,
+        "volatility_weight": volatility_weight,
+        "top": top,
+        "spot_history_fresh_ttl_minutes": spot_history_fresh_ttl_minutes,
+        "include_previous_generation": include_previous_generation,
+    }
+    loaded_preset_name = "last" if last else load_preset
+    if loaded_preset_name is not None:
+        capacity_values = _resolve_capacity_preset_values(
+            context,
+            capacity_values,
+            _load_capacity_preset(loaded_preset_name),
+        )
+
+    market = str(capacity_values["market"])
+    region = str(capacity_values["region"])
+    architecture = (
+        str(capacity_values["architecture"])
+        if capacity_values["architecture"] is not None
+        else None
+    )
+    min_vcpu = int(capacity_values["min_vcpu"])
+    min_memory_gib = float(capacity_values["min_memory_gib"])
+    max_vcpu = (
+        int(capacity_values["max_vcpu"])
+        if capacity_values["max_vcpu"] is not None
+        else None
+    )
+    max_memory_gib = (
+        float(capacity_values["max_memory_gib"])
+        if capacity_values["max_memory_gib"] is not None
+        else None
+    )
+    max_on_demand_hourly = (
+        float(capacity_values["max_on_demand_hourly"])
+        if capacity_values["max_on_demand_hourly"] is not None
+        else None
+    )
+    families = (
+        str(capacity_values["families"])
+        if capacity_values["families"] is not None
+        else None
+    )
+    exclude_families = str(capacity_values["exclude_families"])
+    instance_type = (
+        str(capacity_values["instance_type"])
+        if capacity_values["instance_type"] is not None
+        else None
+    )
+    lookback_hours = int(capacity_values["lookback_hours"])
+    min_samples = int(capacity_values["min_samples"])
+    max_hourly_price = (
+        float(capacity_values["max_hourly_price"])
+        if capacity_values["max_hourly_price"] is not None
+        else None
+    )
+    max_spot_monthly = (
+        float(capacity_values["max_spot_monthly"])
+        if capacity_values["max_spot_monthly"] is not None
+        else None
+    )
+    sort_by = str(capacity_values["sort_by"])
+    volatility_weight = float(capacity_values["volatility_weight"])
+    top = int(capacity_values["top"])
+    spot_history_fresh_ttl_minutes = float(
+        capacity_values["spot_history_fresh_ttl_minutes"]
+    )
+    include_previous_generation = bool(capacity_values["include_previous_generation"])
+    capacity_values = {
+        "market": market,
+        "region": region,
+        "architecture": architecture,
+        "min_vcpu": min_vcpu,
+        "min_memory_gib": min_memory_gib,
+        "max_vcpu": max_vcpu,
+        "max_memory_gib": max_memory_gib,
+        "max_on_demand_hourly": max_on_demand_hourly,
+        "families": families,
+        "exclude_families": exclude_families,
+        "instance_type": instance_type,
+        "lookback_hours": lookback_hours,
+        "min_samples": min_samples,
+        "max_hourly_price": max_hourly_price,
+        "max_spot_monthly": max_spot_monthly,
+        "sort_by": sort_by,
+        "volatility_weight": volatility_weight,
+        "top": top,
+        "spot_history_fresh_ttl_minutes": spot_history_fresh_ttl_minutes,
+        "include_previous_generation": include_previous_generation,
+    }
+
+    if market not in {"spot", "on-demand"}:
+        raise typer.BadParameter(
+            "market must be either spot or on-demand",
+            param_hint="--market",
+        )
+    if shutil.which("aws") is None:
+        console.print("aws CLI not found in PATH")
+        raise typer.Exit(code=1)
+
+    selector_script = _disposable_ubuntu_capacity_selector_script()
+    if not selector_script.is_file():
+        raise typer.BadParameter(
+            f"capacity selector script not found: {selector_script}",
+            param_hint="--terraform-dir",
+        )
+
+    command = [
+        sys.executable,
+        str(selector_script),
+        "--market",
+        market,
+        "--region",
+        region,
+        "--min-vcpu",
+        str(min_vcpu),
+        "--min-memory-gib",
+        str(min_memory_gib),
+        "--sort-by",
+        sort_by,
+        "--exclude-families",
+        exclude_families,
+        "--lookback-hours",
+        str(lookback_hours),
+        "--min-samples",
+        str(min_samples),
+        "--volatility-weight",
+        str(volatility_weight),
+        "--top",
+        str(top),
+        "--workers",
+        str(workers),
+        "--spot-history-fresh-ttl-minutes",
+        str(spot_history_fresh_ttl_minutes),
+        "--instance-types-cache-ttl-hours",
+        str(instance_types_cache_ttl_hours),
+        "--subnets-cache-ttl-hours",
+        str(subnets_cache_ttl_hours),
+        "--offerings-cache-ttl-hours",
+        str(offerings_cache_ttl_hours),
+        "--pricing-cache-ttl-hours",
+        str(pricing_cache_ttl_hours),
+    ]
+    if architecture is not None:
+        command.extend(["--architecture", architecture])
+    if families is not None:
+        command.extend(["--families", families])
+    if instance_type is not None:
+        command.extend(["--instance-type", instance_type])
+    if max_vcpu is not None:
+        command.extend(["--max-vcpu", str(max_vcpu)])
+    if max_memory_gib is not None:
+        command.extend(["--max-memory-gib", str(max_memory_gib)])
+    if max_on_demand_hourly is not None:
+        command.extend(["--max-on-demand-hourly", str(max_on_demand_hourly)])
+    if max_hourly_price is not None:
+        command.extend(["--max-hourly-price", str(max_hourly_price)])
+    if max_spot_monthly is not None:
+        command.extend(["--max-spot-monthly", str(max_spot_monthly)])
+    if include_previous_generation:
+        command.append("--include-previous-generation")
+    if not cache:
+        command.append("--no-cache")
+    if refresh_cache:
+        command.append("--refresh-cache")
+    if cache_root is not None:
+        command.extend(["--cache-root", str(cache_root)])
+    if progress is True:
+        command.append("--progress")
+    elif progress is False:
+        command.append("--no-progress")
+    if write_tfvars:
+        command.extend(["--write-tfvars", str(tfvars_path)])
+
+    exit_code = _run_streaming_command(command).returncode
+    if exit_code != 0:
+        raise typer.Exit(code=exit_code)
+    if (
+        loaded_preset_name is not None
+        or save_preset is not None
+        or _capacity_selection_was_explicit(context)
+    ):
+        _save_capacity_preset("last", capacity_values)
+    if save_preset is not None:
+        _save_capacity_preset(save_preset, capacity_values)
+
+
+@deploy_app.command("sync")
+def deploy_sync(
+    target: Annotated[
+        str,
+        typer.Argument(
+            help=(
+                "One SSH host target to mirror local checkouts to, such as "
+                "dev-fortress-ec2-dev."
+            )
+        ),
+    ],
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            exists=False,
+            dir_okay=False,
+            resolve_path=True,
+            help="Path to the host target TOML config.",
+        ),
+    ] = None,
+    remote_root: Annotated[
+        str,
+        typer.Option(
+            "--remote-root",
+            help="Remote root that receives dev-container-fortress and shell-config.",
+        ),
+    ] = DEFAULT_DEPLOY_REMOTE_ROOT,
+    shell_config_checkout: Annotated[
+        Path | None,
+        typer.Option(
+            "--shell-config-checkout",
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+            help=(
+                "Local shell-config checkout to mirror. Defaults to sibling "
+                "../shell-config when present."
+            ),
+        ),
+    ] = None,
+    skip_shell_config: Annotated[
+        bool,
+        typer.Option(
+            "--skip-shell-config",
+            help="Only mirror dev-container-fortress and skip shell-config.",
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Show rsync changes without writing remote files.",
+        ),
+    ] = False,
+    delete: Annotated[
+        bool,
+        typer.Option(
+            "--delete/--no-delete",
+            help="Delete remote files that no longer exist in the local checkouts.",
+        ),
+    ] = True,
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help="Render structured JSON for automation or agentic consumers.",
+        ),
+    ] = False,
+) -> None:
+    """Mirror local Dev Fortress checkouts to one remote SSH target."""
+    _, manifest = _load_host_target_manifest(config)
+    resolved_target = _resolve_single_host_target(
+        target, manifest, command_name="deploy sync"
+    )
+    report = _sync_deploy_checkouts(
+        resolved_target,
+        remote_root=remote_root,
+        shell_config_checkout=shell_config_checkout,
+        skip_shell_config=skip_shell_config,
+        dry_run=dry_run,
+        delete=delete,
+        quiet=json_output,
+    )
+    if json_output:
+        _json_dump(report)
+    elif bool(report["success"]):
+        console.print(f"synced {resolved_target.name} -> {remote_root}")
+    if not bool(report["success"]):
+        raise typer.Exit(code=1)
+
+
+@deploy_app.command("exec")
+def deploy_exec(
+    target: Annotated[
+        str,
+        typer.Argument(help="One SSH host target that already has mirrored checkouts."),
+    ],
+    command: Annotated[
+        list[str] | None,
+        typer.Argument(
+            help=(
+                "Command to run from the remote dev-container-fortress checkout. "
+                "Use `--` before commands with flags."
+            ),
+        ),
+    ] = None,
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            exists=False,
+            dir_okay=False,
+            resolve_path=True,
+            help="Path to the host target TOML config.",
+        ),
+    ] = None,
+    remote_root: Annotated[
+        str,
+        typer.Option(
+            "--remote-root",
+            help="Remote root that contains the mirrored checkouts.",
+        ),
+    ] = DEFAULT_DEPLOY_REMOTE_ROOT,
+) -> None:
+    """Run one command from the mirrored remote Dev Fortress checkout."""
+    _, manifest = _load_host_target_manifest(config)
+    resolved_target = _resolve_single_host_target(
+        target, manifest, command_name="deploy exec"
+    )
+    raise typer.Exit(
+        code=_deploy_exec_command(
+            resolved_target,
+            remote_root=remote_root,
+            command=list(command or []),
+        )
+    )
 
 
 @host_app.command("ssh-key-path")

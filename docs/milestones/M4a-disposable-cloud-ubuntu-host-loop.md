@@ -92,12 +92,12 @@ Things to improve this time:
 
 ### M4a-3 Add spot-selection helper with a stable contract
 
-- [ ] Problem: cheapest-instance logic is useful, but it should not live as an unstructured one-off script
-- [ ] Scope: define a small machine-readable contract for spot selection inputs and outputs
-- [ ] Acceptance: the chosen instance type and AZ can be exported into Terraform variables cleanly
-- [ ] Acceptance: pricing selection is constrained by minimum CPU, memory, architecture, and max price
-- [ ] Acceptance: the helper is documented and testable
-- [ ] Acceptance: the first pass still supports a fixed fallback instance type when spot analysis is skipped
+- [x] Problem: cheapest-instance logic is useful, but it should not live as an unstructured one-off script
+- [x] Scope: define a small machine-readable contract for spot selection inputs and outputs
+- [x] Acceptance: the chosen instance type and AZ can be exported into Terraform variables cleanly
+- [x] Acceptance: pricing selection is constrained by minimum CPU, memory, architecture, and max price
+- [x] Acceptance: the helper is documented and testable
+- [x] Acceptance: the first pass still supports a fixed fallback instance type when spot analysis is skipped
 
 ### M4a-4 Generate or template host-target registration
 

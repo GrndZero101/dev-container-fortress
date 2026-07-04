@@ -13,6 +13,21 @@ output "public_dns" {
   value       = aws_instance.this.public_dns
 }
 
+output "subnet_id" {
+  description = "Subnet where the disposable host was provisioned."
+  value       = aws_instance.this.subnet_id
+}
+
+output "availability_zone" {
+  description = "Availability Zone where the disposable host was provisioned."
+  value       = aws_instance.this.availability_zone
+}
+
+output "capacity_market" {
+  description = "Capacity market used by the disposable host."
+  value       = var.enable_spot ? "spot" : "on-demand"
+}
+
 output "ssh_user" {
   description = "SSH user expected by the Ubuntu cloud image."
   value       = "ubuntu"
