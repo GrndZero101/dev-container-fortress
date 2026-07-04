@@ -5,6 +5,7 @@ from __future__ import annotations
 import fnmatch
 import json
 import os
+import stat
 from pathlib import Path
 import re
 import shlex
@@ -101,8 +102,8 @@ infra_app = typer.Typer(
 deploy_app = typer.Typer(
     no_args_is_help=False,
     help=(
-        "Mirror local Dev Fortress checkouts to a remote host target and run "
-        "remote validation commands."
+        "Prepare remote Dev Fortress development hosts and run remote validation "
+        "commands."
     ),
 )
 aws_disposable_ubuntu_app = typer.Typer(
@@ -139,7 +140,12 @@ app.add_typer(completion_app, name="completion")
 console = Console()
 KNOWN_CONTAINER_TARGETS = ("ubuntu", "alpine")
 SUPPORTED_SHELL_CONFIG_SOURCES = ("github", "local")
-DEFAULT_DEPLOY_REMOTE_ROOT = "~/workspaces/dev-fortress"
+DEFAULT_DEPLOY_WORKSPACE_PARENT = "~/workspaces/tboss"
+DEFAULT_DEV_CONTAINER_FORTRESS_REPO_URL = (
+    "https://github.com/GrndZero101/dev-container-fortress.git"
+)
+DEFAULT_SHELL_CONFIG_REPO_URL = "https://github.com/GrndZero101/shell-config.git"
+DEFAULT_DEPLOY_REMOTE_ROOT = DEFAULT_DEPLOY_WORKSPACE_PARENT
 DEPLOY_RSYNC_EXCLUDES = (
     ".git",
     ".venv",
@@ -2363,6 +2369,207 @@ def _host_ssh_public_key_path(target: HostTargetDefinition) -> Path | None:
     return private_path.with_name(f"{private_path.name}.pub")
 
 
+def _default_ssh_config_path() -> Path:
+    """Return the user's OpenSSH config path."""
+    return Path.home() / ".ssh" / "config"
+
+
+def _default_dev_fortress_ssh_include_path() -> Path:
+    """Return the managed Dev Fortress OpenSSH include path."""
+    return Path.home() / ".ssh" / "config.d" / "dev-container-fortress"
+
+
+def _windows_home_from_userprofile(value: str) -> Path | None:
+    """Convert a Windows USERPROFILE value into its WSL-mounted path."""
+    value = value.strip()
+    match = re.fullmatch(r"([A-Za-z]):[\\/](.*)", value)
+    if match is None:
+        return None
+    drive = match.group(1).lower()
+    remainder = match.group(2).replace("\\", "/")
+    return Path("/mnt") / drive / remainder
+
+
+def _windows_userprofile_from_interop() -> str | None:
+    """Return the Windows USERPROFILE through WSL interop when available."""
+    commands = [
+        [
+            "powershell.exe",
+            "-NoProfile",
+            "-Command",
+            "[Environment]::GetFolderPath('UserProfile')",
+        ],
+        ["cmd.exe", "/C", "echo %USERPROFILE%"],
+    ]
+    for command in commands:
+        if shutil.which(command[0]) is None:
+            continue
+        try:
+            result = subprocess.run(
+                command, check=False, capture_output=True, text=True
+            )
+        except OSError:
+            continue
+        if result.returncode == 0:
+            output = _last_non_empty_line(result.stdout)
+            if output:
+                return output
+    return None
+
+
+def _default_windows_ssh_dir() -> Path:
+    """Return the likely Windows-side OpenSSH directory from WSL."""
+    userprofile = os.environ.get("USERPROFILE") or _windows_userprofile_from_interop()
+    if userprofile:
+        converted = _windows_home_from_userprofile(userprofile)
+        if converted is not None:
+            return converted / ".ssh"
+    raise typer.BadParameter(
+        (
+            "could not determine the Windows user profile from WSL; pass "
+            "--windows-ssh-dir /mnt/c/Users/<windows-user>/.ssh"
+        ),
+        param_hint="--windows-ssh-dir",
+    )
+
+
+def _windows_openssh_path(path: Path) -> str:
+    """Return a Windows OpenSSH-friendly path for one WSL-mounted path."""
+    parts = path.resolve().parts
+    if len(parts) >= 4 and parts[0] == "/" and parts[1] == "mnt":
+        drive = parts[2].upper()
+        remainder = "/".join(parts[3:])
+        return f"{drive}:/{remainder}"
+    return path.as_posix()
+
+
+def _render_host_ssh_config(
+    target: HostTargetDefinition,
+    *,
+    host_alias: str | None = None,
+    identity_file: str | None = None,
+    known_hosts_file: str | None = None,
+) -> str:
+    """Render one OpenSSH host config block for a managed host target."""
+    if target.connection != "ssh":
+        raise typer.BadParameter(
+            f"target {target.name!r} does not use ssh transport",
+            param_hint="target",
+        )
+    if target.host is None or target.user is None:
+        raise typer.BadParameter(
+            f"target {target.name!r} is missing ssh host or user",
+            param_hint="target",
+        )
+    private_key_path = _host_ssh_private_key_path(target)
+    if private_key_path is None:
+        raise typer.BadParameter(
+            f"target {target.name!r} does not use a managed ssh key",
+            param_hint="target",
+        )
+    known_hosts_path = _host_known_hosts_path(target)
+    lines = [
+        "# Managed by Dev Fortress. Do not edit manually.",
+        f"Host {host_alias or target.name}",
+        f"  HostName {target.host}",
+        f"  User {target.user}",
+        f"  Port {target.port}",
+        f"  IdentityFile {identity_file or str(private_key_path)}",
+        "  IdentitiesOnly yes",
+    ]
+    if known_hosts_path is not None and _uses_managed_known_hosts(target):
+        lines.extend(
+            [
+                f"  UserKnownHostsFile {known_hosts_file or str(known_hosts_path)}",
+                "  StrictHostKeyChecking yes",
+            ]
+        )
+    return "\n".join(lines) + "\n"
+
+
+def _install_host_ssh_config(
+    target: HostTargetDefinition,
+    *,
+    host_alias: str | None,
+    include_path: Path,
+    identity_file: str | None = None,
+    known_hosts_file: str | None = None,
+) -> Path:
+    """Write the managed OpenSSH config include for one host target."""
+    include_path.parent.mkdir(parents=True, exist_ok=True)
+    include_path.write_text(
+        _render_host_ssh_config(
+            target,
+            host_alias=host_alias,
+            identity_file=identity_file,
+            known_hosts_file=known_hosts_file,
+        ),
+        encoding="utf-8",
+    )
+    return include_path
+
+
+def _ensure_ssh_config_include(
+    *,
+    config_path: Path,
+    include_path: Path,
+    include_target: str | None = None,
+) -> Path:
+    """Ensure the user's SSH config includes the managed Dev Fortress file."""
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    include_line = f"Include {include_target or str(include_path)}\n"
+    if config_path.exists():
+        text = config_path.read_text(encoding="utf-8")
+        existing_lines = {line.strip() for line in text.splitlines()}
+        if include_line.strip() in existing_lines:
+            return config_path
+        separator = "" if not text or text.startswith("\n") else "\n"
+        text = f"{include_line}{separator}{text}"
+    else:
+        text = include_line
+    config_path.write_text(text, encoding="utf-8")
+    return config_path
+
+
+def _export_host_ssh_material_for_windows(
+    target: HostTargetDefinition,
+    *,
+    windows_ssh_dir: Path,
+) -> tuple[Path, Path | None]:
+    """Copy managed SSH material into a Windows-side OpenSSH directory."""
+    private_key_path = _host_ssh_private_key_path(target)
+    if private_key_path is None or not private_key_path.is_file():
+        raise typer.BadParameter(
+            f"missing managed ssh key for {target.name}: {private_key_path}",
+            param_hint="target",
+        )
+    windows_target_dir = windows_ssh_dir / "dev-container-fortress" / target.name
+    windows_target_dir.mkdir(parents=True, exist_ok=True)
+    windows_private_key_path = windows_target_dir / private_key_path.name
+    shutil.copy2(private_key_path, windows_private_key_path)
+    try:
+        windows_private_key_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    except PermissionError:
+        pass
+
+    public_key_path = _host_ssh_public_key_path(target)
+    if public_key_path is not None and public_key_path.is_file():
+        shutil.copy2(public_key_path, windows_private_key_path.with_suffix(".pub"))
+
+    known_hosts_path = _host_known_hosts_path(target)
+    windows_known_hosts_path = None
+    if known_hosts_path is not None:
+        windows_known_hosts_path = (
+            windows_ssh_dir / "dev-container-fortress" / "known_hosts" / target.name
+        )
+        windows_known_hosts_path.parent.mkdir(parents=True, exist_ok=True)
+        if known_hosts_path.is_file():
+            shutil.copy2(known_hosts_path, windows_known_hosts_path)
+        elif not windows_known_hosts_path.exists():
+            windows_known_hosts_path.write_text("", encoding="utf-8")
+    return windows_private_key_path, windows_known_hosts_path
+
+
 def _seed_host_target_for_name(
     target_name: str,
     seed_config_path: Path,
@@ -2640,6 +2847,100 @@ def _deploy_shell_config_checkout(
             param_hint="--shell-config-checkout",
         )
     return resolved
+
+
+def _deploy_clone_or_update_snippet(
+    *,
+    repo_url: str,
+    branch: str,
+    remote_path: str,
+) -> str:
+    """Return a remote shell snippet that clones or updates one checkout."""
+    quoted_path = _remote_shell_quote(remote_path)
+    quoted_url = shlex.quote(repo_url)
+    quoted_branch = shlex.quote(branch)
+    return (
+        f"if [ -d {quoted_path}/.git ]; then "
+        f"git -C {quoted_path} fetch --prune && "
+        f"git -C {quoted_path} checkout {quoted_branch} && "
+        f"git -C {quoted_path} pull --ff-only; "
+        f"else "
+        f"git clone --branch {quoted_branch} {quoted_url} {quoted_path}; "
+        "fi"
+    )
+
+
+def _init_deploy_checkouts(
+    target: HostTargetDefinition,
+    *,
+    workspace_parent: str,
+    dev_repo_url: str,
+    dev_branch: str,
+    shell_config_repo_url: str,
+    shell_config_branch: str,
+    skip_shell_config: bool,
+    quiet: bool = False,
+) -> dict[str, object]:
+    """Clone or update Dev Fortress development checkouts on one remote target."""
+    if target.connection != "ssh":
+        raise typer.BadParameter(
+            f"target {target.name!r} does not use ssh transport",
+            param_hint="target",
+        )
+    if not _ensure_host_target_runtime_ready(target):
+        console.print(f"failed to prepare runtime for {target.name} before deploy")
+        raise typer.Exit(code=1)
+
+    dev_remote_path = _remote_deploy_path(workspace_parent, "dev-container-fortress")
+    shell_remote_path = _remote_deploy_path(workspace_parent, "shell-config")
+    mkdir_command = "mkdir -p -- " + _remote_shell_quote(workspace_parent)
+    if _run_deploy_remote_command(target, mkdir_command, quiet=quiet) != 0:
+        raise typer.Exit(code=1)
+
+    clone_plan = [
+        ("dev-container-fortress", dev_repo_url, dev_branch, dev_remote_path),
+    ]
+    if not skip_shell_config:
+        clone_plan.append(
+            (
+                "shell-config",
+                shell_config_repo_url,
+                shell_config_branch,
+                shell_remote_path,
+            )
+        )
+
+    reports: list[dict[str, object]] = []
+    success = True
+    for name, repo_url, branch, remote_path in clone_plan:
+        if not quiet:
+            console.print(f"[bold]initializing {name}[/bold]")
+        result_code = _run_deploy_remote_command(
+            target,
+            _deploy_clone_or_update_snippet(
+                repo_url=repo_url,
+                branch=branch,
+                remote_path=remote_path,
+            ),
+            quiet=quiet,
+        )
+        success = success and result_code == 0
+        reports.append(
+            {
+                "name": name,
+                "repo_url": repo_url,
+                "branch": branch,
+                "remote_path": remote_path,
+                "returncode": result_code,
+            }
+        )
+
+    return {
+        "success": success,
+        "target": target.name,
+        "workspace_parent": workspace_parent,
+        "checkouts": reports,
+    }
 
 
 def _sync_deploy_checkouts(
@@ -6603,6 +6904,101 @@ def infra_aws_disposable_ubuntu_capacity_select(
         _save_capacity_preset(save_preset, capacity_values)
 
 
+@deploy_app.command("init")
+def deploy_init(
+    target: Annotated[
+        str,
+        typer.Argument(
+            help=(
+                "One SSH host target to initialize as a Git-backed development "
+                "host, such as dev-fortress-ec2-dev."
+            )
+        ),
+    ],
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            exists=False,
+            dir_okay=False,
+            resolve_path=True,
+            help="Path to the host target TOML config.",
+        ),
+    ] = None,
+    workspace_parent: Annotated[
+        str,
+        typer.Option(
+            "--workspace-parent",
+            "--remote-root",
+            help="Remote parent directory that receives Git checkouts.",
+        ),
+    ] = DEFAULT_DEPLOY_WORKSPACE_PARENT,
+    dev_repo_url: Annotated[
+        str,
+        typer.Option(
+            "--dev-repo-url",
+            help="Git URL for the dev-container-fortress checkout.",
+        ),
+    ] = DEFAULT_DEV_CONTAINER_FORTRESS_REPO_URL,
+    dev_branch: Annotated[
+        str,
+        typer.Option(
+            "--dev-branch",
+            help="Git branch to checkout for dev-container-fortress.",
+        ),
+    ] = "main",
+    shell_config_repo_url: Annotated[
+        str,
+        typer.Option(
+            "--shell-config-repo-url",
+            help="Git URL for the shell-config checkout.",
+        ),
+    ] = DEFAULT_SHELL_CONFIG_REPO_URL,
+    shell_config_branch: Annotated[
+        str,
+        typer.Option(
+            "--shell-config-branch",
+            help="Git branch to checkout for shell-config.",
+        ),
+    ] = "main",
+    skip_shell_config: Annotated[
+        bool,
+        typer.Option(
+            "--skip-shell-config",
+            help="Only initialize dev-container-fortress and skip shell-config.",
+        ),
+    ] = False,
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help="Render structured JSON for automation or agentic consumers.",
+        ),
+    ] = False,
+) -> None:
+    """Clone or update development checkouts on one remote SSH target."""
+    _, manifest = _load_host_target_manifest(config)
+    resolved_target = _resolve_single_host_target(
+        target, manifest, command_name="deploy init"
+    )
+    report = _init_deploy_checkouts(
+        resolved_target,
+        workspace_parent=workspace_parent,
+        dev_repo_url=dev_repo_url,
+        dev_branch=dev_branch,
+        shell_config_repo_url=shell_config_repo_url,
+        shell_config_branch=shell_config_branch,
+        skip_shell_config=skip_shell_config,
+        quiet=json_output,
+    )
+    if json_output:
+        _json_dump(report)
+    elif bool(report["success"]):
+        console.print(f"initialized {resolved_target.name} -> {workspace_parent}")
+    if not bool(report["success"]):
+        raise typer.Exit(code=1)
+
+
 @deploy_app.command("sync")
 def deploy_sync(
     target: Annotated[
@@ -6628,7 +7024,10 @@ def deploy_sync(
         str,
         typer.Option(
             "--remote-root",
-            help="Remote root that receives dev-container-fortress and shell-config.",
+            help=(
+                "Legacy remote root that receives mirrored dev-container-fortress "
+                "and shell-config checkouts."
+            ),
         ),
     ] = DEFAULT_DEPLOY_REMOTE_ROOT,
     shell_config_checkout: Annotated[
@@ -6700,7 +7099,7 @@ def deploy_sync(
 def deploy_exec(
     target: Annotated[
         str,
-        typer.Argument(help="One SSH host target that already has mirrored checkouts."),
+        typer.Argument(help="One SSH host target that already has remote checkouts."),
     ],
     command: Annotated[
         list[str] | None,
@@ -6724,12 +7123,13 @@ def deploy_exec(
     remote_root: Annotated[
         str,
         typer.Option(
+            "--workspace-parent",
             "--remote-root",
-            help="Remote root that contains the mirrored checkouts.",
+            help="Remote parent directory that contains the Git checkouts.",
         ),
-    ] = DEFAULT_DEPLOY_REMOTE_ROOT,
+    ] = DEFAULT_DEPLOY_WORKSPACE_PARENT,
 ) -> None:
-    """Run one command from the mirrored remote Dev Fortress checkout."""
+    """Run one command from the remote Dev Fortress checkout."""
     _, manifest = _load_host_target_manifest(config)
     resolved_target = _resolve_single_host_target(
         target, manifest, command_name="deploy exec"
@@ -6788,6 +7188,147 @@ def host_ssh_key_path(
             param_hint="target",
         )
     typer.echo(str(output_path))
+
+
+@host_app.command("ssh-config")
+def host_ssh_config(
+    target: Annotated[
+        str,
+        typer.Argument(
+            help=(
+                "One SSH host target name or selector that must resolve to exactly "
+                "one configured host target."
+            )
+        ),
+    ],
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            exists=False,
+            dir_okay=False,
+            resolve_path=True,
+            help="Path to the host target TOML config.",
+        ),
+    ] = None,
+    host_alias: Annotated[
+        str | None,
+        typer.Option(
+            "--host-alias",
+            help="OpenSSH Host alias to render. Defaults to the target name.",
+        ),
+    ] = None,
+    install: Annotated[
+        bool,
+        typer.Option(
+            "--install",
+            help="Write the rendered block to the managed Dev Fortress SSH include file.",
+        ),
+    ] = False,
+    ensure_include: Annotated[
+        bool,
+        typer.Option(
+            "--ensure-include",
+            help="Ensure ~/.ssh/config includes the managed Dev Fortress SSH config file.",
+        ),
+    ] = False,
+    windows: Annotated[
+        bool,
+        typer.Option(
+            "--windows",
+            help=(
+                "Install for Windows OpenSSH from WSL by exporting key material "
+                "and rendering Windows paths."
+            ),
+        ),
+    ] = False,
+    windows_ssh_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--windows-ssh-dir",
+            file_okay=False,
+            dir_okay=True,
+            resolve_path=True,
+            help=(
+                "Windows .ssh directory as seen from WSL, such as "
+                "/mnt/c/Users/name/.ssh. Defaults to Windows USERPROFILE."
+            ),
+        ),
+    ] = None,
+    include_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--include-path",
+            dir_okay=False,
+            resolve_path=True,
+            help="Managed SSH config include file to write or reference.",
+        ),
+    ] = None,
+    ssh_config_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--ssh-config-path",
+            dir_okay=False,
+            resolve_path=True,
+            help="Primary SSH config file to update when --ensure-include is used.",
+        ),
+    ] = None,
+) -> None:
+    """Render or install an OpenSSH config block for one host target."""
+    _, manifest = _load_host_target_manifest(config)
+    resolved_target = _resolve_single_host_target(
+        target, manifest, command_name="ssh-config"
+    )
+    effective_include_path = include_path or _default_dev_fortress_ssh_include_path()
+    effective_ssh_config_path = ssh_config_path or _default_ssh_config_path()
+    identity_file = None
+    known_hosts_file = None
+    if windows:
+        effective_windows_ssh_dir = windows_ssh_dir or _default_windows_ssh_dir()
+        effective_include_path = (
+            include_path
+            or effective_windows_ssh_dir / "config.d" / "dev-container-fortress"
+        )
+        effective_ssh_config_path = (
+            ssh_config_path or effective_windows_ssh_dir / "config"
+        )
+        windows_private_key_path, windows_known_hosts_path = (
+            _export_host_ssh_material_for_windows(
+                resolved_target,
+                windows_ssh_dir=effective_windows_ssh_dir,
+            )
+        )
+        identity_file = _windows_openssh_path(windows_private_key_path)
+        if windows_known_hosts_path is not None:
+            known_hosts_file = _windows_openssh_path(windows_known_hosts_path)
+
+    if install:
+        written_path = _install_host_ssh_config(
+            resolved_target,
+            host_alias=host_alias,
+            include_path=effective_include_path,
+            identity_file=identity_file,
+            known_hosts_file=known_hosts_file,
+        )
+        console.print(f"wrote ssh config include: {written_path}")
+    else:
+        typer.echo(
+            _render_host_ssh_config(
+                resolved_target,
+                host_alias=host_alias,
+                identity_file=identity_file,
+                known_hosts_file=known_hosts_file,
+            )
+        )
+    if ensure_include:
+        _ensure_ssh_config_include(
+            config_path=effective_ssh_config_path,
+            include_path=effective_include_path,
+            include_target=(
+                _windows_openssh_path(effective_include_path) if windows else None
+            ),
+        )
+        console.print(f"ensured ssh config include: {effective_ssh_config_path}")
 
 
 @host_app.command("ssh-key")

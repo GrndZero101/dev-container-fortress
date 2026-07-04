@@ -73,7 +73,8 @@ public key automatically and passes it to Terraform via `TF_VAR_ssh_public_key`.
 6. Run `uv run ft host bootstrap <target> --check`.
 7. Run `uv run ft host bootstrap <target>`.
 8. Run `uv run ft host bootstrap <target>` again to confirm convergence.
-9. Destroy the host when validation is complete with `uv run ft infra aws-disposable-ubuntu destroy`.
+9. Initialize remote Git checkouts with `uv run ft deploy init <target>`.
+10. Destroy the host when validation is complete with `uv run ft infra aws-disposable-ubuntu destroy`.
 
 Example cheap Spot loop:
 
@@ -86,6 +87,7 @@ uv run ft host doctor dev-fortress-ec2-dev --probe
 uv run ft host bootstrap dev-fortress-ec2-dev --check
 uv run ft host bootstrap dev-fortress-ec2-dev
 uv run ft host bootstrap dev-fortress-ec2-dev
+uv run ft deploy init dev-fortress-ec2-dev
 uv run ft infra aws-disposable-ubuntu destroy
 ```
 
@@ -96,6 +98,17 @@ uv run ft infra aws-disposable-ubuntu capacity select --market on-demand --insta
 uv run ft infra aws-disposable-ubuntu plan
 uv run ft infra aws-disposable-ubuntu apply
 ```
+
+`ft deploy init` clones or updates the development checkouts on the remote host
+under `~/workspaces/tboss` by default:
+
+```text
+~/workspaces/tboss/
+  dev-container-fortress/
+  shell-config/
+```
+
+Override the remote parent with `--workspace-parent` when needed.
 
 When `--architecture` is omitted, the selector considers all supported
 architectures and does not apply a default family allow-list. When

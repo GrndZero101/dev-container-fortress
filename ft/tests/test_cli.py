@@ -28,6 +28,8 @@ from ft.cli import (
     _up_single_container_target,
     _upsert_host_targets,
     _stage_local_shell_config,
+    _default_windows_ssh_dir,
+    _windows_openssh_path,
     app,
 )
 from ft.installer import build_plan, install_tool
@@ -157,6 +159,7 @@ def test_host_group_uses_help_when_no_args_are_passed() -> None:
     assert "show" in result.stdout
     assert "inventory" in result.stdout
     assert "ssh-key-path" in result.stdout
+    assert "ssh-config" in result.stdout
     assert "ssh-key" in result.stdout
     assert "ssh-key-enroll" in result.stdout
     assert "ssh" in result.stdout
@@ -222,9 +225,8 @@ def test_deploy_group_uses_help_when_no_args_are_passed() -> None:
     result = runner.invoke(app, ["deploy"])
 
     assert result.exit_code == 0
-    assert (
-        "Mirror local Dev Fortress checkouts to a remote host target" in result.stdout
-    )
+    assert "Prepare remote Dev Fortress development hosts" in result.stdout
+    assert "init" in result.stdout
     assert "sync" in result.stdout
     assert "exec" in result.stdout
 
@@ -1035,25 +1037,25 @@ def test_spot_selector_ranks_spot_candidates(monkeypatch: object) -> None:
                         "InstanceType": "t4g.medium",
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.010",
-                        "Timestamp": "2026-06-21T00:00:00+00:00",
+                        "Timestamp": "2026-07-03T00:00:00+00:00",
                     },
                     {
                         "InstanceType": "t4g.medium",
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.011",
-                        "Timestamp": "2026-06-21T01:00:00+00:00",
+                        "Timestamp": "2026-07-03T01:00:00+00:00",
                     },
                     {
                         "InstanceType": "t4g.medium",
                         "AvailabilityZone": "ap-southeast-1b",
                         "SpotPrice": "0.007",
-                        "Timestamp": "2026-06-21T00:00:00+00:00",
+                        "Timestamp": "2026-07-03T00:00:00+00:00",
                     },
                     {
                         "InstanceType": "t4g.medium",
                         "AvailabilityZone": "ap-southeast-1b",
                         "SpotPrice": "0.008",
-                        "Timestamp": "2026-06-21T01:00:00+00:00",
+                        "Timestamp": "2026-07-03T01:00:00+00:00",
                     },
                 ]
             }
@@ -1136,13 +1138,13 @@ def test_spot_selector_excludes_families(monkeypatch: object) -> None:
                         "InstanceType": "m7g.large",
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.040",
-                        "Timestamp": "2026-06-21T00:00:00+00:00",
+                        "Timestamp": "2026-07-03T00:00:00+00:00",
                     },
                     {
                         "InstanceType": "m7g.large",
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.041",
-                        "Timestamp": "2026-06-21T01:00:00+00:00",
+                        "Timestamp": "2026-07-03T01:00:00+00:00",
                     },
                 ]
             }
@@ -1218,13 +1220,13 @@ def test_spot_selector_includes_family_patterns(monkeypatch: object) -> None:
                         "InstanceType": instance_type,
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.040",
-                        "Timestamp": "2026-06-21T00:00:00+00:00",
+                        "Timestamp": "2026-07-03T00:00:00+00:00",
                     },
                     {
                         "InstanceType": instance_type,
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.041",
-                        "Timestamp": "2026-06-21T01:00:00+00:00",
+                        "Timestamp": "2026-07-03T01:00:00+00:00",
                     },
                 ]
             }
@@ -1300,13 +1302,13 @@ def test_spot_selector_can_sort_by_discount(monkeypatch: object) -> None:
                         "InstanceType": instance_type,
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": spot_price,
-                        "Timestamp": "2026-06-21T00:00:00+00:00",
+                        "Timestamp": "2026-07-03T00:00:00+00:00",
                     },
                     {
                         "InstanceType": instance_type,
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": spot_price,
-                        "Timestamp": "2026-06-21T01:00:00+00:00",
+                        "Timestamp": "2026-07-03T01:00:00+00:00",
                     },
                 ]
             }
@@ -1389,13 +1391,13 @@ def test_spot_selector_applies_size_and_price_ceilings(monkeypatch: object) -> N
                         "InstanceType": instance_type,
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": spot_price,
-                        "Timestamp": "2026-06-21T00:00:00+00:00",
+                        "Timestamp": "2026-07-03T00:00:00+00:00",
                     },
                     {
                         "InstanceType": instance_type,
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": spot_price,
-                        "Timestamp": "2026-06-21T01:00:00+00:00",
+                        "Timestamp": "2026-07-03T01:00:00+00:00",
                     },
                 ]
             }
@@ -1474,13 +1476,13 @@ def test_spot_selector_uses_x86_defaults_for_amd64(monkeypatch: object) -> None:
                         "InstanceType": "m7i.large",
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.050",
-                        "Timestamp": "2026-06-21T00:00:00+00:00",
+                        "Timestamp": "2026-07-03T00:00:00+00:00",
                     },
                     {
                         "InstanceType": "m7i.large",
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.051",
-                        "Timestamp": "2026-06-21T01:00:00+00:00",
+                        "Timestamp": "2026-07-03T01:00:00+00:00",
                     },
                 ]
             }
@@ -1556,13 +1558,13 @@ def test_spot_selector_without_architecture_uses_all_families(
                         "InstanceType": instance_type,
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.050",
-                        "Timestamp": "2026-06-21T00:00:00+00:00",
+                        "Timestamp": "2026-07-03T00:00:00+00:00",
                     },
                     {
                         "InstanceType": instance_type,
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.051",
-                        "Timestamp": "2026-06-21T01:00:00+00:00",
+                        "Timestamp": "2026-07-03T01:00:00+00:00",
                     },
                 ]
             }
@@ -1741,6 +1743,245 @@ def test_host_ssh_key_path_uses_xdg_state(tmp_path: Path, monkeypatch: object) -
         / "dev-fortress-ubuntu"
         / "dev_fortress_ed25519"
     )
+
+
+def test_host_ssh_config_renders_vscode_compatible_block(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Host ssh-config should render an OpenSSH block for VS Code Remote SSH."""
+    config_path = _write_host_config(tmp_path)
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+
+    result = runner.invoke(
+        app,
+        [
+            "host",
+            "ssh-config",
+            "dev-fortress-ec2-dev",
+            "--config",
+            str(config_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Host dev-fortress-ec2-dev" in result.stdout
+    assert "HostName ec2.example.internal" in result.stdout
+    assert "User ubuntu" in result.stdout
+    assert "Port 22" in result.stdout
+    assert "IdentitiesOnly yes" in result.stdout
+    assert (
+        str(
+            tmp_path
+            / "state"
+            / "dev-container-fortress"
+            / "ssh"
+            / "dev-fortress-ec2-dev"
+            / "dev_fortress_ed25519"
+        )
+        in result.stdout
+    )
+    assert (
+        str(
+            tmp_path
+            / "state"
+            / "dev-container-fortress"
+            / "known_hosts"
+            / "dev-fortress-ec2-dev"
+        )
+        in result.stdout
+    )
+    assert "StrictHostKeyChecking yes" in result.stdout
+
+
+def test_host_ssh_config_installs_include_and_ensures_main_config(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Host ssh-config should write one managed include and add one Include line."""
+    config_path = _write_host_config(tmp_path)
+    include_path = tmp_path / ".ssh" / "config.d" / "dev-container-fortress"
+    ssh_config_path = tmp_path / ".ssh" / "config"
+    ssh_config_path.parent.mkdir(parents=True)
+    ssh_config_path.write_text(
+        "Host dev-fortress-ec2-dev\n  HostName dev-fortress-ec2-dev\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+
+    args = [
+        "host",
+        "ssh-config",
+        "dev-fortress-ec2-dev",
+        "--config",
+        str(config_path),
+        "--host-alias",
+        "tboss-ec2",
+        "--install",
+        "--ensure-include",
+        "--include-path",
+        str(include_path),
+        "--ssh-config-path",
+        str(ssh_config_path),
+    ]
+
+    first = runner.invoke(app, args)
+    second = runner.invoke(app, args)
+
+    assert first.exit_code == 0
+    assert second.exit_code == 0
+    include_text = include_path.read_text(encoding="utf-8")
+    ssh_config_text = ssh_config_path.read_text(encoding="utf-8")
+    assert "Host tboss-ec2" in include_text
+    assert "HostName ec2.example.internal" in include_text
+    assert ssh_config_text.count(f"Include {include_path}") == 1
+    assert ssh_config_text.startswith(f"Include {include_path}\n")
+
+
+def test_host_ssh_config_windows_exports_material_and_uses_windows_paths(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Windows mode should export SSH material and render Windows OpenSSH paths."""
+    config_path = _write_host_config(tmp_path)
+    state_private_key_path = (
+        tmp_path
+        / "state"
+        / "dev-container-fortress"
+        / "ssh"
+        / "dev-fortress-ec2-dev"
+        / "dev_fortress_ed25519"
+    )
+    state_private_key_path.parent.mkdir(parents=True, exist_ok=True)
+    state_private_key_path.write_text("private", encoding="utf-8")
+    state_private_key_path.with_name("dev_fortress_ed25519.pub").write_text(
+        "public", encoding="utf-8"
+    )
+    state_known_hosts_path = (
+        tmp_path
+        / "state"
+        / "dev-container-fortress"
+        / "known_hosts"
+        / "dev-fortress-ec2-dev"
+    )
+    state_known_hosts_path.parent.mkdir(parents=True, exist_ok=True)
+    state_known_hosts_path.write_text("known-host", encoding="utf-8")
+    windows_ssh_dir = tmp_path / "mnt" / "c" / "Users" / "timl" / ".ssh"
+    include_path = windows_ssh_dir / "config.d" / "dev-container-fortress"
+    ssh_config_path = windows_ssh_dir / "config"
+    ssh_config_path.parent.mkdir(parents=True)
+    ssh_config_path.write_text(
+        "Host dev-fortress-ec2-dev\n  HostName dev-fortress-ec2-dev\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+
+    result = runner.invoke(
+        app,
+        [
+            "host",
+            "ssh-config",
+            "dev-fortress-ec2-dev",
+            "--config",
+            str(config_path),
+            "--windows",
+            "--install",
+            "--ensure-include",
+            "--windows-ssh-dir",
+            str(windows_ssh_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    exported_key = (
+        windows_ssh_dir
+        / "dev-container-fortress"
+        / "dev-fortress-ec2-dev"
+        / "dev_fortress_ed25519"
+    )
+    exported_known_hosts = (
+        windows_ssh_dir
+        / "dev-container-fortress"
+        / "known_hosts"
+        / "dev-fortress-ec2-dev"
+    )
+    include_text = include_path.read_text(encoding="utf-8")
+    ssh_config_text = ssh_config_path.read_text(encoding="utf-8")
+    assert exported_key.read_text(encoding="utf-8") == "private"
+    assert exported_key.with_suffix(".pub").read_text(encoding="utf-8") == "public"
+    assert exported_known_hosts.read_text(encoding="utf-8") == "known-host"
+    assert f"IdentityFile {_windows_openssh_path(exported_key)}" in include_text
+    assert (
+        f"UserKnownHostsFile {_windows_openssh_path(exported_known_hosts)}"
+        in include_text
+    )
+    assert ssh_config_text.count(f"Include {_windows_openssh_path(include_path)}") == 1
+    assert ssh_config_text.startswith(
+        f"Include {_windows_openssh_path(include_path)}\n"
+    )
+
+
+def test_default_windows_ssh_dir_uses_windows_userprofile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Windows SSH dir detection should prefer the Windows USERPROFILE value."""
+    monkeypatch.setenv("USERPROFILE", r"C:\Users\actual.windows")
+    monkeypatch.setenv("USER", "wsl-user")
+    monkeypatch.setattr("ft.cli._windows_userprofile_from_interop", lambda: None)
+
+    assert _default_windows_ssh_dir() == Path("/mnt/c/Users/actual.windows/.ssh")
+
+
+def test_default_windows_ssh_dir_uses_windows_interop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Windows SSH dir detection should query Windows when USERPROFILE is absent."""
+    monkeypatch.delenv("USERPROFILE", raising=False)
+    monkeypatch.setenv("USER", "wsl-user")
+    monkeypatch.setattr(
+        "ft.cli._windows_userprofile_from_interop",
+        lambda: r"D:\Users\actual.windows",
+    )
+
+    assert _default_windows_ssh_dir() == Path("/mnt/d/Users/actual.windows/.ssh")
+
+
+def test_default_windows_ssh_dir_does_not_guess_from_wsl_user(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Windows SSH dir detection should not guess from a potentially different WSL user."""
+    monkeypatch.delenv("USERPROFILE", raising=False)
+    monkeypatch.setenv("USER", "wsl-user")
+    monkeypatch.setattr("ft.cli._windows_userprofile_from_interop", lambda: None)
+
+    with pytest.raises(typer.BadParameter, match="--windows-ssh-dir"):
+        _default_windows_ssh_dir()
+
+
+def test_default_windows_ssh_dir_handles_interop_exec_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Windows SSH dir detection should tolerate unusable Windows interop commands."""
+    monkeypatch.delenv("USERPROFILE", raising=False)
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    def fake_run(
+        command: list[str],
+        *,
+        check: bool,
+        capture_output: bool,
+        text: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        if command[0] == "powershell.exe":
+            raise OSError(8, "Exec format error", command[0])
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=r"C:\Users\actual.windows" + "\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr("ft.cli.subprocess.run", fake_run)
+
+    assert _default_windows_ssh_dir() == Path("/mnt/c/Users/actual.windows/.ssh")
 
 
 def test_host_ssh_runs_with_managed_key_and_known_hosts(
@@ -1935,6 +2176,123 @@ def test_deploy_rsync_command_excludes_state_and_uses_managed_ssh(
     assert command[-1] == (
         "ubuntu@ec2.example.internal:~/workspaces/dev-fortress/dev-container-fortress/"
     )
+
+
+def test_deploy_init_clones_dev_and_shell_config(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Deploy init should clone or update remote Git checkouts."""
+    config_path = _write_host_config(tmp_path)
+    private_key_path = (
+        tmp_path
+        / "state"
+        / "dev-container-fortress"
+        / "ssh"
+        / "dev-fortress-ec2-dev"
+        / "dev_fortress_ed25519"
+    )
+    private_key_path.parent.mkdir(parents=True, exist_ok=True)
+    private_key_path.write_text("private", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "ft.cli._refresh_managed_known_host",
+        lambda target: tmp_path / "known_hosts",
+    )
+    monkeypatch.setattr("ft.cli._ensure_host_target_runtime_ready", lambda target: True)
+
+    def fake_stream(
+        command: list[str],
+        *,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("ft.cli._run_streaming_command", fake_stream)
+
+    result = runner.invoke(
+        app,
+        [
+            "deploy",
+            "init",
+            "dev-fortress-ec2-dev",
+            "--config",
+            str(config_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert len(calls) == 3
+    assert calls[0][0] == "ssh"
+    assert calls[0][-1] == "mkdir -p -- ~/workspaces/tboss"
+    assert calls[1][0] == "ssh"
+    assert "git clone --branch main" in calls[1][-1]
+    assert "dev-container-fortress.git" in calls[1][-1]
+    assert "~/workspaces/tboss/dev-container-fortress" in calls[1][-1]
+    assert calls[2][0] == "ssh"
+    assert "git clone --branch main" in calls[2][-1]
+    assert "shell-config.git" in calls[2][-1]
+    assert "~/workspaces/tboss/shell-config" in calls[2][-1]
+    assert "initialized dev-fortress-ec2-dev -> ~/workspaces/tboss" in result.stdout
+
+
+def test_deploy_init_supports_workspace_parent_override(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Deploy init should support a custom remote workspace parent."""
+    config_path = _write_host_config(tmp_path)
+    private_key_path = (
+        tmp_path
+        / "state"
+        / "dev-container-fortress"
+        / "ssh"
+        / "dev-fortress-ec2-dev"
+        / "dev_fortress_ed25519"
+    )
+    private_key_path.parent.mkdir(parents=True, exist_ok=True)
+    private_key_path.write_text("private", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "ft.cli._refresh_managed_known_host",
+        lambda target: tmp_path / "known_hosts",
+    )
+    monkeypatch.setattr("ft.cli._ensure_host_target_runtime_ready", lambda target: True)
+
+    def fake_stream(
+        command: list[str],
+        *,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("ft.cli._run_streaming_command", fake_stream)
+
+    result = runner.invoke(
+        app,
+        [
+            "deploy",
+            "init",
+            "dev-fortress-ec2-dev",
+            "--config",
+            str(config_path),
+            "--workspace-parent",
+            "~/workspaces/custom",
+            "--skip-shell-config",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert len(calls) == 2
+    assert calls[0][-1] == "mkdir -p -- ~/workspaces/custom"
+    assert "~/workspaces/custom/dev-container-fortress" in calls[1][-1]
+    assert "shell-config" not in calls[1][-1]
 
 
 def test_deploy_sync_mirrors_dev_and_shell_config(

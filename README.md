@@ -191,7 +191,7 @@ ft container build ubuntu \
 | Interface | Role | Current guidance |
 | --- | --- | --- |
 | `ft` | Primary human and agent operator surface | Use this first |
-| `ft deploy` | Host-master mirror loop for remote EC2 validation | Use for one-way local checkout sync and remote command execution |
+| `ft deploy` | Remote EC2 development-host loop | Use `deploy init` to clone Git checkouts and `deploy exec` for remote commands |
 | `ft infra aws-disposable-ubuntu capacity select` | EC2 capacity selector for the disposable daily-driver host | Use Spot for cost or on-demand for stability before Terraform plan/apply |
 | `just` | Convenience shim | Keep for muscle memory, but do not treat it as the logic home |
 | `ansible/` | Host automation layer | Thin today, expanding during host-role milestones |
@@ -220,7 +220,7 @@ ft container build ubuntu \
 | [docs/workstation-usage.md](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md) | Operators | Host-target and workstation flow status |
 | [docs/wsl-bootstrap.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/wsl-bootstrap.md) | Operators | Step-by-step bootstrap path for Ubuntu under WSL2 |
 | [docs/target-validation.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/target-validation.md) | Operators | Current three-target validation runbook across Ubuntu, Alpine, and EC2 |
-| [docs/ec2-development-loop.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/ec2-development-loop.md) | Operators | Host-master one-way sync and remote EC2 validation loop |
+| [docs/ec2-development-loop.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/ec2-development-loop.md) | Operators | Git-backed EC2 development-host loop |
 | [docs/secrets-management.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/secrets-management.md) | Operators | First-pass GPG and `pass` secrets baseline for workspace profiles |
 | [docs/backup-restore.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/backup-restore.md) | Operators | General `rustic`-oriented backup and restore direction |
 | [docs/devcontainer-usage.md](/home/timl/projects/tboss/dev-container-fortress/docs/devcontainer-usage.md) | Operators | VS Code devcontainer usage |

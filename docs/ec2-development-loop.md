@@ -1,37 +1,31 @@
 # EC2 Development Loop
 
-This runbook covers the current host-master remote development loop.
+This runbook covers the Git-backed EC2 development-host loop.
 
-The local workstation remains the source of truth. The EC2 instance is a
-disposable execution mirror used to validate the same checkout against a real
-Ubuntu host and Docker runtime.
+The EC2 instance is treated as a disposable development host, not as a mirrored
+copy of the local workstation. Local and EC2 checkouts synchronize through normal
+Git commit, push, pull, and fetch workflows.
 
 ## Current Contract
 
-Local layout:
+Default remote layout:
 
 ```text
-<workspace>/
-  dev-container-fortress/
-  shell-config/
-```
-
-Remote layout:
-
-```text
-~/workspaces/dev-fortress/
+~/workspaces/tboss/
   dev-container-fortress/
   shell-config/
 ```
 
 Rules:
 
-- local files win
-- sync is one-way from local to EC2
-- `shell-config` is mirrored with `dev-container-fortress` by default
-- repo state, virtual environments, Terraform state, caches, and local runtime
-  state are excluded from the mirror
-- remote edits are temporary unless deliberately copied back by the operator
+- Terraform creates the machine; `ft` prepares it as a development host.
+- Git is the synchronization boundary between local and EC2.
+- Remote edits are valid work and should be committed or pushed like any other
+  distributed development environment.
+- `shell-config` is cloned beside `dev-container-fortress` by default.
+- The workspace parent defaults to `~/workspaces/tboss` and can be overridden
+  with `--workspace-parent`.
+- Local rsync mirroring is a secondary utility, not the primary development loop.
 
 ## Provision and Bootstrap EC2
 
@@ -102,38 +96,46 @@ Spot history fetches run concurrently; tune the worker count with `--workers`.
 
 The apply step imports the Terraform-emitted target into the configured
 `hosts.toml` by default. The validation step proves SSH, host bootstrap, and
-convergence before using the host as a development mirror.
+convergence before using the host as a development machine.
 
-## Preview the Sync
+## Initialize Remote Checkouts
 
-Run a dry-run first:
-
-```zsh
-uv run ft deploy sync dev-fortress-ec2-dev --dry-run
-```
-
-If `shell-config` is not a sibling checkout, pass it explicitly:
+Clone or update the default repo set on the EC2 host:
 
 ```zsh
-uv run ft deploy sync dev-fortress-ec2-dev \
-  --shell-config-checkout /absolute/path/to/shell-config \
-  --dry-run
+uv run ft deploy init dev-fortress-ec2-dev
 ```
 
-## Sync Local Changes
+That initializes:
 
-After reviewing the dry-run:
+```text
+~/workspaces/tboss/dev-container-fortress
+~/workspaces/tboss/shell-config
+```
+
+Override the parent directory when needed:
 
 ```zsh
-uv run ft deploy sync dev-fortress-ec2-dev
+uv run ft deploy init dev-fortress-ec2-dev \
+  --workspace-parent ~/workspaces/custom-tboss
 ```
 
-Use `--no-delete` only when you intentionally want to leave extra remote files
-in place. The default delete behavior keeps EC2 aligned with local source.
+Override clone sources or branches when testing forks:
+
+```zsh
+uv run ft deploy init dev-fortress-ec2-dev \
+  --dev-repo-url git@github.com:GrndZero101/dev-container-fortress.git \
+  --dev-branch main \
+  --shell-config-repo-url git@github.com:GrndZero101/shell-config.git \
+  --shell-config-branch main
+```
+
+Use `--skip-shell-config` only when the remote host should not clone
+`shell-config`.
 
 ## Run Remote Checks
 
-Run commands from the mirrored remote `dev-container-fortress` checkout:
+Run commands from the remote `dev-container-fortress` checkout:
 
 ```zsh
 uv run ft deploy exec dev-fortress-ec2-dev -- uv run ft doctor
@@ -146,15 +148,15 @@ For remote workspace validation:
 uv run ft deploy exec dev-fortress-ec2-dev -- \
   uv run ft workspace build ubuntu-full \
     --shell-config-source local \
-    --shell-config-stage-from ~/workspaces/dev-fortress/shell-config
+    --shell-config-stage-from ~/workspaces/tboss/shell-config
 
 uv run ft deploy exec dev-fortress-ec2-dev -- \
   uv run ft workspace up ubuntu-full \
-    --shell-config-checkout ~/workspaces/dev-fortress/shell-config
+    --shell-config-checkout ~/workspaces/tboss/shell-config
 
 uv run ft deploy exec dev-fortress-ec2-dev -- \
   uv run ft workspace validate ubuntu-full \
-    --shell-config-checkout ~/workspaces/dev-fortress/shell-config
+    --shell-config-checkout ~/workspaces/tboss/shell-config
 ```
 
 For disposable container parity checks on EC2:
@@ -168,16 +170,66 @@ uv run ft deploy exec dev-fortress-ec2-dev -- uv run ft container validate alpin
 
 ## Remote Editor Use
 
-For the host-master loop, prefer local editing and one-way sync.
+Open the EC2 host through VS Code Remote SSH, Codex over SSH, or a later
+devcontainer-on-EC2 workflow. Continue development inside:
 
-If you open the EC2 mirror through VS Code Remote SSH or Codex, treat the remote
-checkout as disposable. The remote tree intentionally does not receive local
-`.git` state, so normal Git operations should happen locally unless you
-deliberately change the workflow.
+```text
+~/workspaces/tboss/dev-container-fortress
+```
+
+Install a managed OpenSSH config include for VS Code Remote SSH:
+
+```zsh
+uv run ft host ssh-config dev-fortress-ec2-dev --install --ensure-include
+```
+
+That writes `~/.ssh/config.d/dev-container-fortress` and ensures `~/.ssh/config`
+contains an `Include` line for it. The managed include is rewritten each time,
+so repeated EC2 reprovisioning does not accumulate stale host entries. VS Code
+can then connect to the stable host alias:
+
+```text
+dev-fortress-ec2-dev
+```
+
+When running from WSL2 but connecting with VS Code on Windows, install a
+Windows-side SSH config instead:
+
+```zsh
+uv run ft host ssh-config dev-fortress-ec2-dev \
+  --windows \
+  --install \
+  --ensure-include
+```
+
+That writes to the Windows user's `.ssh` directory as seen from WSL, exports the
+managed private key and known-hosts file there, and renders `C:/...` paths for
+Windows OpenSSH. The command resolves the Windows profile from `%USERPROFILE%`
+or WSL Windows interop; it does not guess from the WSL username because Windows
+and WSL user IDs may differ. If the Windows user path cannot be inferred, pass
+it explicitly:
+
+```zsh
+uv run ft host ssh-config dev-fortress-ec2-dev \
+  --windows \
+  --windows-ssh-dir /mnt/c/Users/<you>/.ssh \
+  --install \
+  --ensure-include
+```
+
+Commit and push work from whichever host owns the active edit session. Pull on
+the other host when switching back. This keeps the machine disposable while
+still making remote development real work, not a throwaway mirror.
+
+## Legacy Mirror Utility
+
+`ft deploy sync` still exists as a one-way rsync utility for quick remote test
+mirroring, but it is no longer the primary EC2 development loop. Prefer
+`ft deploy init` plus Git synchronization for daily-driver use.
 
 ## Tear Down
 
-When the remote mirror is no longer needed:
+When the remote development host is no longer needed:
 
 ```zsh
 uv run ft infra aws-disposable-ubuntu destroy
