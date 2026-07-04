@@ -121,7 +121,9 @@ class ToolManifest(BaseModel):
             raise ValueError("manifest must define a non-empty [tools] table")
         return self
 
-    def enabled_tools(self, *, target: str | None = None) -> list[tuple[str, ToolDefinition]]:
+    def enabled_tools(
+        self, *, target: str | None = None
+    ) -> list[tuple[str, ToolDefinition]]:
         """Return enabled tools in deterministic order."""
         return [
             (name, self.tools[name])
@@ -230,7 +232,9 @@ class ContainerCommandToolPool(BaseModel):
     def validate_command_checks(self) -> "ContainerCommandToolPool":
         """Keep command checks deterministic and duplicate-free."""
         if len(self.command_checks) != len(set(self.command_checks)):
-            raise ValueError("container command checks must be unique within each group")
+            raise ValueError(
+                "container command checks must be unique within each group"
+            )
         return self
 
 

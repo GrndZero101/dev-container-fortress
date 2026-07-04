@@ -2,6 +2,11 @@
 
 This document describes how to use the VS Code devcontainer definitions in `dev-container-fortress`.
 
+For day-to-day multi-repo development, prefer the separate `tboss-workspace`
+orchestrator scaffold. It consumes the published
+`ghcr.io/grndzero101/dev-container-fortress:ubuntu-full` image by default and
+keeps child repositories under `repos/`.
+
 ## Available Definitions
 
 The repository currently provides two devcontainer definitions:
@@ -10,6 +15,10 @@ The repository currently provides two devcontainer definitions:
 - [`.devcontainer/alpine/devcontainer.json`](/home/timl/projects/tboss/dev-container-fortress/.devcontainer/alpine/devcontainer.json)
 
 Each is a thin wrapper over the matching Dockerfile in `containers/`.
+
+These repo-local definitions are best for changing the Dev Fortress image
+itself. The orchestrator scaffold is best for using Dev Fortress as the
+workspace toolchain while editing multiple child repositories.
 
 ## Open in VS Code
 

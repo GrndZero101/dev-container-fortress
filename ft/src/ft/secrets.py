@@ -13,7 +13,7 @@ SECRET_READINESS_COMMANDS: tuple[tuple[str, str, str], ...] = (
         "gpg_home_present",
         (
             'if [ -d "${HOME}/.gnupg" ]; '
-            'then print -r -- present; else print -r -- missing; fi'
+            "then print -r -- present; else print -r -- missing; fi"
         ),
         "present",
     ),
@@ -21,8 +21,8 @@ SECRET_READINESS_COMMANDS: tuple[tuple[str, str, str], ...] = (
         "gpg_secret_key_present",
         (
             "gpg --batch --list-secret-keys --with-colons 2>/dev/null "
-            "| awk -F: '$1 == \"sec\" { found=1 } "
-            "END { print found ? \"present\" : \"missing\" }'"
+            '| awk -F: \'$1 == "sec" { found=1 } '
+            'END { print found ? "present" : "missing" }\''
         ),
         "present",
     ),
@@ -30,7 +30,7 @@ SECRET_READINESS_COMMANDS: tuple[tuple[str, str, str], ...] = (
         "password_store_present",
         (
             'if [ -d "${HOME}/.password-store" ]; '
-            'then print -r -- present; else print -r -- missing; fi'
+            "then print -r -- present; else print -r -- missing; fi"
         ),
         "present",
     ),
@@ -38,7 +38,7 @@ SECRET_READINESS_COMMANDS: tuple[tuple[str, str, str], ...] = (
         "password_store_initialized",
         (
             'if [ -f "${HOME}/.password-store/.gpg-id" ]; '
-            'then print -r -- initialized; else print -r -- missing; fi'
+            "then print -r -- initialized; else print -r -- missing; fi"
         ),
         "initialized",
     ),

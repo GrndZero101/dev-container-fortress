@@ -83,7 +83,9 @@ def _render_optional(template: str | None, context: dict[str, str]) -> str | Non
     return template.format_map(_TemplateContext(context))
 
 
-def _render_variables(variables: dict[str, str], context: dict[str, str]) -> dict[str, str]:
+def _render_variables(
+    variables: dict[str, str], context: dict[str, str]
+) -> dict[str, str]:
     """Render manifest variables, allowing references to earlier resolved keys."""
     pending = dict(variables)
     resolved: dict[str, str] = {}
@@ -101,7 +103,9 @@ def _render_variables(variables: dict[str, str], context: dict[str, str]) -> dic
         if progressed:
             continue
         unresolved = ", ".join(sorted(pending))
-        raise ValueError(f"manifest variables contain unresolved templates: {unresolved}")
+        raise ValueError(
+            f"manifest variables contain unresolved templates: {unresolved}"
+        )
     return resolved
 
 
@@ -196,7 +200,9 @@ def _resolve_asset(
     checksum_asset = (
         _render_optional(asset.checksum_asset, context) or context["filename"]
     )
-    support_paths = [_render_optional(path, context) or path for path in asset.support_paths]
+    support_paths = [
+        _render_optional(path, context) or path for path in asset.support_paths
+    ]
 
     return ResolvedAsset(
         os=os_name,
@@ -370,7 +376,9 @@ def _cache_paths(plan: InstallPlan, *, cache_root: Path | None = None) -> Cached
     )
 
 
-def _cache_metadata(plan: InstallPlan, *, asset_sha256: str | None = None) -> dict[str, str]:
+def _cache_metadata(
+    plan: InstallPlan, *, asset_sha256: str | None = None
+) -> dict[str, str]:
     """Render the cache metadata that must match for one stored asset."""
     metadata = {
         "tool": plan.name,
@@ -475,12 +483,16 @@ def _prepare_cached_asset(
 
     _write_cache_metadata(
         cached_asset.metadata_path,
-        _cache_metadata(plan, asset_sha256=asset_sha256 or _sha256(cached_asset.asset_path)),
+        _cache_metadata(
+            plan, asset_sha256=asset_sha256 or _sha256(cached_asset.asset_path)
+        ),
     )
     return cached_asset.asset_path
 
 
-def _extract_asset(plan: InstallPlan, asset_path: Path, workspace: Path) -> tuple[Path, list[Path]]:
+def _extract_asset(
+    plan: InstallPlan, asset_path: Path, workspace: Path
+) -> tuple[Path, list[Path]]:
     """Extract or stage an asset into the temporary workspace."""
     unpack_dir = workspace / "unpacked"
     unpack_dir.mkdir(parents=True, exist_ok=True)

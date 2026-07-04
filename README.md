@@ -39,6 +39,7 @@ Tooling policy follows the same split:
 | Project | Role |
 | --- | --- |
 | [`shell-config`](https://github.com/GrndZero101/shell-config) | Shell UX, profile behavior, and interactive environment shaping consumed by Dev Fortress |
+| `tboss-workspace` | Thin VS Code devcontainer orchestrator that consumes published Dev Fortress images for multi-repo daily-driver work |
 
 ## Two Paths
 
@@ -161,6 +162,20 @@ ft workspace build ubuntu-full
 ft workspace up ubuntu-full
 ft workspace enter ubuntu-full
 ```
+
+For VS Code-first multi-repo work, use the sibling `tboss-workspace` scaffold:
+
+```text
+tboss-workspace/
+  .devcontainer/
+  repos/
+    dev-container-fortress/
+    shell-config/
+```
+
+That scaffold consumes `ghcr.io/grndzero101/dev-container-fortress:ubuntu-full`
+by default and keeps Dev Fortress image publishing separate from workspace
+composition.
 
 ```sh
 ft container build ubuntu \

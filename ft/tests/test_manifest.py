@@ -186,7 +186,9 @@ def test_enabled_tools_can_be_target_scoped() -> None:
     manifest = load_manifest(manifest_path)
 
     assert "ripgrep" in {name for name, _ in manifest.enabled_tools(target="ubuntu")}
-    assert "ripgrep" not in {name for name, _ in manifest.enabled_tools(target="alpine")}
+    assert "ripgrep" not in {
+        name for name, _ in manifest.enabled_tools(target="alpine")
+    }
     assert "neovim" in {name for name, _ in manifest.enabled_tools(target="ubuntu")}
     assert "neovim" not in {name for name, _ in manifest.enabled_tools(target="alpine")}
 
@@ -213,6 +215,9 @@ def test_build_plan_includes_neovim_runtime_support_paths() -> None:
 
 def test_release_tag_from_latest_redirect_extracts_tag() -> None:
     """Latest-release redirect parsing should recover the GitHub release tag."""
-    assert _release_tag_from_latest_redirect(
-        "https://github.com/example/demo/releases/tag/v9.8.7"
-    ) == "v9.8.7"
+    assert (
+        _release_tag_from_latest_redirect(
+            "https://github.com/example/demo/releases/tag/v9.8.7"
+        )
+        == "v9.8.7"
+    )

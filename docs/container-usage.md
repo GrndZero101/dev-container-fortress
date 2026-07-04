@@ -50,6 +50,18 @@ Alpine:
 docker buildx build --load   -f containers/alpine/Dockerfile   -t dev-container-fortress:alpine-test   .
 ```
 
+Daily-driver Ubuntu image with the current full workspace layers:
+
+```zsh
+docker buildx build --load \
+  -f containers/ubuntu/Dockerfile \
+  -t dev-container-fortress:ubuntu-full-test \
+  --build-arg WORKSPACE_TOOL_LAYER_GITFORGE=1 \
+  --build-arg WORKSPACE_TOOL_LAYER_SECRETS=1 \
+  --build-arg WORKSPACE_TOOL_LAYER_AWS=1 \
+  .
+```
+
 ## Run the Images
 
 Ubuntu:

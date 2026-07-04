@@ -1,0 +1,122 @@
+name: Publish container images
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: grndzero101/dev-container-fortress
+
+jobs:
+  publish:
+    name: Build and publish ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu
+            dockerfile: containers/ubuntu/Dockerfile
+            target: ubuntu
+            build-args: ""
+            tags: |
+              type=raw,value=ubuntu,enable={{is_default_branch}}
+              type=match,pattern=v(.*),group=1,prefix=ubuntu-v
+              type=sha,prefix=ubuntu-sha-
+          - name: ubuntu-full
+            dockerfile: containers/ubuntu/Dockerfile
+            target: ubuntu
+            build-args: |
+              WORKSPACE_TOOL_LAYER_GITFORGE=1
+              WORKSPACE_TOOL_LAYER_SECRETS=1
+              WORKSPACE_TOOL_LAYER_AWS=1
+            tags: |
+              type=raw,value=ubuntu-full,enable={{is_default_branch}}
+              type=match,pattern=v(.*),group=1,prefix=ubuntu-full-v
+              type=sha,prefix=ubuntu-full-sha-
+          - name: alpine
+            dockerfile: containers/alpine/Dockerfile
+            target: alpine
+            build-args: ""
+            tags: |
+              type=raw,value=alpine,enable={{is_default_branch}}
+              type=match,pattern=v(.*),group=1,prefix=alpine-v
+              type=sha,prefix=alpine-sha-
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: ${{ matrix.tags }}
+
+      - name: Build smoke-test image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          load: true
+          tags: dev-container-fortress:${{ matrix.name }}-smoke
+          build-args: ${{ matrix.build-args }}
+
+      - name: Smoke test image
+        run: |
+          docker run --rm dev-container-fortress:${{ matrix.name }}-smoke zsh -lc '
+            whoami
+            zsh --version
+            git --version
+            rg --version
+            uv --version
+            ft --version
+            tenv --version
+            starship --version
+            zoxide --version
+            atuin --version
+            nvim --version
+            fzf --version
+            ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/tools.toml --target ${{ matrix.target }} --use-manifest-version
+          '
+
+      - name: Smoke test workspace layer commands
+        if: matrix.name == 'ubuntu-full'
+        run: |
+          docker run --rm dev-container-fortress:${{ matrix.name }}-smoke zsh -lc '
+            gh --version
+            glab --version
+            aws --version
+            gpg --version
+            pass --version
+          '
+
+      - name: Publish image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ matrix.build-args }}

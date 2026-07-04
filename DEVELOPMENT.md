@@ -30,6 +30,18 @@ For active development, prefer a sibling-checkout layout:
   shell-config/
 ```
 
+For VS Code devcontainer work across multiple repos, prefer the thin
+`tboss-workspace` orchestrator layout:
+
+```text
+tboss-workspace/
+  .devcontainer/
+  repos/
+    dev-container-fortress/
+    shell-config/
+    minecraft-docker/
+```
+
 This matters because:
 
 - `ft workspace ...` auto-mounts a sibling `../shell-config` checkout when it
@@ -38,6 +50,9 @@ This matters because:
   a real local `shell-config` clone
 - it keeps the source you are editing separate from any installed
   `~/.config/shell-config` checkout that host bootstrap may manage
+
+`tboss-workspace` is the VS Code composition layer. Dev Fortress remains the
+toolchain image and `ft` provider.
 
 Operator installs and host bootstrap may still populate
 `${XDG_CONFIG_HOME:-$HOME/.config}/shell-config`. Treat that installed checkout
