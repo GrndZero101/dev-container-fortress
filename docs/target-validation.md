@@ -42,13 +42,13 @@ That wraps the current standard loop:
 - local repo bootstrap already completed
 - Docker available for the disposable container targets
 - AWS credentials already configured for the disposable EC2 stack
-- [`infra/aws-disposable-ubuntu/terraform.tfvars`](/Users/timl/projects/github/GrndZero101/tboss/dev-container-fortress/infra/aws-disposable-ubuntu/terraform.tfvars)
+- `infra/aws-disposable-ubuntu/terraform.tfvars`
   already populated with the stable values you want to use
 
 All commands below are run from:
 
 ```zsh
-cd /Users/timl/projects/github/GrndZero101/tboss/dev-container-fortress
+cd path/to/dev-container-fortress
 ```
 
 ## 1. Build the Container Targets
@@ -71,7 +71,7 @@ This wrapper:
 - injects the key into Terraform through `TF_VAR_ssh_public_key`
 - applies the stack
 - imports the emitted EC2 target into
-  [`~/.config/dev-container-fortress/hosts.toml`](/Users/timl/.config/dev-container-fortress/hosts.toml)
+  `~/.config/dev-container-fortress/hosts.toml`
 
 ## 3. Validate All Three Targets
 
@@ -149,7 +149,9 @@ uv run ft host ssh dev-fortress-ec2-dev
 
 Current behavior:
 
-- the Docker SSH targets auto-start their matching disposable containers if needed
+- the Docker SSH targets reuse their running container, restart it if stopped,
+  and create it only when missing; container state survives repeated `ft host`
+  commands, and only `ft container up` or `refresh` replaces it
 - the EC2 target uses the imported user config
 - all three reuse the Dev Fortress managed SSH key and managed `known_hosts` policy
 

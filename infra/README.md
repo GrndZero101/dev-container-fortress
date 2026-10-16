@@ -77,9 +77,9 @@ implementations need the same contract.
 
 Terraform work here should follow the repo guidance in:
 
-- [AGENTS.md](/Users/timl/projects/github/GrndZero101/tboss/dev-container-fortress/AGENTS.md)
-- [docs/architecture.md](/Users/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/architecture.md)
-- [docs/milestones/M4a-disposable-cloud-ubuntu-host-loop.md](/Users/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/milestones/M4a-disposable-cloud-ubuntu-host-loop.md)
+- [AGENTS.md](../AGENTS.md)
+- [docs/architecture.md](../docs/architecture.md)
+- [docs/milestones/M4a-disposable-cloud-ubuntu-host-loop.md](../docs/milestones/M4a-disposable-cloud-ubuntu-host-loop.md)
 
 Minimum checks for meaningful Terraform changes:
 

@@ -73,7 +73,8 @@ curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/
 
 This clones or refreshes the repo, ensures `uv` exists, and then hands off to
 the repo bootstrap, which provisions a uv-managed Python 3.14 runtime for the
-project environment and installs a live `ft` CLI from the local checkout.
+project environment and installs a live `ft` CLI from the local checkout plus
+a user-level Ansible for `ft host` commands.
 
 On host bootstrap paths, Dev Fortress will also manage the installed
 `shell-config` checkout unless you deliberately point it somewhere else.
@@ -185,7 +186,7 @@ ft container build ubuntu \
 
 > [!NOTE]
 > The full contributor workflow lives in
-> [DEVELOPMENT.md](/home/timl/projects/tboss/dev-container-fortress/DEVELOPMENT.md).
+> [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Status
 
@@ -217,32 +218,32 @@ ft container build ubuntu \
 
 | Target type | Current state | Primary docs |
 | --- | --- | --- |
-| Ubuntu container | Supported | [Container Usage](/home/timl/projects/tboss/dev-container-fortress/docs/container-usage.md) |
-| Alpine container | Supported | [Container Usage](/home/timl/projects/tboss/dev-container-fortress/docs/container-usage.md) |
-| Ubuntu disposable SSH host loop | Supported foundation | [Workstation Usage](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md) |
-| macOS workstation | Planned / partial | [Workstation Usage](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md) |
-| Ubuntu workstation | Planned / partial | [Workstation Usage](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md) |
-| WSL workstation | Ubuntu-first active path | [WSL Bootstrap Runbook](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/wsl-bootstrap.md) |
-| VS Code devcontainers | Supported | [Devcontainer Usage](/home/timl/projects/tboss/dev-container-fortress/docs/devcontainer-usage.md) |
+| Ubuntu container | Supported | [Container Usage](docs/container-usage.md) |
+| Alpine container | Supported | [Container Usage](docs/container-usage.md) |
+| Ubuntu disposable SSH host loop | Supported foundation | [Workstation Usage](docs/workstation-usage.md) |
+| macOS workstation | Planned / partial | [Workstation Usage](docs/workstation-usage.md) |
+| Ubuntu workstation | Planned / partial | [Workstation Usage](docs/workstation-usage.md) |
+| WSL workstation | Ubuntu-first active path | [WSL Bootstrap Runbook](docs/wsl-bootstrap.md) |
+| VS Code devcontainers | Supported | [Devcontainer Usage](docs/devcontainer-usage.md) |
 
 ## :compass: Documentation Map
 
 | Document | Audience | Purpose |
 | --- | --- | --- |
-| [README.md](/home/timl/projects/tboss/dev-container-fortress/README.md) | Everyone | Project overview plus operator-versus-development entry points |
-| [DEVELOPMENT.md](/home/timl/projects/tboss/dev-container-fortress/DEVELOPMENT.md) | Contributors | Clone layout, local bootstrap, checks, and iteration loops |
-| [docs/container-usage.md](/home/timl/projects/tboss/dev-container-fortress/docs/container-usage.md) | Operators | Docker-based usage and validation |
-| [docs/workstation-usage.md](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md) | Operators | Host-target and workstation flow status |
-| [docs/wsl-bootstrap.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/wsl-bootstrap.md) | Operators | Step-by-step bootstrap path for Ubuntu under WSL2 |
-| [docs/target-validation.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/target-validation.md) | Operators | Current three-target validation runbook across Ubuntu, Alpine, and EC2 |
-| [docs/ec2-development-loop.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/ec2-development-loop.md) | Operators | Git-backed EC2 development-host loop |
-| [docs/secrets-management.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/secrets-management.md) | Operators | First-pass GPG and `pass` secrets baseline for workspace profiles |
-| [docs/backup-restore.md](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/backup-restore.md) | Operators | General `rustic`-oriented backup and restore direction |
-| [docs/devcontainer-usage.md](/home/timl/projects/tboss/dev-container-fortress/docs/devcontainer-usage.md) | Operators | VS Code devcontainer usage |
-| [docs/architecture.md](/home/timl/projects/tboss/dev-container-fortress/docs/architecture.md) | Maintainers | Layering and control-plane direction |
-| [docs/container-standards.md](/home/timl/projects/tboss/dev-container-fortress/docs/container-standards.md) | Maintainers | Container runtime/build contract |
-| [docs/ROADMAP.md](/home/timl/projects/tboss/dev-container-fortress/docs/ROADMAP.md) | Maintainers | Milestone ordering and strategic direction |
-| [docs/milestones/README.md](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/README.md) | Maintainers | Active milestone workflow and draft format |
+| [README.md](README.md) | Everyone | Project overview plus operator-versus-development entry points |
+| [DEVELOPMENT.md](DEVELOPMENT.md) | Contributors | Clone layout, local bootstrap, checks, and iteration loops |
+| [docs/container-usage.md](docs/container-usage.md) | Operators | Docker-based usage and validation |
+| [docs/workstation-usage.md](docs/workstation-usage.md) | Operators | Host-target and workstation flow status |
+| [docs/wsl-bootstrap.md](docs/wsl-bootstrap.md) | Operators | Step-by-step bootstrap path for Ubuntu under WSL2 |
+| [docs/target-validation.md](docs/target-validation.md) | Operators | Current three-target validation runbook across Ubuntu, Alpine, and EC2 |
+| [docs/ec2-development-loop.md](docs/ec2-development-loop.md) | Operators | Git-backed EC2 development-host loop |
+| [docs/secrets-management.md](docs/secrets-management.md) | Operators | First-pass GPG and `pass` secrets baseline for workspace profiles |
+| [docs/backup-restore.md](docs/backup-restore.md) | Operators | General `rustic`-oriented backup and restore direction |
+| [docs/devcontainer-usage.md](docs/devcontainer-usage.md) | Operators | VS Code devcontainer usage |
+| [docs/architecture.md](docs/architecture.md) | Maintainers | Layering and control-plane direction |
+| [docs/container-standards.md](docs/container-standards.md) | Maintainers | Container runtime/build contract |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Maintainers | Milestone ordering and strategic direction |
+| [docs/milestones/README.md](docs/milestones/README.md) | Maintainers | Active milestone workflow and draft format |
 
 ## :building_construction: Repository Layout
 
@@ -301,13 +302,13 @@ In progress:
 ## :calendar: Current Milestone
 
 The current implementation focus is
-[M4 First Real Host Roles](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M4-first-real-host-roles.md).
+[M4 First Real Host Roles](docs/milestones/M4-first-real-host-roles.md).
 
 Use these planning docs together:
 
-- [docs/ROADMAP.md](/home/timl/projects/tboss/dev-container-fortress/docs/ROADMAP.md) for strategy and milestone ordering
-- [docs/milestones/README.md](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/README.md) for the execution workflow
-- the active milestone draft under [docs/milestones](/home/timl/projects/tboss/dev-container-fortress/docs/milestones)
+- [docs/ROADMAP.md](docs/ROADMAP.md) for strategy and milestone ordering
+- [docs/milestones/README.md](docs/milestones/README.md) for the execution workflow
+- the active milestone draft under [docs/milestones](docs/milestones)
 
 ## Collaboration Model
 
@@ -320,4 +321,4 @@ Use these planning docs together:
 ## License
 
 Released under the MIT License.
-See [LICENSE](/home/timl/projects/tboss/dev-container-fortress/LICENSE).
+See [LICENSE](LICENSE).

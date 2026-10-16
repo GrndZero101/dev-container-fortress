@@ -45,7 +45,7 @@ Recommended operator surface:
 - add a new `ft workspace ...` group for mounted day-to-day development
 - keep `ft container ...` focused on disposable validation targets
 
-See [daily-driver design](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/daily-driver-design.md)
+See [daily-driver design](../daily-driver-design.md)
 for the concrete proposed command contract.
 
 ### Host Versus Container Ownership

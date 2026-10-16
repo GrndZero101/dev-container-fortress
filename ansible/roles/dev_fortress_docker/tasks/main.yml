@@ -38,32 +38,35 @@
     state: absent
     purge: false
 
-- name: Install Docker repository signing key
+- name: Remove legacy one-line Docker apt source
   become: true
-  ansible.builtin.get_url:
-    url: https://download.docker.com/linux/ubuntu/gpg
-    dest: /etc/apt/keyrings/docker.asc
-    owner: root
-    group: root
-    mode: "0644"
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/docker.list
+    state: absent
+  register: dev_fortress_docker_legacy_source
 
 - name: Configure Docker apt repository
   become: true
-  ansible.builtin.apt_repository:
-    repo: >-
-      deb [arch={{ dev_container_fortress_docker_repo_architecture_effective }}
-      signed-by=/etc/apt/keyrings/docker.asc]
-      https://download.docker.com/linux/ubuntu
-      {{ ansible_facts['distribution_release'] }} stable
-    filename: docker
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: deb
+    uris: https://download.docker.com/linux/ubuntu
+    suites: "{{ ansible_facts['distribution_release'] }}"
+    components: stable
+    architectures: "{{ dev_container_fortress_docker_repo_architecture_effective }}"
+    signed_by: https://download.docker.com/linux/ubuntu/gpg
     state: present
-    update_cache: true
+  register: dev_fortress_docker_repository
 
 - name: Install Docker CE and plugins
   become: true
   ansible.builtin.apt:
     name: "{{ dev_container_fortress_docker_packages }}"
     state: present
+    # deb822_repository has no cache refresh of its own.
+    update_cache: >-
+      {{ dev_fortress_docker_legacy_source is changed
+         or dev_fortress_docker_repository is changed }}
 
 - name: Ensure Docker daemon config directory exists
   become: true

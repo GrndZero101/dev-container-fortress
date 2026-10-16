@@ -83,13 +83,15 @@ curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/
 ```
 
 At the end of this step, the repo-local `uv` environment should be ready and
-`bootstrap.zsh` should also install a live `ft` CLI into the user tool path.
+`bootstrap.zsh` should also install a live `ft` CLI and Ansible into the user
+tool path.
 
 Quick check:
 
 ```zsh
 command -v ft
 ft --help
+ansible-playbook --version
 ```
 
 ## 4. Create the local host target config

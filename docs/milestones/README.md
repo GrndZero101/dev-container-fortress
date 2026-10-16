@@ -10,7 +10,7 @@ Use these files as:
 
 Recommended workflow:
 
-1. Keep strategy and milestone ordering in [`docs/ROADMAP.md`](/home/timl/projects/tboss/dev-container-fortress/docs/ROADMAP.md).
+1. Keep strategy and milestone ordering in [`docs/ROADMAP.md`](../ROADMAP.md).
 2. Keep one markdown file here for each milestone.
 3. Use markdown checkboxes in the milestone file while work is in flight.
 4. Work on a milestone branch such as `feat/m4-first-real-host-roles`.

@@ -227,6 +227,9 @@ artifacts/
 **/.terraform/
 *.tfstate
 *.tfstate.*
+# Saved plans embed a full state snapshot (account IDs, CIDRs, ARNs)
+*.plan
+*.tfplan
 crash.log
 crash.*.log
 override.tf

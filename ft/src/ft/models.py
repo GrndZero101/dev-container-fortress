@@ -38,7 +38,7 @@ class ToolAsset(BaseModel):
     variables: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def validate_download_source(self) -> "ToolAsset":
+    def validate_download_source(self) -> ToolAsset:
         if self.url is None and self.url_template is None:
             raise ValueError("tool assets must define either url or url_template")
         return self
@@ -62,7 +62,7 @@ class ToolDefinition(BaseModel):
     assets: list[ToolAsset]
 
     @model_validator(mode="after")
-    def validate_assets(self) -> "ToolDefinition":
+    def validate_assets(self) -> ToolDefinition:
         if not self.assets:
             raise ValueError("tool assets must be a non-empty array of tables")
         if len(self.enabled_targets) != len(set(self.enabled_targets)):
@@ -116,7 +116,7 @@ class ToolManifest(BaseModel):
     tools: dict[str, ToolDefinition]
 
     @model_validator(mode="after")
-    def validate_tools(self) -> "ToolManifest":
+    def validate_tools(self) -> ToolManifest:
         if not self.tools:
             raise ValueError("manifest must define a non-empty [tools] table")
         return self
@@ -140,7 +140,7 @@ class ToolPoolGroup(BaseModel):
     formulae: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_formulae(self) -> "ToolPoolGroup":
+    def validate_formulae(self) -> ToolPoolGroup:
         """Ensure formula lists stay deterministic and duplicate-free."""
         if len(self.formulae) != len(set(self.formulae)):
             raise ValueError("tool-pool formulae must be unique within each group")
@@ -181,7 +181,7 @@ class DownloaderToolPoolGroup(BaseModel):
     implemented_tools: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_tools(self) -> "DownloaderToolPoolGroup":
+    def validate_tools(self) -> DownloaderToolPoolGroup:
         """Keep downloader tool lists deterministic and duplicate-free."""
         if len(self.target_tools) != len(set(self.target_tools)):
             raise ValueError("target downloader tools must be unique within each group")
@@ -229,7 +229,7 @@ class ContainerCommandToolPool(BaseModel):
     command_checks: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_command_checks(self) -> "ContainerCommandToolPool":
+    def validate_command_checks(self) -> ContainerCommandToolPool:
         """Keep command checks deterministic and duplicate-free."""
         if len(self.command_checks) != len(set(self.command_checks)):
             raise ValueError(
@@ -282,7 +282,7 @@ class HostTargetDefinition(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_target(self) -> "HostTargetDefinition":
+    def validate_target(self) -> HostTargetDefinition:
         if self.connection not in {"ssh", "local"}:
             raise ValueError("host targets must use ssh or local connection")
         if self.auth_method not in {"ssh_key", "local"}:
@@ -312,7 +312,7 @@ class HostTargetManifest(BaseModel):
     targets: list[HostTargetDefinition]
 
     @model_validator(mode="after")
-    def validate_targets(self) -> "HostTargetManifest":
+    def validate_targets(self) -> HostTargetManifest:
         if not self.targets:
             raise ValueError("host target manifest must define at least one target")
         names = [target.name for target in self.targets]
@@ -337,7 +337,7 @@ class WorkspaceProfileDefinition(BaseModel):
     tool_layers: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_lists(self) -> "WorkspaceProfileDefinition":
+    def validate_lists(self) -> WorkspaceProfileDefinition:
         """Keep profile list fields deterministic and duplicate-free."""
         if len(self.persisted_mounts) != len(set(self.persisted_mounts)):
             raise ValueError("workspace persisted_mounts must be unique")
@@ -356,7 +356,7 @@ class WorkspaceToolLayerDefinition(BaseModel):
     build_arg: str | None = None
 
     @model_validator(mode="after")
-    def validate_mode(self) -> "WorkspaceToolLayerDefinition":
+    def validate_mode(self) -> WorkspaceToolLayerDefinition:
         """Keep build-arg usage aligned with the layer mode."""
         if self.mode == "state_only" and self.build_arg is not None:
             raise ValueError("state_only workspace layers may not define build_arg")
@@ -374,7 +374,7 @@ class WorkspaceProfileManifest(BaseModel):
     profiles: dict[str, WorkspaceProfileDefinition]
 
     @model_validator(mode="after")
-    def validate_profiles(self) -> "WorkspaceProfileManifest":
+    def validate_profiles(self) -> WorkspaceProfileManifest:
         if not self.profiles:
             raise ValueError("workspace profile manifest must define profiles")
         unknown_layers = sorted(

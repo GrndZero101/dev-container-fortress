@@ -6,7 +6,7 @@ environment.
 See [Container Standards](../docs/container-standards.md) for the shared
 runtime contract that container targets should follow.
 
-For user-facing build and run instructions, see [Container Usage](/home/timl/projects/tboss/dev-container-fortress/docs/container-usage.md).
+For user-facing build and run instructions, see [Container Usage](../docs/container-usage.md).
 
 ## Strategy
 
@@ -73,7 +73,7 @@ Planned follow-up work:
 - optional signature verification where upstream supports it
 - host-side corporate CA support through Ansible
 - expand the downloader-managed subset toward the declared shared parity target
-  in [tool-pool manifest](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/ft/tools/tool-pool.toml)
+  in [tool-pool manifest](../ft/tools/tool-pool.toml)
 
 ## Devcontainer Targets
 
@@ -98,8 +98,8 @@ docker buildx build --load -f containers/alpine/Dockerfile -t dev-container-fort
 The repository now includes a deterministic local test harness for disposable
 container validation:
 
-- helper: [`scripts/test-container.zsh`](/home/timl/projects/tboss/dev-container-fortress/scripts/test-container.zsh)
-- task runner front door: [`justfile`](/home/timl/projects/tboss/dev-container-fortress/justfile)
+- helper: [`scripts/test-container.zsh`](../scripts/test-container.zsh)
+- task runner front door: [`justfile`](../justfile)
 
 This workflow is meant to support both:
 
@@ -170,4 +170,4 @@ Build args:
 > [!NOTE]
 > Runtime shells can still override the selected profile with `SHELL_CONFIG_PROFILE`. The build-time default only determines the saved initial profile and the default exported environment inside the image.
 
-For local-source testing from an existing absolute host path, stage it into the build context with [`scripts/stage-shell-config.zsh`](/home/timl/projects/tboss/dev-container-fortress/scripts/stage-shell-config.zsh).
+For local-source testing from an existing absolute host path, stage it into the build context with [`scripts/stage-shell-config.zsh`](../scripts/stage-shell-config.zsh).

@@ -8,7 +8,7 @@ This document describes how to use `dev-container-fortress` directly on a workst
 > `ft host ...` and Ansible bootstrap flow against `localhost`.
 
 For the current WSL2-first local bootstrap path, use
-[WSL Bootstrap Runbook](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/docs/wsl-bootstrap.md).
+[WSL Bootstrap Runbook](wsl-bootstrap.md).
 
 ## Current Status
 
@@ -52,7 +52,7 @@ Implemented foundation work now available:
 From the repository root:
 
 ```zsh
-cd /home/timl/projects/tboss/dev-container-fortress
+cd path/to/dev-container-fortress
 zsh ./bootstrap.zsh
 ```
 
@@ -63,7 +63,9 @@ This will:
 3. install the Python dependencies needed for local development
 4. make repo-local tooling such as `pre-commit`, `pytest`, and `ruff` available through `uv run`
 5. install the live `ft` CLI into the user tool path from the local checkout
-6. install the `ft` zsh completion artifact into the XDG data tree
+6. install Ansible into the user tool path with `uv tool install` so the
+   global `ft` can run host commands
+7. install the `ft` zsh completion artifact into the XDG data tree
 
 ## Validate the Local Tooling
 
@@ -72,7 +74,7 @@ After bootstrap:
 ```zsh
 .venv/bin/ruff check ft
 .venv/bin/pytest ft/tests
-.venv/bin/ft plan --manifest /home/timl/projects/tboss/dev-container-fortress/ft/tools/tools.toml --target ubuntu --tool tenv
+.venv/bin/ft plan --manifest ft/tools/tools.toml --target ubuntu --tool tenv
 uv run pre-commit run --all-files
 pre-commit run markdownlint-cli2 --all-files
 ```
@@ -111,7 +113,7 @@ Start from the repo example:
 
 ```zsh
 mkdir -p ${XDG_CONFIG_HOME:-$HOME/.config}/dev-container-fortress
-cp /home/timl/projects/tboss/dev-container-fortress/ft/targets/hosts.example.toml \
+cp ft/targets/hosts.example.toml \
   ${XDG_CONFIG_HOME:-$HOME/.config}/dev-container-fortress/hosts.toml
 ```
 
@@ -185,7 +187,7 @@ Under the hood, `ft host bootstrap` renders a temporary inventory and runs:
 ```zsh
 ansible-playbook \
   -i <(uv run ft host inventory) \
-  /home/timl/projects/tboss/dev-container-fortress/ansible/playbooks/host.yml
+  ansible/playbooks/host.yml
 ```
 
 Today that playbook is still intentionally narrow, but it is now a real
@@ -199,7 +201,7 @@ uplift where enabled, and reports current readiness state for handoff. Full
 workstation-style roles such as tmux and editor automation are still follow-up
 work.
 
-See [Ansible README](/home/timl/projects/tboss/dev-container-fortress/ansible/README.md) for the current host-automation layer status.
+See [Ansible README](../ansible/README.md) for the current host-automation layer status.
 
 > [!NOTE]
 > For the disposable Ubuntu and Alpine test targets, `ft container up <target>`
@@ -220,7 +222,7 @@ real target based on `ubuntu-remote-example`:
 
 ```zsh
 mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/dev-container-fortress"
-cp /home/timl/projects/tboss/dev-container-fortress/ft/targets/hosts.example.toml \
+cp ft/targets/hosts.example.toml \
   "${XDG_CONFIG_HOME:-$HOME/.config}/dev-container-fortress/hosts.toml"
 ```
 
@@ -286,4 +288,4 @@ broader non-Ubuntu workstation parity. Those remain follow-up milestones.
 Host-side corporate CA support is not implemented yet.
 
 > [!NOTE]
-> Corporate CA support currently exists only for container and devcontainer builds. See [Container Usage](/home/timl/projects/tboss/dev-container-fortress/docs/container-usage.md) and [Devcontainer Usage](/home/timl/projects/tboss/dev-container-fortress/docs/devcontainer-usage.md).
+> Corporate CA support currently exists only for container and devcontainer builds. See [Container Usage](container-usage.md) and [Devcontainer Usage](devcontainer-usage.md).

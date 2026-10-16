@@ -5,15 +5,15 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
-from collections import defaultdict
-from datetime import UTC, datetime, timedelta
 import fnmatch
 import json
 import os
-from pathlib import Path
 import statistics
 import subprocess
 import sys
+from collections import defaultdict
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from rich.console import Console
@@ -68,9 +68,12 @@ class AwsCache:
         except OSError, json.JSONDecodeError:
             return None, None
         cached_at = _parse_timestamp(str(payload.get("cached_at", "")))
-        if ttl_hours is not None and cached_at is not None:
-            if datetime.now(UTC) - cached_at > timedelta(hours=ttl_hours):
-                return None, cached_at
+        if (
+            ttl_hours is not None
+            and cached_at is not None
+            and datetime.now(UTC) - cached_at > timedelta(hours=ttl_hours)
+        ):
+            return None, cached_at
         return payload.get("value"), cached_at
 
     def set(self, key: str, value: Any) -> None:

@@ -27,5 +27,15 @@ members = ["ft"]
 line-length = 88
 target-version = "py314"
 
+[tool.ruff.lint]
+# Explicit rule set so ruff upgrades do not silently change the default rules.
+select = ["E4", "E7", "E9", "F", "B", "I", "SIM", "UP"]
+ignore = [
+  # Typer options compute their defaults through function calls by design.
+  "B008",
+  # Nested ternaries read worse than the explicit if/else blocks they replace.
+  "SIM108",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["ft/tests"]

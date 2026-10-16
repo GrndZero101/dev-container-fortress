@@ -139,7 +139,7 @@ Delivered:
 - thin inventory-driven bootstrap path
 
 Details:
-[M1 draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M1-ssh-target-foundation.md)
+[M1 draft](milestones/M1-ssh-target-foundation.md)
 
 ### `M2` Disposable Ubuntu Remote Loop
 
@@ -163,7 +163,7 @@ Delivered:
 - live end-to-end verification loop through Docker, SSH, and Ansible check mode
 
 Details:
-[M2 draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M2-disposable-ubuntu-remote-loop.md)
+[M2 draft](milestones/M2-disposable-ubuntu-remote-loop.md)
 
 ### `M3` Thin Host Bootstrap Contract
 
@@ -186,7 +186,7 @@ Delivered:
 - documentation aligned with the actual thin-bootstrap behavior
 
 Details:
-[M3 draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M3-thin-host-bootstrap-contract.md)
+[M3 draft](milestones/M3-thin-host-bootstrap-contract.md)
 
 ### `M3a` One-Liner Installer and Onramp
 
@@ -209,7 +209,7 @@ Non-goals:
 - deep package-manager bootstrap beyond the repo bootstrap itself
 
 Details:
-[M3a draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M3a-one-liner-installer-and-onramp.md)
+[M3a draft](milestones/M3a-one-liner-installer-and-onramp.md)
 
 ### `M4` First Real Host Roles
 
@@ -236,7 +236,7 @@ Non-goals:
 - forcing every host difference through opaque imperative fix-up logic
 
 Details:
-[M4 draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M4-first-real-host-roles.md)
+[M4 draft](milestones/M4-first-real-host-roles.md)
 
 ### `M4a` Disposable Cloud Ubuntu Host Loop
 
@@ -262,7 +262,7 @@ Current state:
 - final teardown validation on the currently live host is the remaining closeout step
 
 Details:
-[M4a draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M4a-disposable-cloud-ubuntu-host-loop.md)
+[M4a draft](milestones/M4a-disposable-cloud-ubuntu-host-loop.md)
 
 ### `M5` Host Bootstrap Expansion
 
@@ -294,7 +294,7 @@ Delivered:
 - explicit documentation for the remaining local WSL login-shell carve-out
 
 Details:
-[M5 draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M5-host-bootstrap-expansion.md)
+[M5 draft](milestones/M5-host-bootstrap-expansion.md)
 
 ### `M5a` Disposable Daily-Driver Container
 
@@ -327,7 +327,7 @@ Recommended command direction:
 - keep `ft container ...` focused on disposable validation targets
 
 Details:
-[M5a draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M5a-disposable-daily-driver-container.md)
+[M5a draft](milestones/M5a-disposable-daily-driver-container.md)
 
 ### `M6` Operator CLI Maturity
 
@@ -344,7 +344,7 @@ Exit criteria:
 - the remaining `just` layer is clearly a convenience shim, not the logic home
 
 Details:
-[M6 draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M6-operator-cli-maturity.md)
+[M6 draft](milestones/M6-operator-cli-maturity.md)
 
 ### `M6a` Python Maintainability Refactor
 
@@ -385,7 +385,7 @@ Exit criteria:
 - verification does not depend on tribal knowledge
 
 Details:
-[M7 draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M7-local-verification-workflow.md)
+[M7 draft](milestones/M7-local-verification-workflow.md)
 
 ### `M7a` Secrets Management
 
@@ -425,7 +425,7 @@ Non-goals:
 - picking every secret-related tool in the first pass if one baseline path is enough
 
 Details:
-[M7a draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M7a-secrets-management.md)
+[M7a draft](milestones/M7a-secrets-management.md)
 
 ### `M8` Shell UX Polish
 
@@ -445,7 +445,7 @@ Candidate areas:
 - optional `gum` polish after operator flows settle
 
 Details:
-[M8 draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M8-shell-ux-polish.md)
+[M8 draft](milestones/M8-shell-ux-polish.md)
 
 ### `M9` Host and Cloud Targets
 
@@ -464,7 +464,7 @@ Candidate areas:
 - workstation-oriented target creation and discovery
 
 Details:
-[M9 draft](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/M9-host-and-cloud-targets.md)
+[M9 draft](milestones/M9-host-and-cloud-targets.md)
 
 Non-goal for early work:
 
@@ -499,6 +499,14 @@ Promote them only when they become concrete enough to deserve milestone scope.
 - prewarming fortress `zinit` plugins in Docker builds
 - pinned plugin cache strategy across Ubuntu and Alpine
 - explicit build modes for prewarmed versus lean shells
+
+### CI/CD
+
+The local `ft` loop (see `M7`) stays the primary verification surface for now.
+
+- gate `publish-images.yml` on pytest, ruff, and pre-commit; today a push to
+  `main` publishes images without running the test suite
+- pull-request checks once the repository takes outside contributions
 
 ### Onboarding and Toolchain
 

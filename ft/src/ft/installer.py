@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import tarfile
 import tempfile
-from typing import Callable
+import zipfile
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import urlopen
-import zipfile
 
 from ft.models import IntegrityConfig, ToolAsset, ToolDefinition
 
@@ -443,9 +443,12 @@ def _prepare_cached_asset(
         cached_asset.cache_dir.mkdir(parents=True, exist_ok=True)
         cached_metadata = None
 
-    if plan.integrity.checksum_url and cached_asset.checksum_path is not None:
-        if not cached_asset.checksum_path.exists():
-            _download(plan.integrity.checksum_url, cached_asset.checksum_path)
+    if (
+        plan.integrity.checksum_url
+        and cached_asset.checksum_path is not None
+        and not cached_asset.checksum_path.exists()
+    ):
+        _download(plan.integrity.checksum_url, cached_asset.checksum_path)
 
     asset_sha256 = cached_metadata.get("asset_sha256") if cached_metadata else None
     if cached_asset.asset_path.exists():

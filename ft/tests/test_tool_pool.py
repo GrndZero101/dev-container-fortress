@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 from ft.manifest import load_manifest
 from ft.tool_pool import load_tool_pool_manifest

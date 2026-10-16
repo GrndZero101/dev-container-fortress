@@ -5,10 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from ft.installer import _release_tag_from_latest_redirect, build_plan
-from ft.models import ToolAsset, ToolDefinition
 from ft.manifest import load_manifest
+from ft.models import ToolAsset, ToolDefinition
 
 
 def test_load_manifest_reads_multiple_tool_definitions() -> None:

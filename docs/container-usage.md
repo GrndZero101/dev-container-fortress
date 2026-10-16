@@ -2,7 +2,7 @@
 
 This document describes how to build and use the Ubuntu and Alpine images directly with Docker.
 
-See [Container Standards](/home/timl/projects/tboss/dev-container-fortress/docs/container-standards.md) for the container contract and [containers/README.md](/home/timl/projects/tboss/dev-container-fortress/containers/README.md) for implementation details.
+See [Container Standards](container-standards.md) for the container contract and [containers/README.md](../containers/README.md) for implementation details.
 
 ## Current Status
 
@@ -138,8 +138,10 @@ human-readable tables.
 
 For the most common human loops:
 
+- `ft container up <target>` means start the target, replacing any existing container
 - `ft container refresh <target>` means rebuild the image and replace the container
-- `ft container enter <target>` means ensure the target is ready and then open an interactive shell
+- `ft container enter <target>` means reuse the running container (starting or
+  creating it only when needed) and then open an interactive shell
 - `ft container exec <target> -- <command ...>` is the safest form when the inner command has its own flags, for example `ft container exec ubuntu -- zsh -lc 'echo $TERM'`
 
 Use positional target arguments such as `ubuntu` or `alpine`.

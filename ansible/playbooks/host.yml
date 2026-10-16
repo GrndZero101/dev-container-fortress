@@ -102,6 +102,8 @@
       - ca-certificates
       - curl
       - gnupg
+      # Required by ansible.builtin.deb822_repository on the target.
+      - python3-debian
     dev_container_fortress_docker_conflicting_packages:
       - docker.io
       - docker-doc
@@ -168,7 +170,7 @@
     dev_container_fortress_homebrew_repo_effective: >-
       {{ dev_container_fortress_homebrew_repo | default('https://github.com/Homebrew/brew') }}
     dev_container_fortress_homebrew_branch_effective: >-
-      {{ dev_container_fortress_homebrew_branch | default('master') }}
+      {{ dev_container_fortress_homebrew_branch | default('main') }}
     dev_container_fortress_homebrew_profile_snippet_effective: >-
       {{
         dev_container_fortress_xdg_config_home_effective

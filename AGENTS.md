@@ -106,6 +106,7 @@
 * Use Python plus `uv` tooling for pinned userland tool installation inside containers.
 * Avoid introducing Homebrew into container targets unless explicitly requested.
 * Prefer deterministic downloads, pinned versions, and checksum verification for externally fetched tools.
+  * Exception: `uv` itself deliberately tracks the latest release in container images. Do not pin it unless a regression forces a temporary pin.
 * Keep image size and build complexity in mind, but do not sacrifice auditability for minor optimizations.
 * Treat `docs/container-standards.md` as the operational contract for container targets and keep it in sync with significant design changes.
 

@@ -4,31 +4,31 @@ from __future__ import annotations
 
 import importlib.util
 import json
-from pathlib import Path
 import shutil
 import subprocess
 import tarfile
 import tomllib
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 import typer
-from typer.testing import CliRunner
-
 from ft.cli import (
     _container_host_ssh_public_key_path,
+    _default_windows_ssh_dir,
     _deploy_rsync_command,
     _effective_install_root,
-    _host_zsh_text,
+    _ensure_container_target_running,
     _host_target_manifest_toml,
+    _host_zsh_text,
     _last_non_empty_line,
     _parse_ansible_play_recap,
     _resolve_container_targets,
     _resolve_host_targets,
     _resolve_single_container_target,
+    _stage_local_shell_config,
     _up_single_container_target,
     _upsert_host_targets,
-    _stage_local_shell_config,
-    _default_windows_ssh_dir,
     _windows_openssh_path,
     app,
 )
@@ -40,8 +40,14 @@ from ft.models import (
     ToolDefinition,
     WorkspaceProfileManifest,
 )
+from typer.testing import CliRunner
 
 runner = CliRunner()
+
+# Spot price history fixtures must sit inside the selector's lookback window,
+# which is measured back from the real current time.
+_SPOT_HISTORY_T1 = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
+_SPOT_HISTORY_T0 = _SPOT_HISTORY_T1 - timedelta(hours=1)
 
 
 def _load_spot_select_module() -> object:
@@ -1037,25 +1043,25 @@ def test_spot_selector_ranks_spot_candidates(monkeypatch: object) -> None:
                         "InstanceType": "t4g.medium",
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.010",
-                        "Timestamp": "2026-07-03T00:00:00+00:00",
+                        "Timestamp": _SPOT_HISTORY_T0.isoformat(),
                     },
                     {
                         "InstanceType": "t4g.medium",
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.011",
-                        "Timestamp": "2026-07-03T01:00:00+00:00",
+                        "Timestamp": _SPOT_HISTORY_T1.isoformat(),
                     },
                     {
                         "InstanceType": "t4g.medium",
                         "AvailabilityZone": "ap-southeast-1b",
                         "SpotPrice": "0.007",
-                        "Timestamp": "2026-07-03T00:00:00+00:00",
+                        "Timestamp": _SPOT_HISTORY_T0.isoformat(),
                     },
                     {
                         "InstanceType": "t4g.medium",
                         "AvailabilityZone": "ap-southeast-1b",
                         "SpotPrice": "0.008",
-                        "Timestamp": "2026-07-03T01:00:00+00:00",
+                        "Timestamp": _SPOT_HISTORY_T1.isoformat(),
                     },
                 ]
             }
@@ -1138,13 +1144,13 @@ def test_spot_selector_excludes_families(monkeypatch: object) -> None:
                         "InstanceType": "m7g.large",
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.040",
-                        "Timestamp": "2026-07-03T00:00:00+00:00",
+                        "Timestamp": _SPOT_HISTORY_T0.isoformat(),
                     },
                     {
                         "InstanceType": "m7g.large",
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.041",
-                        "Timestamp": "2026-07-03T01:00:00+00:00",
+                        "Timestamp": _SPOT_HISTORY_T1.isoformat(),
                     },
                 ]
             }
@@ -1220,13 +1226,13 @@ def test_spot_selector_includes_family_patterns(monkeypatch: object) -> None:
                         "InstanceType": instance_type,
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.040",
-                        "Timestamp": "2026-07-03T00:00:00+00:00",
+                        "Timestamp": _SPOT_HISTORY_T0.isoformat(),
                     },
                     {
                         "InstanceType": instance_type,
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.041",
-                        "Timestamp": "2026-07-03T01:00:00+00:00",
+                        "Timestamp": _SPOT_HISTORY_T1.isoformat(),
                     },
                 ]
             }
@@ -1302,13 +1308,13 @@ def test_spot_selector_can_sort_by_discount(monkeypatch: object) -> None:
                         "InstanceType": instance_type,
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": spot_price,
-                        "Timestamp": "2026-07-03T00:00:00+00:00",
+                        "Timestamp": _SPOT_HISTORY_T0.isoformat(),
                     },
                     {
                         "InstanceType": instance_type,
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": spot_price,
-                        "Timestamp": "2026-07-03T01:00:00+00:00",
+                        "Timestamp": _SPOT_HISTORY_T1.isoformat(),
                     },
                 ]
             }
@@ -1391,13 +1397,13 @@ def test_spot_selector_applies_size_and_price_ceilings(monkeypatch: object) -> N
                         "InstanceType": instance_type,
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": spot_price,
-                        "Timestamp": "2026-07-03T00:00:00+00:00",
+                        "Timestamp": _SPOT_HISTORY_T0.isoformat(),
                     },
                     {
                         "InstanceType": instance_type,
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": spot_price,
-                        "Timestamp": "2026-07-03T01:00:00+00:00",
+                        "Timestamp": _SPOT_HISTORY_T1.isoformat(),
                     },
                 ]
             }
@@ -1476,13 +1482,13 @@ def test_spot_selector_uses_x86_defaults_for_amd64(monkeypatch: object) -> None:
                         "InstanceType": "m7i.large",
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.050",
-                        "Timestamp": "2026-07-03T00:00:00+00:00",
+                        "Timestamp": _SPOT_HISTORY_T0.isoformat(),
                     },
                     {
                         "InstanceType": "m7i.large",
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.051",
-                        "Timestamp": "2026-07-03T01:00:00+00:00",
+                        "Timestamp": _SPOT_HISTORY_T1.isoformat(),
                     },
                 ]
             }
@@ -1558,13 +1564,13 @@ def test_spot_selector_without_architecture_uses_all_families(
                         "InstanceType": instance_type,
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.050",
-                        "Timestamp": "2026-07-03T00:00:00+00:00",
+                        "Timestamp": _SPOT_HISTORY_T0.isoformat(),
                     },
                     {
                         "InstanceType": instance_type,
                         "AvailabilityZone": "ap-southeast-1a",
                         "SpotPrice": "0.051",
-                        "Timestamp": "2026-07-03T01:00:00+00:00",
+                        "Timestamp": _SPOT_HISTORY_T1.isoformat(),
                     },
                 ]
             }
@@ -4015,6 +4021,8 @@ def test_host_doctor_probe_auto_starts_matching_docker_target(
                 stdout="[127.0.0.1]:2223 ssh-ed25519 AAAALPINE\n",
                 stderr="",
             )
+        if command[:3] == ["docker", "container", "inspect"]:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
         return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
     monkeypatch.setattr(
@@ -4731,6 +4739,68 @@ def test_container_up_runs_for_wildcard_target(monkeypatch: object) -> None:
 
     assert result.exit_code == 0
     assert calls == ["ubuntu", "alpine"]
+
+
+def _fake_container_state(commands: list[list[str]], state: str | None) -> object:
+    """Fake docker calls for a container that is running, stopped, or missing."""
+
+    def fake_run(command: list[str]) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        if command[:3] == ["docker", "container", "inspect"]:
+            if state is None:
+                return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+            return subprocess.CompletedProcess(
+                command, 0, stdout=f"{state}\n", stderr=""
+            )
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    return fake_run
+
+
+def test_ensure_container_running_reuses_running_container(
+    monkeypatch: object,
+) -> None:
+    """A running target container should be reused, not replaced."""
+    commands: list[list[str]] = []
+    monkeypatch.setattr("ft.cli._run_command", _fake_container_state(commands, "true"))
+    monkeypatch.setattr(
+        "ft.cli._up_single_container_target",
+        lambda target: pytest.fail("running container must not be replaced"),
+    )
+
+    assert _ensure_container_target_running("ubuntu") is True
+    assert len(commands) == 1
+
+
+def test_ensure_container_running_starts_stopped_container(
+    monkeypatch: object,
+) -> None:
+    """A stopped target container should be restarted with its state intact."""
+    commands: list[list[str]] = []
+    monkeypatch.setattr("ft.cli._run_command", _fake_container_state(commands, "false"))
+    monkeypatch.setattr(
+        "ft.cli._up_single_container_target",
+        lambda target: pytest.fail("stopped container must not be replaced"),
+    )
+
+    assert _ensure_container_target_running("ubuntu") is True
+    assert commands[-1] == ["docker", "start", "dev-fortress-ubuntu-test"]
+
+
+def test_ensure_container_running_creates_missing_container(
+    monkeypatch: object,
+) -> None:
+    """A missing target container should be created through the normal up path."""
+    commands: list[list[str]] = []
+    created: list[str] = []
+    monkeypatch.setattr("ft.cli._run_command", _fake_container_state(commands, None))
+    monkeypatch.setattr(
+        "ft.cli._up_single_container_target",
+        lambda target: created.append(target) or True,
+    )
+
+    assert _ensure_container_target_running("ubuntu") is True
+    assert created == ["ubuntu"]
 
 
 def test_container_up_ubuntu_enables_ssh_with_managed_key_mount(

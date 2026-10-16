@@ -11,8 +11,8 @@ keeps child repositories under `repos/`.
 
 The repository currently provides two devcontainer definitions:
 
-- [`.devcontainer/ubuntu/devcontainer.json`](/home/timl/projects/tboss/dev-container-fortress/.devcontainer/ubuntu/devcontainer.json)
-- [`.devcontainer/alpine/devcontainer.json`](/home/timl/projects/tboss/dev-container-fortress/.devcontainer/alpine/devcontainer.json)
+- [`.devcontainer/ubuntu/devcontainer.json`](../.devcontainer/ubuntu/devcontainer.json)
+- [`.devcontainer/alpine/devcontainer.json`](../.devcontainer/alpine/devcontainer.json)
 
 Each is a thin wrapper over the matching Dockerfile in `containers/`.
 
@@ -22,7 +22,7 @@ workspace toolchain while editing multiple child repositories.
 
 ## Open in VS Code
 
-1. Open `/home/timl/projects/tboss/dev-container-fortress` in VS Code.
+1. Open your `dev-container-fortress` checkout in VS Code.
 2. Run `Dev Containers: Reopen in Container` or `Dev Containers: Rebuild and Reopen in Container`.
 3. Choose the Ubuntu or Alpine definition when prompted.
 

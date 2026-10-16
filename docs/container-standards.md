@@ -51,6 +51,10 @@ That means they should:
 - Build-time `uv` should come from Astral's official container image.
 - Runtime `uv` should be installed with Astral's shell installer so the runtime
   user can use `uv` as intended inside a persistent environment.
+- Both build-time and runtime `uv` deliberately track the latest release rather
+  than a pinned version. This is a conscious exception to the pinned-download
+  rule below. When `uv` crosses a minor version, widen the `uv_build` bound in
+  `ft/pyproject.toml` to match.
 - Managed Python versions required by repo-owned tools should be installed via
   `uv`, not assumed from the distro Python version.
 - Optional corporate CA trust should be an explicit opt-in, not a default behavior.

@@ -158,7 +158,7 @@ rsync --version
 ## First-Time Setup
 
 If you only want the operator path, use the installer described in
-[README.md](/home/timl/projects/tboss/dev-container-fortress/README.md).
+[README.md](README.md).
 
 For development, start from explicit clones instead:
 
@@ -187,7 +187,9 @@ The Dev Fortress bootstrap will:
 3. provision a uv-managed Python 3.14 runtime for the project environment
 4. create or refresh the local project environment
 5. install the live `ft` CLI into the user tool path with `uv tool install`
-6. install the `ft` completion artifact into the XDG data tree
+6. install Ansible into the user tool path with `uv tool install` so the
+   global `ft` can run host commands
+7. install the `ft` completion artifact into the XDG data tree
 
 Optional environment overrides for the installer path:
 
@@ -210,7 +212,9 @@ This will:
 3. create or refresh the local `.venv`
 4. install Python dependencies for local development
 5. install the live `ft` CLI into the user tool path from the local checkout
-6. install the `ft` zsh completion artifact into the XDG data tree
+6. install Ansible into the user tool path with `uv tool install` so the
+   global `ft` can run host commands
+7. install the `ft` zsh completion artifact into the XDG data tree
 
 After bootstrap, open a fresh shell if you want the new completion loaded cleanly.
 
@@ -358,7 +362,8 @@ ft container enter ubuntu
 Meaning:
 
 - `refresh` rebuilds the image and replaces the container
-- `enter` ensures the target is ready, then opens an interactive shell
+- `enter` reuses the running container, starting or creating it only when
+  needed, then opens an interactive shell
 
 ### Useful Inspection Commands
 
@@ -408,7 +413,7 @@ Recommended:
 ```zsh
 ft container build ubuntu \
   --shell-config-source local \
-  --shell-config-stage-from /home/timl/projects/tboss/shell-config
+  --shell-config-stage-from ../shell-config
 ```
 
 This stages a sanitized local `shell-config` checkout into the Docker build context automatically.
@@ -418,7 +423,7 @@ Use the same pattern for Alpine:
 ```zsh
 ft container build alpine \
   --shell-config-source local \
-  --shell-config-stage-from /home/timl/projects/tboss/shell-config
+  --shell-config-stage-from ../shell-config
 ```
 
 ### GitHub-Backed Builds
@@ -512,9 +517,9 @@ If completion feels broken:
 
 For related details:
 
-- [README.md](/home/timl/projects/tboss/dev-container-fortress/README.md)
-- [docs/container-usage.md](/home/timl/projects/tboss/dev-container-fortress/docs/container-usage.md)
-- [docs/workstation-usage.md](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md)
-- [docs/architecture.md](/home/timl/projects/tboss/dev-container-fortress/docs/architecture.md)
-- [docs/ROADMAP.md](/home/timl/projects/tboss/dev-container-fortress/docs/ROADMAP.md)
-- [docs/milestones/README.md](/home/timl/projects/tboss/dev-container-fortress/docs/milestones/README.md)
+- [README.md](README.md)
+- [docs/container-usage.md](docs/container-usage.md)
+- [docs/workstation-usage.md](docs/workstation-usage.md)
+- [docs/architecture.md](docs/architecture.md)
+- [docs/ROADMAP.md](docs/ROADMAP.md)
+- [docs/milestones/README.md](docs/milestones/README.md)

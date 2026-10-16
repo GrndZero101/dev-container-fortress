@@ -155,7 +155,7 @@ sync_workspace() {
   uv sync --all-groups --managed-python --python "${FORTRESS_PYTHON_VERSION}"
 }
 
-# Purpose: Install the ft zsh completion artifact into the user's XDG data tree.
+# Purpose: Install the live ft CLI from this checkout into the user tool path.
 # Arguments:
 #   None.
 # Returns:
@@ -163,6 +163,19 @@ sync_workspace() {
 install_ft_cli() {
   log_step "Installing ft CLI into the user tool path"
   uv tool install --python "${FORTRESS_PYTHON_VERSION}" --editable --force "${BOOTSTRAP_DIR}/ft"
+}
+
+# Purpose: Install Ansible as a user tool so the global ft can run host commands.
+# Arguments:
+#   None.
+# Returns:
+#   None.
+# Side effects:
+#   Exposes ansible-core executables such as ansible-playbook on the user tool
+#   path. Leaves an existing install untouched.
+install_ansible_cli() {
+  log_step "Installing Ansible into the user tool path"
+  uv tool install --python "${FORTRESS_PYTHON_VERSION}" --with ansible ansible-core
 }
 
 # Purpose: Install the ft zsh completion artifact into the user's XDG data tree.
@@ -184,6 +197,7 @@ main() {
   cd "${BOOTSTRAP_DIR}"
   sync_workspace
   install_ft_cli
+  install_ansible_cli
   install_ft_completion
   log_step "Bootstrap complete"
   print_path_refresh_hint

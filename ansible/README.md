@@ -61,7 +61,7 @@ small TOML contract rather than by workstation-only assumptions.
 
 Start from the example target file:
 
-- [hosts.example.toml](/home/timl/projects/tboss/dev-container-fortress/ft/targets/hosts.example.toml)
+- [hosts.example.toml](../ft/targets/hosts.example.toml)
 
 Copy it to:
 
@@ -146,7 +146,7 @@ Under the hood, `ft host bootstrap` renders temporary inventory and runs:
 ```zsh
 ansible-playbook \
   -i <(uv run ft host inventory) \
-  /home/timl/projects/tboss/dev-container-fortress/ansible/playbooks/host.yml
+  ansible/playbooks/host.yml
 ```
 
 The playbook is now inventory-driven rather than pinned to `localhost`, so the
@@ -243,7 +243,7 @@ Ubuntu/WSL Linuxbrew set.
 
 The canonical Homebrew tool-pool definition now lives in:
 
-- [ft/tools/tool-pool.toml](/home/timl/projects/github/GrndZero101/tboss/dev-container-fortress/ft/tools/tool-pool.toml)
+- [ft/tools/tool-pool.toml](../ft/tools/tool-pool.toml)
 
 The host playbook and repo Brewfiles are expected to stay aligned with that
 manifest.
@@ -286,4 +286,4 @@ That assumes the target is defined in your user `hosts.toml` and points at a
 reachable Ubuntu host using `connection = "ssh"` and
 `ansible_python_interpreter = "/usr/bin/python3"`.
 
-For current user-facing status of the workstation path, see [Workstation Usage](/home/timl/projects/tboss/dev-container-fortress/docs/workstation-usage.md).
+For current user-facing status of the workstation path, see [Workstation Usage](../docs/workstation-usage.md).

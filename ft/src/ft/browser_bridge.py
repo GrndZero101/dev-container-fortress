@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import socket
 import subprocess
 import sys
+from pathlib import Path
 
 
 def serve(socket_path: Path, opener_command: list[str]) -> int:
@@ -35,7 +35,7 @@ def serve(socket_path: Path, opener_command: list[str]) -> int:
                 if result.returncode == 0:
                     connection.sendall(b"OK\n")
                 else:
-                    connection.sendall(f"ERR {result.returncode}\n".encode("utf-8"))
+                    connection.sendall(f"ERR {result.returncode}\n".encode())
     finally:
         server.close()
         if socket_path.exists():

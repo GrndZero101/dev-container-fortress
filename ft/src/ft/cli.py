@@ -2,25 +2,26 @@
 
 from __future__ import annotations
 
+import contextlib
 import fnmatch
 import json
 import os
-import stat
-from pathlib import Path
 import re
 import shlex
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
 import time
 import tomllib
+from pathlib import Path
 from typing import Annotated
 
+import typer
 from rich.console import Console
 from rich.table import Table
-import typer
 
 from ft.installer import InstallPlan, build_plan, install_tool
 from ft.manifest import load_manifest
@@ -856,10 +857,8 @@ def _ensure_workspace_host_browser_bridge(profile_name: str) -> Path | None:
         ):
             return socket_path
         if existing_pid > 0 and _workspace_pid_is_alive(existing_pid):
-            try:
+            with contextlib.suppress(OSError):
                 os.kill(existing_pid, signal.SIGTERM)
-            except OSError:
-                pass
 
     if socket_path.exists():
         socket_path.unlink()
@@ -2547,10 +2546,8 @@ def _export_host_ssh_material_for_windows(
     windows_target_dir.mkdir(parents=True, exist_ok=True)
     windows_private_key_path = windows_target_dir / private_key_path.name
     shutil.copy2(private_key_path, windows_private_key_path)
-    try:
+    with contextlib.suppress(PermissionError):
         windows_private_key_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
-    except PermissionError:
-        pass
 
     public_key_path = _host_ssh_public_key_path(target)
     if public_key_path is not None and public_key_path.is_file():
@@ -2661,10 +2658,8 @@ def _refresh_managed_known_host(target: HostTargetDefinition) -> Path | None:
         raise typer.Exit(code=1)
 
     known_hosts_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
+    with contextlib.suppress(PermissionError):
         known_hosts_path.parent.chmod(0o700)
-    except PermissionError:
-        pass
 
     result = _run_command(
         [
@@ -2707,16 +2702,15 @@ def _host_ssh_command(target: HostTargetDefinition) -> list[str]:
         raise typer.Exit(code=1)
 
     private_key_path = _host_ssh_private_key_path(target)
-    if target.auth_method == "ssh_key":
-        if private_key_path is None or not private_key_path.is_file():
-            console.print(
-                f"missing managed ssh key for {target.name}: {private_key_path}"
-            )
-            console.print(
-                "Run `ft host ssh-key <target>` or rerun with a workflow that "
-                "ensures managed keys first."
-            )
-            raise typer.Exit(code=1)
+    if target.auth_method == "ssh_key" and (
+        private_key_path is None or not private_key_path.is_file()
+    ):
+        console.print(f"missing managed ssh key for {target.name}: {private_key_path}")
+        console.print(
+            "Run `ft host ssh-key <target>` or rerun with a workflow that "
+            "ensures managed keys first."
+        )
+        raise typer.Exit(code=1)
 
     known_hosts_path = _refresh_managed_known_host(target)
 
@@ -3055,7 +3049,7 @@ def _ensure_host_target_runtime_ready(target: HostTargetDefinition) -> bool:
     container_target = _container_target_for_host_ssh_target_name(target.name)
     if container_target is None:
         return True
-    if not _up_single_container_target(container_target):
+    if not _ensure_container_target_running(container_target):
         return False
     return _wait_for_target_ssh_service(target)
 
@@ -3110,10 +3104,8 @@ def _ensure_managed_host_ssh_key(target: HostTargetDefinition) -> tuple[bool, Pa
         return False, key_path
 
     key_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
+    with contextlib.suppress(PermissionError):
         key_path.parent.chmod(0o700)
-    except PermissionError:
-        pass
 
     result = _run_command(
         ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(key_path)]
@@ -4444,9 +4436,52 @@ def _refresh_single_container_target(
 
 def _enter_single_container_target(target: str) -> int:
     """Ensure one target is ready, then open an interactive shell inside it."""
-    if not _up_single_container_target(target):
+    if not _ensure_container_target_running(target):
         return 1
     return _shell_single_container_target(target)
+
+
+def _ensure_container_target_running(target: str) -> bool:
+    """Reuse, start, or create one managed container target without replacing it.
+
+    Unlike ``_up_single_container_target``, this preserves container state.
+    Replacement only happens through explicit commands such as
+    ``ft container up`` or ``ft container refresh``.
+
+    Args:
+        target: Managed container target name, for example ``ubuntu``.
+
+    Returns:
+        True when the container is running afterwards, otherwise False.
+    """
+    container_name = _container_name_for_target(target)
+    state_result = _run_command(
+        [
+            "docker",
+            "container",
+            "inspect",
+            "--format",
+            "{{.State.Running}}",
+            container_name,
+        ]
+    )
+    if state_result.returncode != 0:
+        return _up_single_container_target(target)
+    if state_result.stdout.strip() == "true":
+        return True
+
+    start_result = _run_command(["docker", "start", container_name])
+    if start_result.returncode == 0:
+        console.print(f"started existing {container_name}")
+        return True
+    console.print(
+        (
+            start_result.stderr
+            or start_result.stdout
+            or f"failed to start {container_name}"
+        ).strip()
+    )
+    return False
 
 
 def _up_single_container_target(target: str) -> bool:
