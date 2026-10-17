@@ -30,6 +30,9 @@ Still follow-on work:
 - deeper secrets backup and restore automation after the first-pass `pass`
   baseline
 - disposable EC2 workflow proof as a documented end-to-end operator loop
+- the persisted `share` mount covers all of `${XDG_DATA_HOME}` and hides the
+  image's `uv` tool and Python installs, including `ft`; see the `M5a`
+  milestone progress notes
 
 ## Goal
 

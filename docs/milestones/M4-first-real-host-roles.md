@@ -2,8 +2,8 @@
 
 ## Status
 
-- [ ] Milestone complete
-- [x] Active milestone
+- [x] Milestone complete
+- [ ] Active milestone
 
 ## Objective
 
@@ -64,8 +64,9 @@ supported hosts rather than acting as one-shot bootstrap glue.
 - [x] Scope: define what "shell-config ready" means at the host-bootstrap layer
 - [x] Acceptance: integration contract is documented
 - [x] Acceptance: bootstrap tasks validate or prepare the expected state
-- [ ] Acceptance: the contract distinguishes Dev Fortress-managed state from user-owned customization
-- [ ] Acceptance: no hidden assumptions remain in docs or tasks
+- [x] Acceptance: the contract distinguishes Dev Fortress-managed state from user-owned customization
+- [x] Acceptance: no hidden assumptions remain in docs or tasks
+  - Closed in the 2026-10-17 sweep with the managed versus user-owned table in `ansible/roles/README.md`
 
 ### M4-5 Document first supported remote host flow
 
@@ -88,7 +89,5 @@ supported hosts rather than acting as one-shot bootstrap glue.
 
 ## Branch and Merge Plan
 
-- [ ] Branch from `main` as `feat/m4-first-real-host-roles`
-- [ ] Commit freely at verified checkpoints
-- [ ] Open one PR for the milestone once exit criteria are met
-- [ ] Squash merge into `main`
+The roles landed directly on `main` as `M4` and `M5` work overlapped, before the
+milestone-branch workflow settled. `M5` builds on these roles and is done.

@@ -39,3 +39,8 @@ repos:
         entry: zsh -n
         language: system
         files: ^(bootstrap\.zsh|scripts/.*\.zsh|infra/.*\.zsh)$
+      - id: sh-syntax
+        name: sh syntax
+        entry: sh -n
+        language: system
+        files: ^(install\.sh|containers/common/.*\.sh)$

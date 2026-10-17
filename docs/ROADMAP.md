@@ -190,7 +190,7 @@ Details:
 
 ### `M3a` One-Liner Installer and Onramp
 
-Status: `now`
+Status: `done`
 
 Objective:
 Add a real one-liner install path and align top-level onboarding around it.
@@ -208,12 +208,20 @@ Non-goals:
 - curl-installed binary distribution of `ft`
 - deep package-manager bootstrap beyond the repo bootstrap itself
 
+Delivered:
+
+- POSIX `install.sh` with repo, ref, and destination overrides that runs
+  cleanly with no terminal attached
+- README and `DEVELOPMENT.md` onboarding that leads with the one-liner and a
+  clone fallback
+- `sh -n` syntax checks for the installer in pre-commit and CI
+
 Details:
 [M3a draft](milestones/M3a-one-liner-installer-and-onramp.md)
 
 ### `M4` First Real Host Roles
 
-Status: `next`
+Status: `done`
 
 Objective:
 Start converting the thin bootstrap contract into small, real Ansible roles.
@@ -235,12 +243,17 @@ Non-goals:
 - tmux and editor automation
 - forcing every host difference through opaque imperative fix-up logic
 
+Delivered:
+
+- real, rerunnable roles under `ansible/roles/` that `M5` and `M9a` build on
+- an explicit table of Dev Fortress-managed versus user-owned host state
+
 Details:
 [M4 draft](milestones/M4-first-real-host-roles.md)
 
 ### `M4a` Disposable Cloud Ubuntu Host Loop
 
-Status: `now side quest`
+Status: `done`
 
 Objective:
 Create the first Terraform-backed disposable Ubuntu VM loop so Dev Fortress can
@@ -259,7 +272,8 @@ Current state:
 - real EC2 Ubuntu provisioning is proven
 - `ft host doctor --probe` and `ft host bootstrap` are proven against a live VM
 - Session Manager access is proven on the disposable host
-- final teardown validation on the currently live host is the remaining closeout step
+- teardown is proven through Terraform and `ft infra aws-disposable-ubuntu destroy`
+- Spot capacity selection ships as `ft infra aws-disposable-ubuntu capacity select`
 
 Details:
 [M4a draft](milestones/M4a-disposable-cloud-ubuntu-host-loop.md)
@@ -298,7 +312,7 @@ Details:
 
 ### `M5a` Disposable Daily-Driver Container
 
-Status: `next`
+Status: `now`
 
 Objective:
 Define and prove the first real day-to-day development container workflow so a
@@ -326,6 +340,14 @@ Recommended command direction:
 - introduce `ft workspace ...` for the mounted workstation path
 - keep `ft container ...` focused on disposable validation targets
 
+Current state:
+
+- `ft workspace ...` profiles, live bind mounts, tool layers, and the auth
+  contract are implemented and verified locally
+- the persisted `share` mount hides the image's `uv` tool and Python installs,
+  including `ft`, so it must be narrowed first
+- the disposable EC2 develop-in-container loop is documented but not yet proven
+
 Details:
 [M5a draft](milestones/M5a-disposable-daily-driver-container.md)
 
@@ -342,6 +364,13 @@ Exit criteria:
 - root and group help UX are intentionally strong
 - JSON output for the most important validation paths is typed and useful
 - the remaining `just` layer is clearly a convenience shim, not the logic home
+
+Known gaps found while dogfooding:
+
+- `ft host ssh <target> -- <command>` for one-off remote commands; today only an
+  interactive session works, so scripts fall back to raw `ssh`
+- an OS or workspace option on `ft infra aws-disposable-ubuntu`, so Arch hosts
+  do not need `TF_WORKSPACE`, `TF_VAR_*`, and a shared capacity file swap
 
 Details:
 [M6 draft](milestones/M6-operator-cli-maturity.md)
