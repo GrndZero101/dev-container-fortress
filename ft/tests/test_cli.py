@@ -5007,6 +5007,33 @@ def test_container_exec_passes_command_arguments(monkeypatch: object) -> None:
     assert calls == [("ubuntu", ["env", "TERM"])]
 
 
+@pytest.mark.parametrize(
+    ("stdin_is_tty", "expected_flags"),
+    [(True, ["-it"]), (False, ["-i"])],
+)
+def test_exec_helpers_allocate_tty_only_for_terminals(
+    monkeypatch: object, stdin_is_tty: bool, expected_flags: list[str]
+) -> None:
+    """Exec helpers should request a TTY only when stdin is a terminal."""
+    from ft import cli
+
+    calls: list[list[str]] = []
+
+    def fake_stream(command: list[str]) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("ft.cli.sys.stdin.isatty", lambda: stdin_is_tty)
+    monkeypatch.setattr("ft.cli._run_streaming_command", fake_stream)
+    monkeypatch.setattr("ft.cli._container_exists", lambda target: True)
+    monkeypatch.setattr("ft.cli._workspace_exists", lambda profile: True)
+
+    assert cli._exec_single_container_target("ubuntu", ["true"]) == 0
+    assert cli._exec_workspace_profile("ubuntu-base", ["true"]) == 0
+
+    assert [command[2:-2] for command in calls] == [expected_flags, expected_flags]
+
+
 def test_container_shell_runs_for_single_target(monkeypatch: object) -> None:
     """Shell should resolve one target and delegate to the interactive helper."""
     calls: list[str] = []

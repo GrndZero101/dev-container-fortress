@@ -4415,6 +4415,17 @@ def _logs_single_container_target(target: str) -> int:
     return result.returncode
 
 
+def _docker_exec_terminal_flags() -> list[str]:
+    """Return ``docker exec`` flags that allocate a TTY only for a real terminal.
+
+    Returns:
+        ``["-it"]`` when stdin is a terminal, otherwise ``["-i"]`` so scripted,
+        CI, and agent callers can still pipe input without Docker refusing to
+        attach a TTY.
+    """
+    return ["-it"] if sys.stdin.isatty() else ["-i"]
+
+
 def _exec_single_container_target(target: str, command: list[str]) -> int:
     """Run one command inside one managed disposable container target."""
     container_name = _container_name_for_target(target)
@@ -4428,7 +4439,13 @@ def _exec_single_container_target(target: str, command: list[str]) -> int:
         else ["zsh", "-lc", "whoami && echo $HOME && printenv SHELL_CONFIG_PROFILE"]
     )
     result = _run_streaming_command(
-        ["docker", "exec", "-it", container_name, *effective_command]
+        [
+            "docker",
+            "exec",
+            *_docker_exec_terminal_flags(),
+            container_name,
+            *effective_command,
+        ]
     )
     return result.returncode
 
@@ -4991,7 +5008,13 @@ def _exec_workspace_profile(profile_name: str, command: list[str]) -> int:
         else ["zsh", "-lc", "whoami && pwd && printenv SHELL_CONFIG_PROFILE"]
     )
     result = _run_streaming_command(
-        ["docker", "exec", "-it", container_name, *effective_command]
+        [
+            "docker",
+            "exec",
+            *_docker_exec_terminal_flags(),
+            container_name,
+            *effective_command,
+        ]
     )
     return result.returncode
 
