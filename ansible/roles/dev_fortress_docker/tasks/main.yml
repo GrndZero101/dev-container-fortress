@@ -29,6 +29,13 @@
   when:
     - ansible_facts['os_family'] == 'Archlinux'
 
+# In check mode on a host without Docker yet, the services and docker group do
+# not exist, so tasks that inspect them can only run after a real install.
+- name: Record whether a Docker install is still pending in check mode
+  ansible.builtin.set_fact:
+    dev_fortress_docker_install_pending: >-
+      {{ ansible_check_mode and dev_fortress_docker_packages_result is changed }}
+
 - name: Ensure Docker daemon config directory exists
   become: true
   ansible.builtin.file:
@@ -49,6 +56,7 @@
   notify: Restart Docker
 
 - name: Ensure containerd service is enabled and started
+  when: not dev_fortress_docker_install_pending | bool
   become: true
   ansible.builtin.service:
     name: containerd
@@ -56,6 +64,7 @@
     state: started
 
 - name: Ensure Docker service is enabled and started
+  when: not dev_fortress_docker_install_pending | bool
   become: true
   ansible.builtin.service:
     name: docker
@@ -63,6 +72,7 @@
     state: started
 
 - name: Ensure target users are members of the docker group
+  when: not dev_fortress_docker_install_pending | bool
   become: true
   ansible.builtin.user:
     name: "{{ item }}"

@@ -6,3 +6,4 @@
   community.general.pacman:
     name: "{{ dev_container_fortress_docker_arch_packages }}"
     state: present
+  register: dev_fortress_docker_packages_result

@@ -95,6 +95,11 @@
       - zsh
     dev_container_fortress_arch_full_upgrade_effective: >-
       {{ dev_container_fortress_arch_full_upgrade | default(true) }}
+    dev_container_fortress_arch_reboot_after_kernel_upgrade_effective: >-
+      {{
+        dev_container_fortress_arch_reboot_after_kernel_upgrade
+        | default(dev_fortress_target_kind == 'cloud')
+      }}
     dev_container_fortress_ubuntu_homebrew_prerequisite_packages:
       - build-essential
       - procps

@@ -1,5 +1,6 @@
 ---
 - name: Restart Docker
+  when: not dev_fortress_docker_install_pending | bool
   become: true
   ansible.builtin.service:
     name: docker

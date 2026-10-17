@@ -38,7 +38,8 @@ uv run ft host ssh --interactive
 That wraps the current standard loop:
 
 - `ft host doctor --probe`
-- `ft host bootstrap --check`
+- `ft host bootstrap --check`, which stops early with an explicit message on
+  fresh hosts that still need native prerequisites
 - `ft host bootstrap`
 - a second `ft host bootstrap` convergence pass
 

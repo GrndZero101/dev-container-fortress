@@ -133,6 +133,29 @@
       }}
   loop: "{{ dev_fortress_native_bootstrap_prereqs_recheck_results.results }}"
 
+# Check mode only reports the pending installs above, and every later layer
+# needs these commands to evaluate, so stop the preview here on fresh hosts.
+- name: End check mode before layers that need pending native prerequisites
+  when:
+    - ansible_check_mode
+    - dev_fortress_native_bootstrap_prereqs_final_status.values() | reject | list | length > 0
+  block:
+    - name: Report why the check-mode preview stops early
+      ansible.builtin.debug:
+        msg: >-
+          Check mode stops for {{ inventory_hostname }}: a real bootstrap would
+          install
+          {{
+            dev_fortress_native_bootstrap_prereqs_final_status
+            | dict2items
+            | rejectattr('value')
+            | map(attribute='key')
+            | join(', ')
+          }}, and later layers need them before they can be previewed.
+
+    - name: End the check-mode preview for this host
+      ansible.builtin.meta: end_host
+
 - name: Assert required native bootstrap commands are present after convergence
   ansible.builtin.assert:
     that:

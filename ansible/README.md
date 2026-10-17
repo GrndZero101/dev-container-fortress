@@ -192,6 +192,14 @@ Compose plugins, and it intentionally skips disposable `kind = "docker"`
 targets so the repo does not try to install Docker inside its own SSH test
 containers.
 
+> [!NOTE]
+> Check mode cannot preview layers whose tools are not installed yet. On a
+> fresh host that lacks native prerequisites such as `git` or `zsh`,
+> `ft host bootstrap --check` reports the pending package installs and then
+> ends that host cleanly with an explicit message. On a host without Docker
+> yet, check mode reports the pending Docker install and skips the service and
+> `docker` group checks. A real bootstrap run converges everything.
+
 For the fortress profile specifically, host bootstrap now also installs the
 profile-local `zinit` checkout under the target user's XDG data directory.
 That matches the existing Docker image behavior and ensures the fortress plugin
@@ -290,6 +298,12 @@ Arch support is new in `M9a` and has not yet been proven end to end:
 >   `pacman -Syu` before installing packages. Set
 >   `dev_container_fortress_arch_full_upgrade: false` to skip it when you
 >   manage upgrades yourself.
+> - A full upgrade can replace the running kernel and remove its modules, which
+>   breaks late module loads such as the netfilter modules Docker needs.
+>   Bootstrap then reboots `cloud` targets automatically and stops
+>   `workstation` targets with a request to reboot and rerun. Set
+>   `dev_container_fortress_arch_reboot_after_kernel_upgrade` to override
+>   either default.
 > - Homebrew is not installed on Arch. pacman already ships the steady-state
 >   toolchain, so the `dev_fortress_linuxbrew` role is skipped there.
 

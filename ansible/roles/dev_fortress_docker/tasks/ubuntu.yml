@@ -50,3 +50,4 @@
     update_cache: >-
       {{ dev_fortress_docker_legacy_source is changed
          or dev_fortress_docker_repository is changed }}
+  register: dev_fortress_docker_packages_result

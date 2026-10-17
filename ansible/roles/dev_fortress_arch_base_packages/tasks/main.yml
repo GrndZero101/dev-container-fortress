@@ -17,6 +17,37 @@
     upgrade: true
   when: dev_container_fortress_arch_full_upgrade_effective | bool
 
+# A kernel upgrade removes the running kernel's modules, so netfilter and other
+# late-loaded modules fail until the host boots the new kernel. Containers do
+# not own a kernel, so only real hosts are checked.
+- name: Check whether the running kernel's modules are still installed
+  ansible.builtin.stat:
+    path: "/usr/lib/modules/{{ ansible_facts['kernel'] }}"
+  register: dev_fortress_arch_base_packages_running_kernel_modules
+  when: dev_fortress_target_kind in ['workstation', 'cloud']
+
+- name: Reboot into the upgraded Arch kernel
+  become: true
+  ansible.builtin.reboot:
+    msg: Dev Fortress is rebooting into the upgraded Arch kernel
+  when:
+    - dev_fortress_target_kind in ['workstation', 'cloud']
+    - not dev_fortress_arch_base_packages_running_kernel_modules.stat.exists
+    - dev_container_fortress_arch_reboot_after_kernel_upgrade_effective | bool
+
+- name: Stop until the upgraded Arch kernel is booted
+  ansible.builtin.fail:
+    msg: >-
+      {{ inventory_hostname }} upgraded its kernel and no longer has modules for
+      the running kernel {{ ansible_facts['kernel'] }}. Reboot the host and
+      rerun bootstrap, or set
+      dev_container_fortress_arch_reboot_after_kernel_upgrade: true to let
+      bootstrap reboot it.
+  when:
+    - dev_fortress_target_kind in ['workstation', 'cloud']
+    - not dev_fortress_arch_base_packages_running_kernel_modules.stat.exists
+    - not dev_container_fortress_arch_reboot_after_kernel_upgrade_effective | bool
+
 - name: Ensure Arch baseline packages are present
   become: true
   community.general.pacman:
