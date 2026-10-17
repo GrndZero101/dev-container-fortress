@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from ft.container_targets import KNOWN_CONTAINER_TARGETS
+
 
 class IntegrityConfig(BaseModel):
     """Integrity metadata for a downloadable asset set."""
@@ -246,10 +248,11 @@ class ContainerToolPool(BaseModel):
     common: ContainerCommandToolPool
     ubuntu: ContainerCommandToolPool = Field(default_factory=ContainerCommandToolPool)
     alpine: ContainerCommandToolPool = Field(default_factory=ContainerCommandToolPool)
+    arch: ContainerCommandToolPool = Field(default_factory=ContainerCommandToolPool)
 
     def command_checks_for(self, target: str) -> list[str]:
         """Return the effective command checks for one container target."""
-        if target not in {"ubuntu", "alpine"}:
+        if target not in KNOWN_CONTAINER_TARGETS:
             raise ValueError(f"unsupported container tool-pool target: {target}")
         target_group = getattr(self, target)
         return self.common.command_checks + target_group.command_checks
@@ -331,7 +334,7 @@ class WorkspaceProfileDefinition(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     description: str
-    container_target: Literal["ubuntu", "alpine"] = "ubuntu"
+    container_target: Literal["ubuntu", "alpine", "arch"] = "ubuntu"
     working_directory: str = "/workspace/dev-container-fortress"
     persisted_mounts: list[str] = Field(default_factory=list)
     tool_layers: list[str] = Field(default_factory=list)

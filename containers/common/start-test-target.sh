@@ -2,7 +2,7 @@
 
 # Dev Fortress disposable test target entrypoint.
 # Supports a plain sleep loop and an SSH-enabled foreground mode for the
-# Ubuntu disposable test target.
+# disposable test targets.
 
 set -eu
 

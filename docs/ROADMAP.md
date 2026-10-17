@@ -470,6 +470,29 @@ Non-goal for early work:
 
 - cloud-specific control planes before the SSH and Ansible model is stable
 
+### `M9a` Arch Linux Target
+
+Status: `done`
+
+Objective:
+Add Arch Linux as a supported container and host target with the same
+reproducibility and verification contract as Ubuntu and Alpine.
+
+Exit criteria:
+
+- an archive-pinned Arch container image passes the `ft container` validation loop
+- `ft host bootstrap` converges an Arch host idempotently, using pacman rather
+  than Homebrew for the steady-state toolchain
+- unsupported combinations such as Arch on arm64 fail clearly
+- the Arch image is built, smoke-tested, and published by CI
+
+Non-goals:
+
+- Arch on arm64, AUR packages, and Terraform-backed Arch cloud hosts
+
+Details:
+[M9a draft](milestones/M9a-arch-linux-target.md)
+
 ## Idea Pools
 
 These are intentionally not milestones yet.
@@ -504,9 +527,10 @@ Promote them only when they become concrete enough to deserve milestone scope.
 
 The local `ft` loop (see `M7`) stays the primary verification surface for now.
 
-- gate `publish-images.yml` on pytest, ruff, and pre-commit; today a push to
-  `main` publishes images without running the test suite
-- pull-request checks once the repository takes outside contributions
+- branch and pull-request CI now gates image builds and GHCR publishing on
+  pre-commit, pytest, and Terraform checks (`ci.yml`, landed with `M9a`)
+- possible follow-ups: Buildx layer caching, arm64 image builds, and branch
+  protection that requires the `CI` checks
 
 ### Onboarding and Toolchain
 

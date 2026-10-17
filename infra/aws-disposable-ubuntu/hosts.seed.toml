@@ -13,3 +13,15 @@ auth_method = "ssh_key"
 ssh_key_name = "dev-fortress-ec2-dev"
 ansible_python_interpreter = "/usr/bin/python3"
 tags = ["ssh", "ubuntu", "cloud", "disposable", "seed"]
+
+[[targets]]
+name = "dev-fortress-ec2-arch"
+kind = "cloud"
+connection = "ssh"
+host = "placeholder.invalid"
+port = 22
+user = "arch"
+auth_method = "ssh_key"
+ssh_key_name = "dev-fortress-ec2-arch"
+ansible_python_interpreter = "/usr/bin/python3"
+tags = ["ssh", "arch", "cloud", "disposable", "seed"]

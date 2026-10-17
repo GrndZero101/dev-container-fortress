@@ -193,7 +193,7 @@ ansible-playbook \
 Today that playbook is still intentionally narrow, but it is now a real
 convergence loop for the first supported Linux baselines. It proves
 reachability and the shared target contract, ensures the target user's XDG
-base directories exist, converges baseline packages on Ubuntu and Alpine,
+base directories exist, converges baseline packages on Ubuntu, Alpine, and Arch,
 converges the native bootstrap substrate, installs Docker CE on Ubuntu
 `workstation` and `cloud` targets, clones and bootstraps `shell-config`,
 installs the fortress profile-local `zinit` checkout, applies Ubuntu Linuxbrew
@@ -256,7 +256,7 @@ That sequence is intentionally convergent rather than one-shot:
 Today the real host loop converges:
 
 - XDG base directories for the target user
-- baseline package prerequisites on supported Linux families such as Ubuntu and Alpine
+- baseline package prerequisites on supported Linux families: Ubuntu, Alpine, and Arch (x86_64, pacman instead of Homebrew)
 - shell-config clone and bootstrap
 - fortress profile-local `zinit` installation
 - login-shell convergence to `zsh` for remote SSH targets

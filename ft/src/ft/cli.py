@@ -23,6 +23,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from ft.container_targets import CONTAINER_TARGETS, KNOWN_CONTAINER_TARGETS
 from ft.installer import InstallPlan, build_plan, install_tool
 from ft.manifest import load_manifest
 from ft.models import (
@@ -139,7 +140,6 @@ aws_disposable_ubuntu_app.add_typer(aws_disposable_ubuntu_capacity_app, name="ca
 app.add_typer(completion_app, name="completion")
 
 console = Console()
-KNOWN_CONTAINER_TARGETS = ("ubuntu", "alpine")
 SUPPORTED_SHELL_CONFIG_SOURCES = ("github", "local")
 DEFAULT_DEPLOY_WORKSPACE_PARENT = "~/workspaces/tboss"
 DEFAULT_DEV_CONTAINER_FORTRESS_REPO_URL = (
@@ -380,11 +380,10 @@ def _container_name_for_target(target: str) -> str:
 
 def _container_host_ssh_target_name(target: str) -> str | None:
     """Return the default host-target name for one SSH-capable disposable target."""
-    if target == "ubuntu":
-        return "dev-fortress-ubuntu"
-    if target == "alpine":
-        return "dev-fortress-alpine"
-    return None
+    container_target = CONTAINER_TARGETS.get(target)
+    if container_target is None:
+        return None
+    return container_target.ssh_host_target_name
 
 
 def _container_target_for_host_ssh_target_name(host_target_name: str) -> str | None:
@@ -397,11 +396,10 @@ def _container_target_for_host_ssh_target_name(host_target_name: str) -> str | N
 
 def _container_host_ssh_port(target: str) -> int | None:
     """Return the forwarded host SSH port for one SSH-capable disposable target."""
-    if target == "ubuntu":
-        return 2222
-    if target == "alpine":
-        return 2223
-    return None
+    container_target = CONTAINER_TARGETS.get(target)
+    if container_target is None:
+        return None
+    return container_target.ssh_host_port
 
 
 def _container_host_ssh_public_key_path(target: str) -> Path | None:
@@ -415,6 +413,29 @@ def _container_host_ssh_public_key_path(target: str) -> Path | None:
         / host_target_name
         / f"{_managed_ssh_key_basename()}.pub"
     )
+
+
+def _require_supported_container_architecture(target: str) -> bool:
+    """Report whether one container target supports the host architecture.
+
+    Args:
+        target: Container target name, for example ``arch``.
+
+    Returns:
+        True when the build may proceed, otherwise False after printing an
+        actionable error.
+    """
+    container_target = CONTAINER_TARGETS.get(target)
+    architecture = detect_architecture()
+    if container_target is None or container_target.supports_architecture(architecture):
+        return True
+
+    supported = ", ".join(container_target.architectures)
+    console.print(
+        f"[red]unsupported architecture for {target}:[/red] {architecture} "
+        f"(supported: {supported}). Use another container target on this host."
+    )
+    return False
 
 
 def _dockerfile_for_target(target: str) -> Path:
@@ -3844,16 +3865,20 @@ def _yaml_dump(value: object) -> str:
 
 
 def _resolve_container_targets(selector: str) -> list[str]:
-    """Resolve one exact, wildcard, or all-style container target selector."""
-    if selector == "all":
-        return list(KNOWN_CONTAINER_TARGETS)
+    """Resolve one exact, wildcard, or all-style container target selector.
+
+    Exact names always resolve so unsupported architectures fail loudly later.
+    ``all`` and wildcards skip targets the host architecture cannot build.
+    """
     if selector in KNOWN_CONTAINER_TARGETS:
         return [selector]
 
+    architecture = detect_architecture()
     matches = [
-        target
-        for target in KNOWN_CONTAINER_TARGETS
-        if fnmatch.fnmatch(target, selector)
+        name
+        for name, target in CONTAINER_TARGETS.items()
+        if (selector == "all" or fnmatch.fnmatch(name, selector))
+        and target.supports_architecture(architecture)
     ]
     if matches:
         return matches
@@ -4224,6 +4249,9 @@ def _build_single_container_target(
     """Build one disposable container image target from the repo Dockerfile."""
     dockerfile_path = _dockerfile_for_target(target)
     resolved_image_tag = image_tag or _image_tag_for_target(target)
+
+    if not _require_supported_container_architecture(target):
+        return False
 
     if not dockerfile_path.is_file():
         console.print(f"[red]missing Dockerfile:[/red] {dockerfile_path}")

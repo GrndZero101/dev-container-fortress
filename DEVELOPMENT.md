@@ -9,7 +9,7 @@ It focuses on the current high-value loop:
 - clone both repos explicitly for development
 - bootstrap the repo locally
 - use `ft` as the primary operator CLI
-- build and validate Ubuntu and Alpine test containers
+- build and validate Ubuntu, Alpine, and Arch (amd64 only) test containers
 - iterate on `shell-config` and container behavior without getting lost in Docker cache surprises
 
 > [!IMPORTANT]
@@ -261,7 +261,25 @@ The current baseline keeps the hooks intentionally light:
   for the repo-owned host playbook
 - `ansible-lint` for the Ansible tree under `ansible/`
 - `ruff` lint and format for Python
-- `zsh -n` syntax checks for repo-owned Zsh entrypoints under `scripts/` plus `bootstrap.zsh`
+- `zsh -n` syntax checks for repo-owned Zsh entrypoints under `scripts/` and
+  `infra/`, plus `bootstrap.zsh`
+
+### Continuous Integration
+
+`.github/workflows/ci.yml` runs the same checks on every branch push:
+
+1. `Lint and test`: the full pre-commit suite, `pytest ft/tests`, and
+   `terraform fmt -check` plus `terraform validate` for every stack under `infra/`
+2. `Build and smoke test`: builds each image in the matrix and runs its
+   in-image smoke checks once the first job passes
+
+Only pushes to `main` and `v*` tags publish images to GHCR. Feature branches
+build and test without publishing. Pull requests from forks trigger the same
+checks; same-repository pull requests reuse their branch push run.
+
+> [!NOTE]
+> CI does not replace the local `ft` loops. It cannot run `ft host validate`
+> or cloud-host checks, so keep running those locally for risky changes.
 
 ## Workspace Daily-Driver Loop
 
@@ -348,6 +366,15 @@ ft container build alpine
 ft container up alpine
 ft container validate alpine
 ft container shell alpine
+```
+
+Arch (amd64 hosts only):
+
+```zsh
+ft container build arch
+ft container up arch
+ft container validate arch
+ft container shell arch
 ```
 
 ### Faster Convenience Commands
@@ -477,7 +504,7 @@ Key things to confirm:
 - `prompt_engine_resolved` matches expectations
 - `starship`, `atuin`, `zoxide`, and `fzf` are available
 - `${HOME}/.local/bin` is present on `PATH`
-- Ubuntu and Alpine remain at functional parity unless a difference is intentional
+- Ubuntu, Alpine, and Arch remain at functional parity unless a difference is intentional
 
 ## JSON and Agentic-Friendly Loops
 

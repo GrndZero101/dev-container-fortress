@@ -35,6 +35,12 @@ Host-side policy should stay explicit:
 - host-oriented tool decisions should not drift into per-tool ad hoc installer
   logic when a Homebrew-backed steady state exists
 
+> [!NOTE]
+> Arch Linux hosts are a deliberate exception. The official Arch repositories
+> already ship the steady-state toolchain, so Arch hosts use pacman and skip
+> Linuxbrew rather than running two package managers side by side. Arch host
+> support is x86_64 only.
+
 Host automation should be designed as a convergent desired-state system rather
 than as a one-shot bootstrap script.
 
@@ -106,7 +112,7 @@ manager is acceptable for GPG-class substrate until a stronger repo-owned
 installer proves worth the added build and maintenance cost.
 
 See [Container Standards](./container-standards.md) for the current runtime
-contract and design rules that Ubuntu and Alpine should follow.
+contract and design rules that Ubuntu, Alpine, and Arch should follow.
 
 ### Devcontainer target
 
@@ -178,6 +184,7 @@ Recommended target values:
 
 - `ubuntu`
 - `alpine`
+- `arch` (amd64 only)
 - `all`
 
 Target selection should evolve beyond fixed enum-style values and support a
@@ -395,6 +402,9 @@ Recommended early Terraform rules:
 - keep spot-selection helpers optional behind a fixed fallback instance shape
 - optimize for cheap, replaceable hosts with strong tagging and obvious cleanup
 - make state, credentials, and teardown expectations explicit in docs before broadening the infra layer
+- keep reusable images separate from disposable hosts: `infra/aws-arch-ami/`
+  imports the signed upstream Arch cloud image once as a private AMI, and the
+  disposable host stack only looks it up through `os = "arch"`
 
 ### Operator CLI Direction for Hosts
 

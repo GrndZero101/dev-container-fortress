@@ -1,0 +1,9 @@
+---
+# Arch ships Docker in the official repositories, so no third-party
+# repository or signing key is needed.
+- name: Install Docker and plugins from the Arch repositories
+  become: true
+  community.general.pacman:
+    name: "{{ dev_container_fortress_docker_arch_packages }}"
+    state: present
+  register: dev_fortress_docker_packages_result

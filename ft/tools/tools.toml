@@ -142,6 +142,16 @@ archive = "tar.gz"
 binary_path = "atuin-aarch64-unknown-linux-musl/atuin"
 checksum_asset = "{filename}"
 
+[[tools.atuin.assets]]
+os = "linux"
+arch = "amd64"
+target = "arch"
+filename = "{asset_prefix}-x86_64-unknown-linux-gnu.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "atuin-x86_64-unknown-linux-gnu/atuin"
+checksum_asset = "{filename}"
+
 [tools.gum]
 description = "Human-friendly terminal UI helper for local operator flows."
 version = "0.16.0"
@@ -332,6 +342,15 @@ url_template = "https://github.com/{github_repo}/releases/download/{release_tag}
 archive = "tar.gz"
 binary_path = "{asset_prefix}-aarch64-unknown-linux-musl/bat"
 
+[[tools.bat.assets]]
+os = "linux"
+arch = "amd64"
+target = "arch"
+filename = "{asset_prefix}-x86_64-unknown-linux-gnu.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "{asset_prefix}-x86_64-unknown-linux-gnu/bat"
+
 [tools.fd]
 description = "Simple and fast find alternative."
 version = "10.4.2"
@@ -378,6 +397,15 @@ url_template = "https://github.com/{github_repo}/releases/download/{release_tag}
 archive = "tar.gz"
 binary_path = "{asset_prefix}-aarch64-unknown-linux-musl/fd"
 
+[[tools.fd.assets]]
+os = "linux"
+arch = "amd64"
+target = "arch"
+filename = "{asset_prefix}-x86_64-unknown-linux-gnu.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "{asset_prefix}-x86_64-unknown-linux-gnu/fd"
+
 [tools.oh-my-posh]
 description = "Cross-shell prompt theme engine."
 version = "29.10.0"
@@ -406,7 +434,7 @@ description = "Fast recursive code search with the rg command."
 version = "15.1.0"
 version_source = "github_latest"
 enabled = true
-enabled_targets = ["ubuntu"]
+enabled_targets = ["ubuntu", "arch"]
 install_root = "/usr/local/bin"
 healthcheck = ["rg", "--version"]
 variables = { github_repo = "BurntSushi/ripgrep", asset_prefix = "ripgrep-{version}" }
@@ -435,13 +463,23 @@ archive = "tar.gz"
 binary_path = "{asset_prefix}-aarch64-unknown-linux-gnu/rg"
 checksum_asset = "{filename}"
 
+[[tools.ripgrep.assets]]
+os = "linux"
+arch = "amd64"
+target = "arch"
+filename = "{asset_prefix}-x86_64-unknown-linux-musl.tar.gz"
+url_template = "https://github.com/{github_repo}/releases/download/{release_tag}/{filename}"
+archive = "tar.gz"
+binary_path = "{asset_prefix}-x86_64-unknown-linux-musl/rg"
+checksum_asset = "{filename}"
+
 [tools.neovim]
 description = "Modern Vim-based editor with embedded Lua and LSP ecosystem."
 version = "0.12.1"
 version_source = "github_latest"
 release_tag_prefix = "v"
 enabled = true
-enabled_targets = ["ubuntu"]
+enabled_targets = ["ubuntu", "arch"]
 install_root = "/usr/local/bin"
 healthcheck = ["nvim", "--version"]
 variables = { github_repo = "neovim/neovim", asset_prefix = "nvim" }

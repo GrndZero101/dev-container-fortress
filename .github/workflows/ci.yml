@@ -1,25 +1,80 @@
-name: Publish container images
+name: CI
 
+# Every branch push runs checks plus image build and smoke tests. Only main and
+# v* tags publish to GHCR. Pull requests run here only when they come from a
+# fork, because same-repository branches are already covered by their push run.
 on:
   push:
     branches:
-      - main
+      - "**"
     tags:
       - "v*"
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: grndzero101/dev-container-fortress
+  PUBLISH: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
 
 jobs:
-  publish:
-    name: Build and publish ${{ matrix.name }}
+  checks:
+    name: Lint and test
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install zsh for repo-owned hooks
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
+
+      # Match bootstrap.zsh: ansible-core does not support Python 3.15 yet.
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.14"
+
+      - name: Sync workspace
+        run: uv sync --locked
+
+      - name: Run pre-commit hooks
+        run: uv run pre-commit run --all-files --show-diff-on-failure
+
+      - name: Run ft tests
+        run: uv run pytest ft/tests
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive infra
+
+      - name: Validate Terraform stacks
+        run: |
+          for stack in infra/*/; do
+            [ -f "${stack}versions.tf" ] || continue
+            echo "validating ${stack}"
+            terraform -chdir="${stack}" init -backend=false -input=false >/dev/null
+            terraform -chdir="${stack}" validate
+          done
+
+  images:
+    name: Build and smoke test ${{ matrix.name }}
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -51,6 +106,15 @@ jobs:
               type=raw,value=alpine,enable={{is_default_branch}}
               type=match,pattern=v(.*),group=1,prefix=alpine-v
               type=sha,prefix=alpine-sha-
+          # Arch is amd64-only; the official archlinux base image has no arm64 build.
+          - name: arch
+            dockerfile: containers/arch/Dockerfile
+            target: arch
+            build-args: ""
+            tags: |
+              type=raw,value=arch,enable={{is_default_branch}}
+              type=match,pattern=v(.*),group=1,prefix=arch-v
+              type=sha,prefix=arch-sha-
 
     steps:
       - name: Check out repository
@@ -60,6 +124,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
+        if: env.PUBLISH == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -67,6 +132,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate image metadata
+        if: env.PUBLISH == 'true'
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -84,13 +150,15 @@ jobs:
 
       - name: Smoke test image
         run: |
+          # err_exit makes every check count, not just the last command.
           docker run --rm dev-container-fortress:${{ matrix.name }}-smoke zsh -lc '
+            setopt err_exit
             whoami
             zsh --version
             git --version
             rg --version
             uv --version
-            ft --version
+            ft --help >/dev/null
             tenv --version
             starship --version
             zoxide --version
@@ -104,6 +172,7 @@ jobs:
         if: matrix.name == 'ubuntu-full'
         run: |
           docker run --rm dev-container-fortress:${{ matrix.name }}-smoke zsh -lc '
+            setopt err_exit
             gh --version
             glab --version
             aws --version
@@ -112,6 +181,7 @@ jobs:
           '
 
       - name: Publish image
+        if: env.PUBLISH == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .

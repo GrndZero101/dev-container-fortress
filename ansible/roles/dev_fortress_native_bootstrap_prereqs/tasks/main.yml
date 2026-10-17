@@ -62,6 +62,13 @@
   when:
     - ansible_facts['os_family'] == 'Alpine'
 
+- name: Select bootstrap substrate package map for Arch
+  ansible.builtin.set_fact:
+    dev_fortress_native_bootstrap_prereqs_package_map: >-
+      {{ dev_container_fortress_native_bootstrap_command_packages['arch'] }}
+  when:
+    - ansible_facts['os_family'] == 'Archlinux'
+
 - name: Install missing native bootstrap packages on Ubuntu
   become: true
   ansible.builtin.apt:
@@ -91,6 +98,20 @@
     - dev_fortress_native_bootstrap_prereqs_missing_commands | length > 0
     - ansible_facts['os_family'] == 'Alpine'
 
+- name: Install missing native bootstrap packages on Arch
+  become: true
+  community.general.pacman:
+    name: >-
+      {{
+        dev_fortress_native_bootstrap_prereqs_missing_commands
+        | map('extract', dev_fortress_native_bootstrap_prereqs_package_map)
+        | list
+      }}
+    state: present
+  when:
+    - dev_fortress_native_bootstrap_prereqs_missing_commands | length > 0
+    - ansible_facts['os_family'] == 'Archlinux'
+
 - name: Re-check required native bootstrap commands after package convergence
   ansible.builtin.command:
     argv:
@@ -111,6 +132,29 @@
         | combine({item.item: (item.rc == 0)})
       }}
   loop: "{{ dev_fortress_native_bootstrap_prereqs_recheck_results.results }}"
+
+# Check mode only reports the pending installs above, and every later layer
+# needs these commands to evaluate, so stop the preview here on fresh hosts.
+- name: End check mode before layers that need pending native prerequisites
+  when:
+    - ansible_check_mode
+    - dev_fortress_native_bootstrap_prereqs_final_status.values() | reject | list | length > 0
+  block:
+    - name: Report why the check-mode preview stops early
+      ansible.builtin.debug:
+        msg: >-
+          Check mode stops for {{ inventory_hostname }}: a real bootstrap would
+          install
+          {{
+            dev_fortress_native_bootstrap_prereqs_final_status
+            | dict2items
+            | rejectattr('value')
+            | map(attribute='key')
+            | join(', ')
+          }}, and later layers need them before they can be previewed.
+
+    - name: End the check-mode preview for this host
+      ansible.builtin.meta: end_host
 
 - name: Assert required native bootstrap commands are present after convergence
   ansible.builtin.assert:

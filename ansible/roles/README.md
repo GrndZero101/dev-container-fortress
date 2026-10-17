@@ -7,7 +7,7 @@ Current state:
 
 - `playbooks/host.yml` is still the thin bootstrap entrypoint
 - the first convergent host roles now exist for contract validation, XDG layout,
-  Ubuntu and Alpine baseline packages, shell-config bootstrap, and shell-config
+  Ubuntu, Alpine, and Arch baseline packages, shell-config bootstrap, and shell-config
   readiness reporting
 - more host setup should continue to land incrementally as milestone-backed slices
 
@@ -42,6 +42,7 @@ Expected early role candidates:
 - `dev_fortress_xdg_layout`
 - `dev_fortress_ubuntu_base_packages`
 - `dev_fortress_alpine_base_packages`
+- `dev_fortress_arch_base_packages`
 - `dev_fortress_native_bootstrap_prereqs`
 - `dev_fortress_docker`
 - `dev_fortress_shell_config_bootstrap`
@@ -80,6 +81,16 @@ Uses the native `community.general.apk` module so reruns stay declarative and
 aligned with Alpine's package-manager model instead of falling back to shell
 wrappers.
 
+### `dev_fortress_arch_base_packages`
+
+Linux-first package baseline for Arch hosts using `community.general.pacman`.
+It fails early on anything other than x86_64. Because Arch does not support
+partial upgrades, it runs a full system upgrade first unless
+`dev_container_fortress_arch_full_upgrade` is set to `false`. When that upgrade
+replaces the running kernel on a `workstation` or `cloud` target, it reboots
+`cloud` targets automatically and stops `workstation` targets with a reboot
+request, controlled by `dev_container_fortress_arch_reboot_after_kernel_upgrade`.
+
 ### `dev_fortress_native_bootstrap_prereqs`
 
 Converges the minimum native command substrate required before `shell-config`
@@ -90,7 +101,8 @@ actually present. The current contract is intentionally small:
 ### `dev_fortress_docker`
 
 Installs Docker CE on Ubuntu workstation and cloud targets using Docker's
-official apt repository, converges a small managed `daemon.json`, enables the
+official apt repository, or Docker from the official repositories on Arch
+targets, converges a small managed `daemon.json`, enables the
 `docker` and `containerd` services under systemd, and adds the target user to
 the `docker` group. This role is intentionally not applied to disposable
 `kind = "docker"` SSH targets.

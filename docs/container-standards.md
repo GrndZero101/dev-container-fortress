@@ -94,14 +94,14 @@ That means they should:
 
 - `.devcontainer/` should remain a thin wrapper around the container target.
 - The repository may expose multiple devcontainer definitions when it supports multiple container targets.
-- The current standard definitions are `.devcontainer/ubuntu/devcontainer.json` and `.devcontainer/alpine/devcontainer.json`.
+- The current standard definitions are `.devcontainer/ubuntu/devcontainer.json`, `.devcontainer/alpine/devcontainer.json`, and `.devcontainer/arch/devcontainer.json`.
 - Each devcontainer should use the same runtime user as its container image.
 - Post-create behavior should validate or lightly bootstrap the environment, not duplicate the core image provisioning logic.
 - Devcontainer build args may expose opt-in environment hooks such as `DEV_CONTAINER_FORTRESS_CA_CERT_DIR` when they are needed for corporate networks.
 
 ## Portability Contract
 
-- Ubuntu and Alpine should converge on the same runtime model where practical.
+- Ubuntu, Alpine, and Arch should converge on the same runtime model where practical.
 - Differences between distro package names or bootstrap details should not
   change the higher-level container contract without updating this document.
 
@@ -128,3 +128,27 @@ The Alpine image should follow the same contract as Ubuntu by:
 - using XDG-style home-directory layout
 - installing `ft` as a `uv` tool
 - installing `tenv` through `ft`
+
+## Current Arch Reference
+
+The Arch image follows the same contract as Ubuntu by:
+
+- using Astral's distroless image for build-time `uv`
+- installing runtime `uv` with Astral's installer
+- creating a non-root `vscode` user
+- using XDG-style home-directory layout
+- installing `ft` as a `uv` tool
+- installing the managed tool set, including `rg` and `nvim`, through `ft`
+- installing the optional gitforge, secrets, and AWS layers from the official
+  Arch repositories so pacman verifies package signatures
+
+Arch-specific rules:
+
+- Arch is a rolling release, so every pacman transaction resolves against one
+  [Arch Linux Archive](https://archive.archlinux.org/) snapshot chosen by the
+  `ARCH_ARCHIVE_DATE` build arg. Bump that date deliberately, the same way
+  manifest tool versions are bumped.
+- The target is amd64 only because the official `archlinux` base image has no
+  arm64 build. `ft` refuses explicit Arch builds on arm64 hosts and skips Arch
+  in `all` and wildcard selectors there.
+- AUR packages are out of scope.

@@ -2,12 +2,19 @@
 
 # Optional corporate CA installer for container builds.
 # Expects a directory of PEM-formatted .crt files relative to the Docker build context.
+# Supports Debian/Alpine-style update-ca-certificates and Arch-style update-ca-trust.
 
 set -eu
 
 SOURCE_ROOT=${1:-/tmp/build-context}
 CERT_DIR=${2:-}
-INSTALL_DIR=/usr/local/share/ca-certificates
+if command -v update-ca-certificates >/dev/null 2>&1; then
+  INSTALL_DIR=/usr/local/share/ca-certificates
+  REFRESH_COMMAND=update-ca-certificates
+else
+  INSTALL_DIR=/etc/ca-certificates/trust-source/anchors
+  REFRESH_COMMAND=update-ca-trust
+fi
 
 # Print a short status line for CA installation work.
 # Arguments:
@@ -77,5 +84,5 @@ for cert_file in "$@"; do
   installed_count=$((installed_count + 1))
 done
 
-update-ca-certificates
+"${REFRESH_COMMAND}"
 log_info "installed ${installed_count} certificate(s) from ${CERT_DIR}"

@@ -1,11 +1,16 @@
 # Target Validation
 
-This document captures the current end-to-end validation loop across the three
+This document captures the current end-to-end validation loop across the four
 main Dev Fortress SSH targets:
 
 - disposable Ubuntu container
 - disposable Alpine container
+- disposable Arch container
 - disposable Ubuntu EC2 host
+
+> [!NOTE]
+> The disposable Arch container (`dev-fortress-arch`) is amd64 only. It uses the
+> same loop as Alpine with `arch` substituted.
 
 It is intentionally procedural for now.
 The long-term goal is to collapse more of this into higher-level `ft` commands,
@@ -33,7 +38,8 @@ uv run ft host ssh --interactive
 That wraps the current standard loop:
 
 - `ft host doctor --probe`
-- `ft host bootstrap --check`
+- `ft host bootstrap --check`, which stops early with an explicit message on
+  fresh hosts that still need native prerequisites
 - `ft host bootstrap`
 - a second `ft host bootstrap` convergence pass
 

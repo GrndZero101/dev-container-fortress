@@ -38,4 +38,4 @@ repos:
         name: zsh syntax
         entry: zsh -n
         language: system
-        files: ^(bootstrap\.zsh|scripts/.*\.zsh)$
+        files: ^(bootstrap\.zsh|scripts/.*\.zsh|infra/.*\.zsh)$

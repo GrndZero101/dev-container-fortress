@@ -53,7 +53,7 @@ This is intentionally not a full AWS platform layer.
 - `versions.tf`: Terraform and provider requirements
 - `providers.tf`: AWS provider setup
 - `variables.tf`: operator-facing inputs
-- `data.tf`: default VPC and Ubuntu AMI lookup
+- `data.tf`: default VPC plus the Ubuntu or Arch AMI lookup
 - `iam.tf`: Session Manager role, policy attachment, and instance profile
 - `main.tf`: key pair, security group, and instance resources
 - `outputs.tf`: connection facts and a convenience TOML fragment
@@ -248,11 +248,40 @@ Destroy when done:
 terraform destroy
 ```
 
+## Arch Hosts
+
+Set `os = "arch"` to boot the private Arch AMI that
+[`../aws-arch-ami/`](../aws-arch-ami/) registers from the official, signed Arch
+cloud image. The stack picks the newest self-owned AMI named
+`dev-fortress-arch-*`, logs in as `arch`, and requires `amd64` capacity.
+
+Keep Arch hosts in their own Terraform workspace so they never replace the
+Ubuntu host in the default state. `TF_WORKSPACE` and `TF_VAR_*` pass straight
+through `ft`:
+
+```zsh
+terraform -chdir=infra/aws-disposable-ubuntu workspace new arch
+uv run ft infra aws-disposable-ubuntu capacity select --market spot --architecture amd64
+export TF_WORKSPACE=arch TF_VAR_os=arch TF_VAR_enable_session_manager=false
+uv run ft infra aws-disposable-ubuntu apply --target-name dev-fortress-ec2-arch
+uv run ft host validate dev-fortress-ec2-arch
+uv run ft infra aws-disposable-ubuntu destroy --target-name dev-fortress-ec2-arch
+unset TF_WORKSPACE TF_VAR_os TF_VAR_enable_session_manager
+```
+
+> [!NOTE]
+> `capacity select` rewrites the shared `capacity.auto.tfvars.json`, and auto
+> tfvars take precedence over `TF_VAR_*`. Rerun it with your usual Ubuntu
+> settings before the next Ubuntu apply.
+>
+> The Arch image has no SSM agent, so disable the Session Manager role for Arch
+> hosts and reach them over SSH only.
+
 ## Current Assumptions
 
 - AWS credentials are available through the normal Terraform AWS provider chain
 - the AWS account has a default VPC and default subnets in the chosen region
-- Ubuntu cloud images use the `ubuntu` SSH user
+- Ubuntu cloud images use the `ubuntu` SSH user, and Arch images use `arch`
 - standard Ubuntu AWS images already include the SSM Agent for Session Manager
 - the operator supplies a trusted CIDR for SSH ingress, or allows automatic public-IP detection
 - ARM64 is the default cost-conscious path, with a fixed instance-type fallback

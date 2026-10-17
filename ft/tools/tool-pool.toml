@@ -142,3 +142,6 @@ command_checks = []
 
 [containers.alpine]
 command_checks = []
+
+[containers.arch]
+command_checks = []

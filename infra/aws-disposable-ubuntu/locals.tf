@@ -6,6 +6,15 @@ locals {
     arm64 = "arm64"
   }
 
+  # Login user each cloud image creates through cloud-init.
+  os_ssh_user = {
+    ubuntu = "ubuntu"
+    arch   = "arch"
+  }
+
+  ssh_user = local.os_ssh_user[var.os]
+  ami_id   = var.os == "arch" ? data.aws_ami.arch[0].id : data.aws_ssm_parameter.ubuntu_ami[0].value
+
   default_tags = merge(
     {
       Name        = var.name

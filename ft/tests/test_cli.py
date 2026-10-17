@@ -23,6 +23,7 @@ from ft.cli import (
     _host_zsh_text,
     _last_non_empty_line,
     _parse_ansible_play_recap,
+    _require_supported_container_architecture,
     _resolve_container_targets,
     _resolve_host_targets,
     _resolve_single_container_target,
@@ -48,6 +49,12 @@ runner = CliRunner()
 # which is measured back from the real current time.
 _SPOT_HISTORY_T1 = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 _SPOT_HISTORY_T0 = _SPOT_HISTORY_T1 - timedelta(hours=1)
+
+
+@pytest.fixture(autouse=True)
+def _pin_host_architecture(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin host architecture so target fan-out does not depend on the test host."""
+    monkeypatch.setattr("ft.cli.detect_architecture", lambda: "amd64")
 
 
 def _load_spot_select_module() -> object:
@@ -3725,7 +3732,7 @@ def test_doctor_defaults_to_all_targets(monkeypatch: object) -> None:
     result = runner.invoke(app, ["doctor"])
 
     assert result.exit_code == 0
-    assert calls == [["ubuntu", "alpine"]]
+    assert calls == [["ubuntu", "alpine", "arch"]]
 
 
 def test_completion_path_uses_xdg_layout(monkeypatch: object) -> None:
@@ -4554,8 +4561,36 @@ def test_plan_uses_environment_defaults(monkeypatch: object) -> None:
 def test_container_target_resolution_supports_all_and_wildcards() -> None:
     """Container target selectors should support exact, all, and wildcard input."""
     assert _resolve_container_targets("ubuntu") == ["ubuntu"]
-    assert _resolve_container_targets("all") == ["ubuntu", "alpine"]
+    assert _resolve_container_targets("all") == ["ubuntu", "alpine", "arch"]
     assert _resolve_container_targets("alp*") == ["alpine"]
+    assert _resolve_container_targets("arch") == ["arch"]
+
+
+def test_container_target_resolution_skips_unsupported_architectures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fan-out selectors should skip amd64-only targets on arm64 hosts."""
+    monkeypatch.setattr("ft.cli.detect_architecture", lambda: "arm64")
+
+    assert _resolve_container_targets("all") == ["ubuntu", "alpine"]
+    assert _resolve_container_targets("a*") == ["alpine"]
+    assert _resolve_container_targets("arch") == ["arch"]
+
+
+def test_container_build_refuses_arch_on_arm64(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Arch builds should stop before invoking Docker on unsupported hosts."""
+    commands: list[list[str]] = []
+    monkeypatch.setattr("ft.cli.detect_architecture", lambda: "arm64")
+    monkeypatch.setattr("ft.cli._run_command", lambda command: commands.append(command))
+
+    result = runner.invoke(app, ["container", "build", "arch"])
+
+    assert result.exit_code != 0
+    assert "unsupported architecture for arch" in result.stdout
+    assert commands == []
+    assert _require_supported_container_architecture("ubuntu") is True
 
 
 def test_single_target_resolution_rejects_multi_match() -> None:
@@ -4614,7 +4649,7 @@ def test_container_validate_runs_for_wildcard_target(monkeypatch: object) -> Non
     result = runner.invoke(app, ["container", "validate", "*"])
 
     assert result.exit_code == 0
-    assert calls == ["ubuntu", "alpine"]
+    assert calls == ["ubuntu", "alpine", "arch"]
 
 
 def test_container_validate_supports_json_output(monkeypatch: object) -> None:
@@ -4650,7 +4685,7 @@ def test_container_build_runs_for_all_targets(monkeypatch: object) -> None:
     result = runner.invoke(app, ["container", "build", "all"])
 
     assert result.exit_code == 0
-    assert calls == ["ubuntu", "alpine"]
+    assert calls == ["ubuntu", "alpine", "arch"]
 
 
 def test_container_build_forwards_shell_config_options(monkeypatch: object) -> None:
@@ -4703,7 +4738,7 @@ def test_container_status_defaults_to_all_targets(monkeypatch: object) -> None:
     result = runner.invoke(app, ["container", "status"])
 
     assert result.exit_code == 0
-    assert calls == [["ubuntu", "alpine"]]
+    assert calls == [["ubuntu", "alpine", "arch"]]
 
 
 def test_stage_local_shell_config_excludes_runtime_junk(tmp_path: Path) -> None:
@@ -4738,7 +4773,7 @@ def test_container_up_runs_for_wildcard_target(monkeypatch: object) -> None:
     result = runner.invoke(app, ["container", "up", "*"])
 
     assert result.exit_code == 0
-    assert calls == ["ubuntu", "alpine"]
+    assert calls == ["ubuntu", "alpine", "arch"]
 
 
 def _fake_container_state(commands: list[list[str]], state: str | None) -> object:
@@ -4852,6 +4887,26 @@ def test_container_up_ubuntu_enables_ssh_with_managed_key_mount(
     ]
 
 
+def test_container_up_arch_publishes_dedicated_ssh_port(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Arch disposable targets should forward their own loopback SSH port."""
+    commands: list[list[str]] = []
+
+    def fake_run(command: list[str]) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        if command[:3] == ["docker", "container", "inspect"]:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("ft.cli._run_command", fake_run)
+
+    assert _up_single_container_target("arch") is True
+    run_command = commands[-1]
+    assert "127.0.0.1:2224:2222" in run_command
+    assert "dev-container-fortress:arch-test" in run_command
+
+
 def test_container_up_alpine_enables_ssh_entrypoint(monkeypatch: object) -> None:
     """Alpine disposable targets should now use the SSH-oriented entrypoint."""
     commands: list[list[str]] = []
@@ -4901,7 +4956,7 @@ def test_container_down_runs_for_all_targets(monkeypatch: object) -> None:
     result = runner.invoke(app, ["container", "down", "all"])
 
     assert result.exit_code == 0
-    assert calls == ["ubuntu", "alpine"]
+    assert calls == ["ubuntu", "alpine", "arch"]
 
 
 def test_container_reset_runs_for_wildcard_target(monkeypatch: object) -> None:
@@ -4917,7 +4972,7 @@ def test_container_reset_runs_for_wildcard_target(monkeypatch: object) -> None:
     result = runner.invoke(app, ["container", "reset", "*"])
 
     assert result.exit_code == 0
-    assert calls == ["ubuntu", "alpine"]
+    assert calls == ["ubuntu", "alpine", "arch"]
 
 
 def test_container_logs_runs_for_single_target(monkeypatch: object) -> None:

@@ -9,10 +9,11 @@ keeps child repositories under `repos/`.
 
 ## Available Definitions
 
-The repository currently provides two devcontainer definitions:
+The repository currently provides three devcontainer definitions:
 
 - [`.devcontainer/ubuntu/devcontainer.json`](../.devcontainer/ubuntu/devcontainer.json)
 - [`.devcontainer/alpine/devcontainer.json`](../.devcontainer/alpine/devcontainer.json)
+- [`.devcontainer/arch/devcontainer.json`](../.devcontainer/arch/devcontainer.json) (amd64 hosts only)
 
 Each is a thin wrapper over the matching Dockerfile in `containers/`.
 
@@ -24,7 +25,7 @@ workspace toolchain while editing multiple child repositories.
 
 1. Open your `dev-container-fortress` checkout in VS Code.
 2. Run `Dev Containers: Reopen in Container` or `Dev Containers: Rebuild and Reopen in Container`.
-3. Choose the Ubuntu or Alpine definition when prompted.
+3. Choose the Ubuntu, Alpine, or Arch definition when prompted.
 
 ## Expected Behavior
 
@@ -72,6 +73,8 @@ fzf --version
 ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/tools.toml --target alpine
 tenv --version
 ```
+
+Arch: run the Ubuntu checks with `--target arch` in the `ft plan` command.
 
 ## Optional Corporate CA Support
 

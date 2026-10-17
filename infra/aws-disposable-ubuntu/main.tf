@@ -33,7 +33,7 @@ resource "aws_security_group" "ssh" {
 }
 
 resource "aws_instance" "this" {
-  ami                         = data.aws_ssm_parameter.ubuntu_ami.value
+  ami                         = local.ami_id
   instance_type               = var.instance_type
   subnet_id                   = coalesce(var.subnet_id, sort(data.aws_subnets.default.ids)[0])
   vpc_security_group_ids      = [aws_security_group.ssh.id]
@@ -64,6 +64,13 @@ resource "aws_instance" "this" {
         spot_instance_type             = "one-time"
         max_price                      = var.spot_max_price
       }
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.os != "arch" || var.architecture == "amd64"
+      error_message = "Arch hosts are amd64 only; set architecture = \"amd64\" and an x86_64 instance_type."
     }
   }
 
