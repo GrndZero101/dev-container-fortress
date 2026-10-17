@@ -2,8 +2,8 @@
 
 ## Status
 
-- [ ] Milestone complete
-- [x] Active milestone
+- [x] Milestone complete
+- [ ] Active milestone
 
 ## Objective
 
@@ -148,8 +148,8 @@ clear message rather than failing deep inside a build.
 - [x] Branch from `main` as `feat/m0009a-arch-linux-target`
 - [x] Land `M9a-1` as the first verified checkpoint before adding Arch-specific files
 - [x] Commit freely at verified checkpoints
-- [ ] Open one PR for the milestone once container and host targets both pass verification
-- [ ] Squash merge into `main`
+- [x] Open one PR for the milestone once container and host targets both pass verification
+- [x] Squash merge into `main`
 
 ## Decisions
 

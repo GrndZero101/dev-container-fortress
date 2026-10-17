@@ -472,7 +472,7 @@ Non-goal for early work:
 
 ### `M9a` Arch Linux Target
 
-Status: `now`
+Status: `done`
 
 Objective:
 Add Arch Linux as a supported container and host target with the same
