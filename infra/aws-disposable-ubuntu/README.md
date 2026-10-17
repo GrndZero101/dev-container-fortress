@@ -30,8 +30,8 @@ This stack has now been exercised against a real Ubuntu EC2 instance in
 - `ft host bootstrap --check` and normal bootstrap both succeeded
 - Session Manager console access worked after the instance profile was attached
 
-Final `terraform destroy` validation on the currently live host is still the
-remaining closeout step before the side quest can be marked fully complete.
+- `terraform destroy` and `ft infra aws-disposable-ubuntu destroy` tore hosts
+  down cleanly, including a disposable Arch host on 2026-10-17
 
 ## Current Shape
 
@@ -276,6 +276,21 @@ unset TF_WORKSPACE TF_VAR_os TF_VAR_enable_session_manager
 >
 > The Arch image has no SSM agent, so disable the Session Manager role for Arch
 > hosts and reach them over SSH only.
+
+## Cost, Interruption, and Trust Caveats
+
+> [!WARNING]
+> A running host bills until you destroy it, including its root volume. Treat
+> every host as disposable and run `destroy` as soon as validation finishes.
+
+- Spot hosts are one-time requests with `instance_interruption_behavior =
+  "terminate"`. AWS can reclaim them at any time, and anything on the host is
+  lost. Use `capacity select --market on-demand` when a session must survive.
+- Every new host presents a new SSH host key. `ft` refreshes the managed
+  `known_hosts` entry for `kind = "cloud"` targets instead of trusting the key
+  blindly in your personal `~/.ssh/known_hosts`.
+- SSH ingress defaults to your current public IP as a `/32`. Re-apply after your
+  IP changes, or pin `ssh_ingress_cidrs` explicitly.
 
 ## Current Assumptions
 

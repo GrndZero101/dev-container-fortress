@@ -2,8 +2,8 @@
 
 ## Status
 
-- [ ] Milestone complete
-- [x] Side-quest milestone in active validation
+- [x] Milestone complete
+- [ ] Side-quest milestone in active validation
 
 ## Objective
 
@@ -28,40 +28,40 @@ to use regularly.
 
 ## Design Principles
 
-- [ ] Prefer a narrow disposable-host workflow over a broad general-purpose cloud framework
-- [ ] Prefer cheap, replaceable Ubuntu hosts over long-lived snowflake test machines
-- [ ] Keep Terraform responsible for infrastructure lifecycle
-- [ ] Keep `ft host ...` responsible for SSH, inventory, probe, and bootstrap
-- [ ] Keep the cloud target generated or templated into the existing host-target model instead of inventing a separate host contract
-- [ ] Prefer convergent desired-state host automation over one-shot bootstrap scripts
-- [ ] Prefer official providers and native Terraform resources over wrapper shell scripts
-- [ ] Make teardown and cost visibility first-class so testing stays safe
+- [x] Prefer a narrow disposable-host workflow over a broad general-purpose cloud framework
+- [x] Prefer cheap, replaceable Ubuntu hosts over long-lived snowflake test machines
+- [x] Keep Terraform responsible for infrastructure lifecycle
+- [x] Keep `ft host ...` responsible for SSH, inventory, probe, and bootstrap
+- [x] Keep the cloud target generated or templated into the existing host-target model instead of inventing a separate host contract
+- [x] Prefer convergent desired-state host automation over one-shot bootstrap scripts
+- [x] Prefer official providers and native Terraform resources over wrapper shell scripts
+- [x] Make teardown and cost visibility first-class so testing stays safe
 
 ## Lessons Reused from `minecraft-docker`
 
 Useful ideas worth reusing:
 
-- [ ] a cheapest-spot discovery step that exports machine-readable Terraform input
-- [ ] Terraform-managed spot-host creation with an explicit SSH public key
-- [ ] a clear operator flow of create host -> verify SSH -> run Ansible
-- [ ] explicit handling for disposable-host SSH known-host churn
+- [x] a cheapest-spot discovery step that exports machine-readable Terraform input
+- [x] Terraform-managed spot-host creation with an explicit SSH public key
+- [x] a clear operator flow of create host -> verify SSH -> run Ansible
+- [x] explicit handling for disposable-host SSH known-host churn
 
 Things to improve this time:
 
-- [ ] avoid project-specific AWS assumptions such as Route53, Minecraft naming, or bespoke VPC layout
-- [ ] avoid large standalone Python scripts without tests or a stable CLI contract
-- [ ] avoid shell-wrapper-heavy orchestration when Terraform, `ft`, or Ansible can own the behavior directly
-- [ ] avoid coupling infrastructure creation with app-specific bootstrap concerns
+- [x] avoid project-specific AWS assumptions such as Route53, Minecraft naming, or bespoke VPC layout
+- [x] avoid large standalone Python scripts without tests or a stable CLI contract
+- [x] avoid shell-wrapper-heavy orchestration when Terraform, `ft`, or Ansible can own the behavior directly
+- [x] avoid coupling infrastructure creation with app-specific bootstrap concerns
 
 ## Exit Criteria
 
-- [ ] Terraform code can create one disposable Ubuntu VM suitable for `ft host ...` testing
-- [ ] The first target is cost-conscious and supports Spot where practical
-- [ ] The operator can tear the target down cleanly after testing
-- [ ] The disposable host can be represented in the Dev Fortress host target model without manual reinvention each run
-- [ ] The documented workflow covers provision, target registration, managed SSH key usage, probe, bootstrap, verification, and teardown
-- [ ] The workflow is validated end to end against at least one real Ubuntu VM
-- [ ] Cost, interruption, and trust-state caveats are documented clearly
+- [x] Terraform code can create one disposable Ubuntu VM suitable for `ft host ...` testing
+- [x] The first target is cost-conscious and supports Spot where practical
+- [x] The operator can tear the target down cleanly after testing
+- [x] The disposable host can be represented in the Dev Fortress host target model without manual reinvention each run
+- [x] The documented workflow covers provision, target registration, managed SSH key usage, probe, bootstrap, verification, and teardown
+- [x] The workflow is validated end to end against at least one real Ubuntu VM
+- [x] Cost, interruption, and trust-state caveats are documented clearly
 
 ## Non-Goals
 
@@ -86,7 +86,7 @@ Things to improve this time:
 - [x] Problem: there is no repeatable cheap real-host target to test against
 - [x] Scope: add Terraform for one Ubuntu VM, likely EC2 Spot first
 - [x] Acceptance: one command sequence can provision the host
-- [ ] Acceptance: one command sequence can destroy the host
+- [x] Acceptance: one command sequence can destroy the host
 - [x] Acceptance: tags and naming make disposable test hosts easy to identify
 - [x] Acceptance: SSH access uses a Dev Fortress-managed or operator-supplied public key cleanly
 
@@ -123,7 +123,7 @@ Things to improve this time:
 - [x] `uv run ft host bootstrap <target> --check` passes against the real VM
 - [x] `uv run ft host bootstrap <target>` passes against the real VM
 - [x] A rerun converges with little or no change
-- [ ] The host can be destroyed cleanly afterward
+- [x] The host can be destroyed cleanly afterward
 
 ## Captured Outcome
 
@@ -140,16 +140,16 @@ What is now proven:
 - AWS Systems Manager Session Manager access works for the disposable host using
   an IAM role and instance profile with `AmazonSSMManagedInstanceCore`
 
-What remains before this milestone can be closed cleanly:
+Closeout, 2026-10-17:
 
-- validate `terraform destroy` on the currently live AWS account after the host
-  is no longer needed
-- decide whether cheapest-instance or Spot-selection logic belongs in this
-  milestone or should remain a follow-on helper milestone
+- teardown is proven: the Ubuntu host state has been empty since 2026-07-05,
+  and `ft infra aws-disposable-ubuntu destroy` removed a disposable Arch host
+  cleanly during `M9a` verification
+- Spot selection stayed in this milestone as `ft infra aws-disposable-ubuntu
+  capacity select`, landed in `554fddb`
+- cost, interruption, and trust caveats are documented in the stack README
 
 ## Branch and Merge Plan
 
-- [ ] Branch from `main` as `feat/m0004a-disposable-cloud-ubuntu-host-loop`
-- [ ] Commit freely at verified checkpoints
-- [ ] Open one PR for the side-quest once the exit criteria are met
-- [ ] Squash merge into `main`
+This side quest landed directly on `main` before the milestone-branch workflow
+settled, mainly in `6c50b20`, `554fddb`, and `ec92234`.

@@ -263,6 +263,8 @@ The current baseline keeps the hooks intentionally light:
 - `ruff` lint and format for Python
 - `zsh -n` syntax checks for repo-owned Zsh entrypoints under `scripts/` and
   `infra/`, plus `bootstrap.zsh`
+- `sh -n` syntax checks for `install.sh` and the POSIX helpers under
+  `containers/common/`
 
 ### Continuous Integration
 

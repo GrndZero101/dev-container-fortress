@@ -56,6 +56,31 @@ Expected early role candidates:
 As roles land, update this file so it reflects current reality rather than a
 wishlist.
 
+## Managed Versus User-Owned State
+
+Host bootstrap converges only the state below. Rerunning it resets these paths
+to the declared baseline, so do not hand-edit them.
+
+| State | Path | Owner on rerun |
+| --- | --- | --- |
+| `shell-config` checkout | `${XDG_CONFIG_HOME}/shell-config` by default | Dev Fortress keeps it on the configured branch; local edits make the update fail instead of being discarded |
+| Active profile marker | `${XDG_STATE_HOME}/shell-config/active-profile` | Dev Fortress rewrites it with the selected profile |
+| Fortress profile `zinit` | `${XDG_DATA_HOME}/shell-config/<profile>/zinit/zinit.git` | Dev Fortress installs it when missing; plugin updates stay manual |
+| Bootstrap `ZDOTDIR` | `${XDG_CACHE_HOME}/dev-container-fortress/csm-bootstrap-zdotdir` | Dev Fortress scratch space |
+| Login shell | the target user's passwd entry | Dev Fortress sets `zsh` where enabled |
+| Homebrew shellenv | the marked `DEV FORTRESS HOMEBREW` blocks in `~/.zprofile` and `~/.profile` | Dev Fortress owns only the text between the markers |
+| Kickstart Neovim | `${XDG_CONFIG_HOME}/nvim-kickstart` and `~/.local/bin/nvim-kickstart` | Dev Fortress |
+| Docker daemon config | `/etc/docker/daemon.json` | Dev Fortress owns the whole file on `workstation` and `cloud` targets |
+
+Dotfile linking is delegated to `shell-config` itself. Its `csm bootstrap`
+links the profile's dotfiles and moves a pre-existing file aside instead of
+deleting it, so check for moved files after the first bootstrap of a hand-built
+host.
+
+Everything else stays user-owned. That includes `~/.config/nvim`, content
+outside the marked blocks in `~/.zprofile` and `~/.profile`, and any
+customization layered on top of the `shell-config` profile.
+
 ## Current Roles
 
 ### `dev_fortress_target_contract`

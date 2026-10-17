@@ -19,13 +19,13 @@ safe to destroy and recreate frequently without hidden snowflake state.
 
 ## Exit Criteria
 
-- [ ] One supported daily-driver container contract is documented for Ubuntu-first use
-- [ ] The contract clearly separates thin host responsibilities from container responsibilities
-- [ ] `ft` exposes a first-class operator workflow for the daily-driver container instead of requiring ad hoc `docker run` commands
-- [ ] The workflow supports bind-mounted local working copies of `dev-container-fortress` and `shell-config`
+- [x] One supported daily-driver container contract is documented for Ubuntu-first use
+- [x] The contract clearly separates thin host responsibilities from container responsibilities
+- [x] `ft` exposes a first-class operator workflow for the daily-driver container instead of requiring ad hoc `docker run` commands
+- [x] The workflow supports bind-mounted local working copies of `dev-container-fortress` and `shell-config`
 - [ ] The workflow supports a small explicit set of persisted state mounts for caches and auth material
-- [ ] The initial auth and secrets contract is explicit for SSH, Git HTTPS/OAuth, and GPG-backed `pass` or `gopass`
-- [ ] Optional heavy CLI layers such as `gh`, `glab`, `aws`, and `az` are modeled as opt-in image or tool profiles rather than mandatory base-image contents
+- [x] The initial auth and secrets contract is explicit for SSH, Git HTTPS/OAuth, and GPG-backed `pass` or `gopass`
+- [x] Optional heavy CLI layers such as `gh`, `glab`, `aws`, and `az` are modeled as opt-in image or tool profiles rather than mandatory base-image contents
 - [ ] A disposable Ubuntu EC2 host can be provisioned, bootstrapped, used for real development inside the daily-driver container, and destroyed again with the same documented operator loop
 - [ ] The recommended loop is documented truthfully in user-facing docs once implemented
 
@@ -137,33 +137,33 @@ opt-in and do not become mandatory weight for all users and all targets.
 
 ### M5a-1 Define the daily-driver runtime contract
 
-- [ ] Problem: the repo has disposable validation containers, but no explicit contract for a mounted real-development container
-- [ ] Scope: define required mounts, optional persisted mounts, naming, lifecycle, and ownership boundaries
-- [ ] Acceptance: one Ubuntu-first runtime contract is documented clearly enough to implement without guesswork
+- [x] Problem: the repo has disposable validation containers, but no explicit contract for a mounted real-development container
+- [x] Scope: define required mounts, optional persisted mounts, naming, lifecycle, and ownership boundaries
+- [x] Acceptance: one Ubuntu-first runtime contract is documented clearly enough to implement without guesswork
 
 ### M5a-2 Add first-class `ft` operator commands for the workflow
 
-- [ ] Problem: the current `ft container ...` flow is shaped for disposable test targets, not a mounted day-to-day development session
-- [ ] Scope: implement the proposed `ft workspace build`, `up`, `enter`, `exec`, `down`, `reset`, `status`, and `doctor` commands for the daily-driver container
-- [ ] Acceptance: the operator workflow can be run through `ft` rather than raw `docker run`
+- [x] Problem: the current `ft container ...` flow is shaped for disposable test targets, not a mounted day-to-day development session
+- [x] Scope: implement the proposed `ft workspace build`, `up`, `enter`, `exec`, `down`, `reset`, `status`, and `doctor` commands for the daily-driver container
+- [x] Acceptance: the operator workflow can be run through `ft` rather than raw `docker run`
 
 ### M5a-3 Support live repo bind mounts
 
-- [ ] Problem: daily-driver use requires editing local clones of `dev-container-fortress` and `shell-config` instead of copying sources into the image
-- [ ] Scope: support bind-mounted working copies and document the expected in-container workspace layout
-- [ ] Acceptance: Dev Fortress and `shell-config` can both be edited live from inside the container
+- [x] Problem: daily-driver use requires editing local clones of `dev-container-fortress` and `shell-config` instead of copying sources into the image
+- [x] Scope: support bind-mounted working copies and document the expected in-container workspace layout
+- [x] Acceptance: Dev Fortress and `shell-config` can both be edited live from inside the container
 
 ### M5a-4 Define persisted state and auth mount policy
 
-- [ ] Problem: disposable hosts and containers need a truthfully scoped story for what should persist across rebuilds and what should not
-- [ ] Scope: define persisted cache, CLI config, SSH, forge, cloud, and secrets-adjacent mount policy
+- [x] Problem: disposable hosts and containers need a truthfully scoped story for what should persist across rebuilds and what should not
+- [x] Scope: define persisted cache, CLI config, SSH, forge, cloud, and secrets-adjacent mount policy
 - [ ] Acceptance: auth and persistence boundaries are explicit enough for repeatable use on local hosts and disposable EC2
 
 ### M5a-5 Add optional tool-layer selection
 
-- [ ] Problem: the daily-driver use case wants tools such as `gh`, `glab`, `aws`, and `az`, but they should not bloat the default base image
-- [ ] Scope: define image-layer or tool-profile selection for heavy optional CLIs
-- [ ] Acceptance: at least one supported opt-in mechanism exists for heavier daily-driver tooling
+- [x] Problem: the daily-driver use case wants tools such as `gh`, `glab`, `aws`, and `az`, but they should not bloat the default base image
+- [x] Scope: define image-layer or tool-profile selection for heavy optional CLIs
+- [x] Acceptance: at least one supported opt-in mechanism exists for heavier daily-driver tooling
 
 ### M5a-6 Prove the disposable EC2 operator loop
 
@@ -175,10 +175,38 @@ opt-in and do not become mandatory weight for all users and all targets.
 
 - [ ] A fresh Ubuntu EC2 host can be provisioned through the repo-owned infra path
 - [ ] `ft host bootstrap` prepares the host without requiring workstation-only snowflake state
-- [ ] The daily-driver container can start against bind-mounted `dev-container-fortress` and `shell-config` checkouts
+- [x] The daily-driver container can start against bind-mounted `dev-container-fortress` and `shell-config` checkouts
 - [ ] Normal development tasks work from inside the container, including editing, git operations, shell-config iteration, and Fortress self-hosting checks
 - [ ] Replacing the container does not lose intentionally persisted state
 - [ ] Destroying and recreating the EC2 host does not require undocumented operator recovery steps
+
+## Progress Notes
+
+Status sweep on 2026-10-17. Most of the workspace slice already landed on
+`main` (mainly `b8b8c06`, `27ec638`, and `ec92234`); the milestone file had not
+been updated.
+
+Verified locally with `ubuntu-base`:
+
+- `ft workspace build`, `up`, `validate`, `exec`, and `down` work end to end
+- both checkouts are bind-mounted live: a file written inside the container
+  appears on the host with the operator's ownership, and git works in both
+- `ft workspace exec` failed whenever stdin was not a terminal because it always
+  requested a TTY; fixed in the same sweep for `ft container exec` too
+
+Open, in suggested order:
+
+1. **Persisted `share` mount hides the image toolchain.** The `share` mount
+   covers all of `${XDG_DATA_HOME}`, but the image installs `uv` tools and
+   Python there, so `~/.local/bin/ft` is a dangling symlink inside every
+   workspace. Narrow the mount to the state that should persist, or move the
+   image's `uv` tool and Python roots out of `${XDG_DATA_HOME}`. This blocks the
+   persisted-state exit criterion and `M5a-4`.
+2. `ft workspace validate` does not check `ft` or the core toolchain, which is
+   why it passed while `ft` was missing.
+3. Prove `M5a-6`: provision EC2, bootstrap, run the workspace with mounted
+   checkouts, develop, and destroy, following `docs/ec2-development-loop.md`.
+4. Confirm that replacing the container keeps intentionally persisted state.
 
 ## Branch and Merge Plan
 
