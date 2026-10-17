@@ -2732,10 +2732,76 @@ def test_workspace_profile_manifest_includes_named_profiles() -> None:
     assert manifest.tool_layers["secrets"].build_arg == "WORKSPACE_TOOL_LAYER_SECRETS"
     assert manifest.profiles["ubuntu-secrets"].persisted_mounts == [
         "cache",
-        "share",
+        "state",
+        "zoxide",
+        "atuin",
         "gnupg",
         "password-store",
     ]
+
+
+def test_workspace_persisted_mounts_never_hide_the_image_data_root() -> None:
+    """No profile mount may cover the image-owned XDG data root wholesale."""
+    from ft.cli import (
+        _load_workspace_profile_manifest,
+        _workspace_persisted_container_path,
+    )
+
+    manifest = _load_workspace_profile_manifest()
+    for profile in manifest.profiles.values():
+        for mount_name in profile.persisted_mounts:
+            container_path = _workspace_persisted_container_path(mount_name)
+            assert container_path.rstrip("/") != "/home/vscode/.local/share"
+            assert container_path.rstrip("/") != "/home/vscode/.local"
+
+
+def test_validate_workspace_profile_fails_when_ft_does_not_run(
+    monkeypatch: object,
+) -> None:
+    """Workspace validation should fail when the image toolchain is broken."""
+    from ft.cli import _validate_workspace_profile
+    from ft.models import WorkspaceProfileDefinition
+
+    monkeypatch.setattr(
+        "ft.cli._run_command",
+        lambda command: subprocess.CompletedProcess(command, 0, stdout="", stderr=""),
+    )
+    monkeypatch.setattr(
+        "ft.cli._workspace_shell_config_resolution",
+        lambda checkout: {"available": False, "detail": "not mounted"},
+    )
+    shell_outputs = {
+        "whoami": "vscode",
+        "pwd": "/workspace/dev-container-fortress",
+        "SHELL_CONFIG_PROFILE": "zsh-tll-citadel-dev-fortress",
+        "PATH": "/home/vscode/.local/bin:/usr/bin",
+        "test -d /workspace/dev-container-fortress": "mounted",
+    }
+
+    def fake_shell_text(container_name: str, command: str) -> tuple[bool, str]:
+        if command.startswith("ft "):
+            return False, "zsh:1: no such file or directory: /home/vscode/.local/bin/ft"
+        for marker, output in shell_outputs.items():
+            if marker in command:
+                return True, output
+        return True, "ok"
+
+    monkeypatch.setattr("ft.cli._shell_text", fake_shell_text)
+
+    report = _validate_workspace_profile(
+        "ubuntu-base",
+        WorkspaceProfileDefinition(
+            description="base",
+            working_directory="/workspace/dev-container-fortress",
+        ),
+    )
+    check_map = {check["check"]: check for check in report["checks"]}
+
+    assert report["success"] is False
+    assert check_map["ft"]["stat"] == "FAIL"
+    assert "no such file" in check_map["ft"]["detail"]
+    assert check_map["uv"]["stat"] == "OK"
+    assert check_map["nvim"]["stat"] == "OK"
 
 
 def test_workspace_build_uses_resolved_profile(monkeypatch: object) -> None:
@@ -3469,7 +3535,7 @@ def test_workspace_auth_checks_report_secrets_baseline(
 
     profile = WorkspaceProfileDefinition(
         description="secrets",
-        persisted_mounts=["cache", "share", "gnupg", "password-store"],
+        persisted_mounts=["cache", "state", "gnupg", "password-store"],
         tool_layers=["secrets"],
     )
 
@@ -3492,7 +3558,7 @@ def test_workspace_auth_checks_warn_when_secrets_mounts_are_missing(
 
     profile = WorkspaceProfileDefinition(
         description="secrets",
-        persisted_mounts=["cache", "share"],
+        persisted_mounts=["cache", "state"],
         tool_layers=["secrets"],
     )
 

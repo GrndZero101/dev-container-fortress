@@ -40,9 +40,32 @@ That means they should:
   - `XDG_CACHE_HOME=$HOME/.cache`
   - `XDG_DATA_HOME=$HOME/.local/share`
   - `XDG_CONFIG_HOME=$HOME/.config`
+  - `XDG_STATE_HOME=$HOME/.local/state`
   - `PATH=$HOME/.local/bin:$PATH`
 - Repo-specific runtime data may live below an XDG-owned subtree such as
   `$XDG_DATA_HOME/dev-container-fortress/`.
+
+## Persisted State Contract
+
+- The image owns `$XDG_DATA_HOME`. It holds the `uv` tools and managed Python
+  (including `ft`), the `ft` source and completions, the Neovim runtime, and
+  prewarmed zinit plugins.
+- Never mount over `$XDG_DATA_HOME` or `$HOME/.local` as a whole. A mount hides
+  the image content underneath it and leaves `$HOME/.local/bin` links dangling.
+- Persist runtime state through a short allowlist of narrow paths instead:
+
+  | Name | Container path | Holds |
+  | --- | --- | --- |
+  | `state` | `$XDG_STATE_HOME` | shell history, Neovim undo and shada |
+  | `zoxide` | `$XDG_DATA_HOME/zoxide` | zoxide directory database |
+  | `atuin` | `$XDG_DATA_HOME/atuin` | atuin history database |
+
+- `ft workspace` bind-mounts these from host-owned XDG state directories. The
+  devcontainer definitions use named Docker volumes for the same paths.
+- The images pre-create each path with runtime-user ownership so a fresh named
+  volume inherits it instead of mounting as root.
+- Add a new persisted path only when it holds runtime state that is worth keeping
+  across container replacement, and add it to both consumers.
 
 ## Bootstrap Contract
 
@@ -98,6 +121,7 @@ That means they should:
 - Each devcontainer should use the same runtime user as its container image.
 - Post-create behavior should validate or lightly bootstrap the environment, not duplicate the core image provisioning logic.
 - Devcontainer build args may expose opt-in environment hooks such as `DEV_CONTAINER_FORTRESS_CA_CERT_DIR` when they are needed for corporate networks.
+- Devcontainer `mounts` persist only the paths in the persisted state contract, as named volumes keyed by `${devcontainerId}`.
 
 ## Portability Contract
 

@@ -97,6 +97,8 @@ RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/bin \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share/dev-container-fortress \
+  && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share/zoxide \
+  && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share/atuin \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/state \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.cache \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.config \

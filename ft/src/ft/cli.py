@@ -163,6 +163,15 @@ DEPLOY_RSYNC_EXCLUDES = (
     ".zsh_history",
     "uv.lock.*",
 )
+# Core image toolchain commands that must run inside a workspace. Running them,
+# rather than only resolving them on PATH, catches links left dangling when a
+# mount hides the image-owned install roots under XDG_DATA_HOME.
+WORKSPACE_TOOLCHAIN_CHECKS = (
+    ("ft", "ft --help >/dev/null && print -r -- ok"),
+    ("uv", "uv --version"),
+    ("python", "python3.14 --version"),
+    ("nvim", "setopt pipefail; nvim --version | head -n 1"),
+)
 ANSIBLE_PLAY_RECAP_PATTERN = re.compile(
     r"^(?:.*\|\s*)?(?P<target>[^\n:|]+?)\s*:\s*"
     r"ok=(?P<ok>\d+)\s+"
@@ -745,7 +754,9 @@ def _workspace_persisted_host_path(profile_name: str, mount_name: str) -> Path:
     """Return the host-side persisted path for one named workspace mount."""
     mapping = {
         "cache": _workspace_state_root() / profile_name / "cache",
-        "share": _workspace_state_root() / profile_name / "share",
+        "state": _workspace_state_root() / profile_name / "state",
+        "zoxide": _workspace_state_root() / profile_name / "zoxide",
+        "atuin": _workspace_state_root() / profile_name / "atuin",
         "gh": _workspace_state_root() / profile_name / "config-gh",
         "glab": _workspace_state_root() / profile_name / "config-glab",
         "aws": Path.home() / ".aws",
@@ -759,10 +770,17 @@ def _workspace_persisted_host_path(profile_name: str, mount_name: str) -> Path:
 
 
 def _workspace_persisted_container_path(mount_name: str) -> str:
-    """Return the in-container path for one named workspace persisted mount."""
+    """Return the in-container path for one named workspace persisted mount.
+
+    The image owns ``${XDG_DATA_HOME}`` (``uv`` tools and Python, ``ft``,
+    the Neovim runtime, and prewarmed zinit plugins), so persisted mounts
+    must target narrow runtime-state paths rather than the whole data root.
+    """
     mapping = {
         "cache": "/home/vscode/.cache",
-        "share": "/home/vscode/.local/share",
+        "state": "/home/vscode/.local/state",
+        "zoxide": "/home/vscode/.local/share/zoxide",
+        "atuin": "/home/vscode/.local/share/atuin",
         "gh": "/home/vscode/.config/gh",
         "glab": "/home/vscode/.config/glab",
         "aws": "/home/vscode/.aws",
@@ -1672,6 +1690,15 @@ def _validate_workspace_profile(
             detail=detail,
         )
         success = success and passed
+
+    for check_name, command in WORKSPACE_TOOLCHAIN_CHECKS:
+        ok, output = _shell_text(container_name, command)
+        add_result(
+            stat="OK" if ok else "FAIL",
+            check=check_name,
+            detail=_last_non_empty_line(output) if ok else output or "command failed",
+        )
+        success = success and ok
 
     for command_name in _workspace_layer_command_checks(profile):
         ok, output = _shell_text(container_name, f"command -v -- '{command_name}'")

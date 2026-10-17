@@ -344,8 +344,8 @@ Current state:
 
 - `ft workspace ...` profiles, live bind mounts, tool layers, and the auth
   contract are implemented and verified locally
-- the persisted `share` mount hides the image's `uv` tool and Python installs,
-  including `ft`, so it must be narrowed first
+- persisted state is an explicit allowlist (`state`, `zoxide`, `atuin`) shared
+  by workspaces and devcontainers; the image owns the rest of `${XDG_DATA_HOME}`
 - the disposable EC2 develop-in-container loop is documented but not yet proven
 
 Details:

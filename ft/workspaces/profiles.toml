@@ -21,40 +21,40 @@ mode = "state_only"
 description = "Ubuntu-first mounted daily-driver workspace for Dev Fortress development."
 container_target = "ubuntu"
 working_directory = "/workspace/dev-container-fortress"
-persisted_mounts = ["cache", "share", "gh", "glab", "aws", "azure"]
+persisted_mounts = ["cache", "state", "zoxide", "atuin", "gh", "glab", "aws", "azure"]
 tool_layers = []
 
 [profiles.ubuntu-gitforge]
 description = "Ubuntu workspace with forge-oriented persisted state for GitHub and GitLab CLI use."
 container_target = "ubuntu"
 working_directory = "/workspace/dev-container-fortress"
-persisted_mounts = ["cache", "share", "gh", "glab"]
+persisted_mounts = ["cache", "state", "zoxide", "atuin", "gh", "glab"]
 tool_layers = ["gitforge"]
 
 [profiles.ubuntu-secrets]
 description = "Ubuntu workspace with the first-pass GPG-backed pass secrets baseline."
 container_target = "ubuntu"
 working_directory = "/workspace/dev-container-fortress"
-persisted_mounts = ["cache", "share", "gnupg", "password-store"]
+persisted_mounts = ["cache", "state", "zoxide", "atuin", "gnupg", "password-store"]
 tool_layers = ["secrets"]
 
 [profiles.ubuntu-cloud-aws]
 description = "Ubuntu workspace with AWS CLI state persistence."
 container_target = "ubuntu"
 working_directory = "/workspace/dev-container-fortress"
-persisted_mounts = ["cache", "share", "aws"]
+persisted_mounts = ["cache", "state", "zoxide", "atuin", "aws"]
 tool_layers = ["aws"]
 
 [profiles.ubuntu-cloud-azure]
 description = "Ubuntu workspace with Azure CLI state persistence."
 container_target = "ubuntu"
 working_directory = "/workspace/dev-container-fortress"
-persisted_mounts = ["cache", "share", "azure"]
+persisted_mounts = ["cache", "state", "zoxide", "atuin", "azure"]
 tool_layers = ["azure"]
 
 [profiles.ubuntu-full]
 description = "Ubuntu workspace that combines the current optional image-building layers plus cloud state markers."
 container_target = "ubuntu"
 working_directory = "/workspace/dev-container-fortress"
-persisted_mounts = ["cache", "share", "gh", "glab", "aws", "azure", "gnupg", "password-store"]
+persisted_mounts = ["cache", "state", "zoxide", "atuin", "gh", "glab", "aws", "azure", "gnupg", "password-store"]
 tool_layers = ["gitforge", "secrets", "aws", "azure"]

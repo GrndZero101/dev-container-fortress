@@ -23,7 +23,7 @@ safe to destroy and recreate frequently without hidden snowflake state.
 - [x] The contract clearly separates thin host responsibilities from container responsibilities
 - [x] `ft` exposes a first-class operator workflow for the daily-driver container instead of requiring ad hoc `docker run` commands
 - [x] The workflow supports bind-mounted local working copies of `dev-container-fortress` and `shell-config`
-- [ ] The workflow supports a small explicit set of persisted state mounts for caches and auth material
+- [x] The workflow supports a small explicit set of persisted state mounts for caches and auth material
 - [x] The initial auth and secrets contract is explicit for SSH, Git HTTPS/OAuth, and GPG-backed `pass` or `gopass`
 - [x] Optional heavy CLI layers such as `gh`, `glab`, `aws`, and `az` are modeled as opt-in image or tool profiles rather than mandatory base-image contents
 - [ ] A disposable Ubuntu EC2 host can be provisioned, bootstrapped, used for real development inside the daily-driver container, and destroyed again with the same documented operator loop
@@ -92,7 +92,9 @@ Required bind mounts:
 Candidate persisted mounts:
 
 - `${HOME}/.cache`
-- `${HOME}/.local/share`
+- `${HOME}/.local/state`
+- `${HOME}/.local/share/zoxide` and `${HOME}/.local/share/atuin`, never all of
+  `${HOME}/.local/share`, which the image owns
 - `${HOME}/.config/gh`
 - `${HOME}/.config/glab`
 - `${HOME}/.aws`
@@ -194,19 +196,35 @@ Verified locally with `ubuntu-base`:
 - `ft workspace exec` failed whenever stdin was not a terminal because it always
   requested a TTY; fixed in the same sweep for `ft container exec` too
 
+Fixed on 2026-10-18 on `feat/m0005a-disposable-daily-driver-container`:
+
+- the blanket `share` mount over `${XDG_DATA_HOME}` hid the image's `uv` tools,
+  managed Python, `ft`, Neovim runtime, and prewarmed zinit plugins. It is
+  replaced by an allowlist of narrow mounts: `state` (`${XDG_STATE_HOME}`, which
+  holds zsh history), `zoxide`, and `atuin`. The rule now lives in the persisted
+  state contract in `docs/container-standards.md`
+- zsh history lives under `${XDG_STATE_HOME}`, so it was never persisted before
+- `ft workspace validate` now runs `ft`, `uv`, `python3.14`, and `nvim` instead
+  of trusting `PATH`
+- the repo devcontainer definitions persist the same three paths as named
+  volumes, and the images pre-create them with `vscode` ownership
+- verified with `ubuntu-base`: validate passes, and zoxide data, `state`, and
+  `atuin` contents survive `ft workspace up` replacing the container
+
+> [!NOTE]
+> Older workspace state directories still contain an unused `share/`
+> subdirectory. It only holds a zoxide database and re-downloaded zinit
+> plugins, so remove it by hand:
+> `rm -rf ~/.local/state/dev-container-fortress/workspaces/*/share`
+
 Open, in suggested order:
 
-1. **Persisted `share` mount hides the image toolchain.** The `share` mount
-   covers all of `${XDG_DATA_HOME}`, but the image installs `uv` tools and
-   Python there, so `~/.local/bin/ft` is a dangling symlink inside every
-   workspace. Narrow the mount to the state that should persist, or move the
-   image's `uv` tool and Python roots out of `${XDG_DATA_HOME}`. This blocks the
-   persisted-state exit criterion and `M5a-4`.
-2. `ft workspace validate` does not check `ft` or the core toolchain, which is
-   why it passed while `ft` was missing.
-3. Prove `M5a-6`: provision EC2, bootstrap, run the workspace with mounted
+1. Prove `M5a-6`: provision EC2, bootstrap, run the workspace with mounted
    checkouts, develop, and destroy, following `docs/ec2-development-loop.md`.
-4. Confirm that replacing the container keeps intentionally persisted state.
+2. Rebuild a repo devcontainer in VS Code to confirm the named volumes end to end;
+   the `devcontainer` CLI was not available for this check.
+3. The separate `tboss-workspace` devcontainers persist cache and auth paths but
+   not `state`, `zoxide`, or `atuin`; align them with the persisted state contract.
 
 ## Branch and Merge Plan
 

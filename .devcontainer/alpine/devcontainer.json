@@ -15,6 +15,23 @@
   },
   "remoteUser": "vscode",
   "containerUser": "vscode",
+  "mounts": [
+    {
+      "source": "dev-fortress-state-${devcontainerId}",
+      "target": "/home/vscode/.local/state",
+      "type": "volume"
+    },
+    {
+      "source": "dev-fortress-zoxide-${devcontainerId}",
+      "target": "/home/vscode/.local/share/zoxide",
+      "type": "volume"
+    },
+    {
+      "source": "dev-fortress-atuin-${devcontainerId}",
+      "target": "/home/vscode/.local/share/atuin",
+      "type": "volume"
+    }
+  ],
   "customizations": {
     "vscode": {
       "settings": {
