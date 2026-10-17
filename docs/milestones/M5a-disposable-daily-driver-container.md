@@ -210,6 +210,9 @@ Fixed on 2026-10-18 on `feat/m0005a-disposable-daily-driver-container`:
   volumes, and the images pre-create them with `vscode` ownership
 - verified with `ubuntu-base`: validate passes, and zoxide data, `state`, and
   `atuin` contents survive `ft workspace up` replacing the container
+- verified the Ubuntu devcontainer with the `devcontainer` CLI: the three named
+  volumes mount as `vscode`, `postCreate` passes, and zoxide data and `state`
+  survive `devcontainer up --remove-existing-container`
 
 > [!NOTE]
 > Older workspace state directories still contain an unused `share/`
@@ -221,10 +224,9 @@ Open, in suggested order:
 
 1. Prove `M5a-6`: provision EC2, bootstrap, run the workspace with mounted
    checkouts, develop, and destroy, following `docs/ec2-development-loop.md`.
-2. Rebuild a repo devcontainer in VS Code to confirm the named volumes end to end;
-   the `devcontainer` CLI was not available for this check.
-3. The separate `tboss-workspace` devcontainers persist cache and auth paths but
-   not `state`, `zoxide`, or `atuin`; align them with the persisted state contract.
+2. The separate `tboss-workspace` devcontainers persist cache and auth paths but
+   not `state`, `zoxide`, or `atuin`; aligning them is tracked in that repo's
+   `TODO.md`.
 
 ## Branch and Merge Plan
 
