@@ -5,7 +5,7 @@ resource "aws_key_pair" "this" {
 
 resource "aws_security_group" "ssh" {
   name_prefix = "${var.name}-ssh-"
-  description = "SSH access for the Dev Fortress disposable Ubuntu host"
+  description = "SSH access for the Dev Fortress disposable host"
   vpc_id      = data.aws_vpc.default.id
 
   lifecycle {
@@ -38,7 +38,7 @@ resource "aws_instance" "this" {
   subnet_id                   = coalesce(var.subnet_id, sort(data.aws_subnets.default.ids)[0])
   vpc_security_group_ids      = [aws_security_group.ssh.id]
   key_name                    = aws_key_pair.this.key_name
-  iam_instance_profile        = var.enable_session_manager ? aws_iam_instance_profile.session_manager[0].name : null
+  iam_instance_profile        = local.session_manager_enabled ? aws_iam_instance_profile.session_manager[0].name : null
   associate_public_ip_address = var.assign_public_ip
 
   metadata_options {
@@ -64,13 +64,6 @@ resource "aws_instance" "this" {
         spot_instance_type             = "one-time"
         max_price                      = var.spot_max_price
       }
-    }
-  }
-
-  lifecycle {
-    precondition {
-      condition     = var.os != "arch" || var.architecture == "amd64"
-      error_message = "Arch hosts are amd64 only; set architecture = \"amd64\" and an x86_64 instance_type."
     }
   }
 

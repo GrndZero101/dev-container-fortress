@@ -23,13 +23,13 @@ variable "subnet_id" {
 }
 
 variable "os" {
-  description = "Host operating system: ubuntu uses the Canonical SSM-published AMI; arch uses the private AMI from infra/aws-arch-ami."
+  description = "Host operating system; one key of local.os_profiles. ubuntu uses the Canonical SSM-published AMI; arch uses the private AMI from infra/aws-arch-ami."
   type        = string
   default     = "ubuntu"
 
   validation {
-    condition     = contains(["ubuntu", "arch"], var.os)
-    error_message = "os must be either ubuntu or arch."
+    condition     = contains(keys(local.os_profiles), var.os)
+    error_message = "os must be one of: ${join(", ", keys(local.os_profiles))}."
   }
 }
 
@@ -40,13 +40,19 @@ variable "arch_ami_name_prefix" {
 }
 
 variable "architecture" {
-  description = "Instance architecture used to choose the AMI. Arch supports amd64 only."
+  description = "Instance architecture used to choose the AMI. Each OS profile lists the architectures it supports; arch is amd64 only."
   type        = string
   default     = "arm64"
 
   validation {
     condition     = contains(["amd64", "arm64"], var.architecture)
     error_message = "architecture must be either amd64 or arm64."
+  }
+
+  # Checked here rather than on the instance so it fails before any AMI lookup.
+  validation {
+    condition     = contains(try(local.os_profiles[var.os].architectures, [var.architecture]), var.architecture)
+    error_message = "The ${var.os} OS profile supports only ${join(", ", try(local.os_profiles[var.os].architectures, []))}, not ${var.architecture}."
   }
 }
 
@@ -111,7 +117,7 @@ variable "assign_public_ip" {
 }
 
 variable "enable_session_manager" {
-  description = "When true, attach the standard IAM role and instance profile needed for AWS Systems Manager Session Manager."
+  description = "When true, attach the standard IAM role and instance profile needed for AWS Systems Manager Session Manager. Ignored for OS profiles whose image has no SSM agent."
   type        = bool
   default     = true
 }
