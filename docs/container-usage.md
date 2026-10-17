@@ -1,6 +1,6 @@
 # Container Usage
 
-This document describes how to build and use the Ubuntu and Alpine images directly with Docker.
+This document describes how to build and use the Ubuntu, Alpine, and Arch images directly with Docker.
 
 See [Container Standards](container-standards.md) for the container contract and [containers/README.md](../containers/README.md) for implementation details.
 
@@ -10,6 +10,7 @@ Works today:
 
 - Ubuntu image build
 - Alpine image build
+- Arch image build (new in `M9a`, amd64 only, not yet proven end to end)
 - non-root `vscode` runtime user
 - XDG-style home layout
 - runtime `uv`
@@ -36,6 +37,15 @@ where upstream release assets are incomplete.
 downloader, while Alpine uses the native `apk` package because the upstream
 Linux tarballs are not musl builds.
 
+Arch is glibc-based and installs both `rg` and `nvim` through the downloader,
+like Ubuntu.
+
+> [!IMPORTANT]
+> The Arch image is amd64 only. Its pacman packages come from one
+> [Arch Linux Archive](https://archive.archlinux.org/) snapshot set by the
+> `ARCH_ARCHIVE_DATE` build arg, so rebuilds stay reproducible on a rolling
+> release. Override it with `--build-arg ARCH_ARCHIVE_DATE=YYYY/MM/DD`.
+
 ## Build the Images
 
 Ubuntu:
@@ -48,6 +58,12 @@ Alpine:
 
 ```zsh
 docker buildx build --load   -f containers/alpine/Dockerfile   -t dev-container-fortress:alpine-test   .
+```
+
+Arch:
+
+```zsh
+docker buildx build --load   -f containers/arch/Dockerfile   -t dev-container-fortress:arch-test   .
 ```
 
 Daily-driver Ubuntu image with the current full workspace layers:
@@ -74,6 +90,12 @@ Alpine:
 
 ```zsh
 docker run --rm -it dev-container-fortress:alpine-test zsh
+```
+
+Arch:
+
+```zsh
+docker run --rm -it dev-container-fortress:arch-test zsh
 ```
 
 ## Local Test Harness
@@ -144,7 +166,8 @@ For the most common human loops:
   creating it only when needed) and then open an interactive shell
 - `ft container exec <target> -- <command ...>` is the safest form when the inner command has its own flags, for example `ft container exec ubuntu -- zsh -lc 'echo $TERM'`
 
-Use positional target arguments such as `ubuntu` or `alpine`.
+Use positional target arguments such as `ubuntu`, `alpine`, or `arch`.
+On arm64 hosts, `all` and wildcard selectors skip the amd64-only `arch` target.
 Avoid `target=ubuntu` style overrides here so the test harness stays aligned
 with normal `just` usage.
 
@@ -257,7 +280,7 @@ Current delegation split:
 > authorizes it automatically. SSH trust now uses a Dev Fortress-managed
 > known-hosts file under `${XDG_STATE_HOME:-$HOME/.local/state}/dev-container-fortress/known_hosts/`.
 > The Alpine disposable target is moving toward the same SSH-oriented host loop
-> on `127.0.0.1:2223`.
+> on `127.0.0.1:2223`, and the Arch disposable target uses `127.0.0.1:2224`.
 
 Recommended disposable SSH loop for Ubuntu:
 
@@ -277,6 +300,16 @@ uv run ft container up alpine
 uv run ft host doctor dev-fortress-alpine --probe --config ft/targets/hosts.example.toml
 uv run ft host bootstrap dev-fortress-alpine --check --config ft/targets/hosts.example.toml
 uv run ft host bootstrap dev-fortress-alpine --config ft/targets/hosts.example.toml
+```
+
+Recommended disposable SSH loop for Arch:
+
+```zsh
+uv run ft host ssh-key dev-fortress-arch --config ft/targets/hosts.example.toml
+uv run ft container up arch
+uv run ft host doctor dev-fortress-arch --probe --config ft/targets/hosts.example.toml
+uv run ft host bootstrap dev-fortress-arch --check --config ft/targets/hosts.example.toml
+uv run ft host bootstrap dev-fortress-arch --config ft/targets/hosts.example.toml
 ```
 
 ## Validate the Runtime
@@ -303,7 +336,7 @@ ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/too
 tenv --version
 ```
 
-For the Alpine image, change `--target ubuntu` to `--target alpine`.
+For the Alpine or Arch image, change `--target ubuntu` to `--target alpine` or `--target arch`.
 
 Expected baseline behavior:
 

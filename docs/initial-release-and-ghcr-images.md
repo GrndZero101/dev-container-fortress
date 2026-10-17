@@ -189,6 +189,9 @@ ghcr.io/grndzero101/dev-container-fortress:ubuntu-full-v0.1.0
 ghcr.io/grndzero101/dev-container-fortress:alpine-v0.1.0
 ```
 
+The amd64-only Arch image publishes as `arch`, `arch-v<version>`, and
+`arch-sha-<short-sha>` once the `M9a` target lands.
+
 Floating tags:
 
 - `ubuntu`

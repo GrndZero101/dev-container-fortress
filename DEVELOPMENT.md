@@ -9,7 +9,7 @@ It focuses on the current high-value loop:
 - clone both repos explicitly for development
 - bootstrap the repo locally
 - use `ft` as the primary operator CLI
-- build and validate Ubuntu and Alpine test containers
+- build and validate Ubuntu, Alpine, and Arch (amd64 only) test containers
 - iterate on `shell-config` and container behavior without getting lost in Docker cache surprises
 
 > [!IMPORTANT]
@@ -350,6 +350,15 @@ ft container validate alpine
 ft container shell alpine
 ```
 
+Arch (amd64 hosts only):
+
+```zsh
+ft container build arch
+ft container up arch
+ft container validate arch
+ft container shell arch
+```
+
 ### Faster Convenience Commands
 
 For the most common human loops:
@@ -477,7 +486,7 @@ Key things to confirm:
 - `prompt_engine_resolved` matches expectations
 - `starship`, `atuin`, `zoxide`, and `fzf` are available
 - `${HOME}/.local/bin` is present on `PATH`
-- Ubuntu and Alpine remain at functional parity unless a difference is intentional
+- Ubuntu, Alpine, and Arch remain at functional parity unless a difference is intentional
 
 ## JSON and Agentic-Friendly Loops
 

@@ -1,0 +1,32 @@
+{
+  "name": "Dev Container Fortress (Arch)",
+  "build": {
+    "dockerfile": "../../containers/arch/Dockerfile",
+    "context": "../..",
+    "args": {
+      "CORPORATE_CA_CERT_DIR": "${localEnv:DEV_CONTAINER_FORTRESS_CA_CERT_DIR}",
+      "SHELL_CONFIG_SOURCE": "${localEnv:DEV_CONTAINER_FORTRESS_SHELL_CONFIG_SOURCE}",
+      "SHELL_CONFIG_REPO_URL": "${localEnv:DEV_CONTAINER_FORTRESS_SHELL_CONFIG_REPO_URL}",
+      "SHELL_CONFIG_BRANCH": "${localEnv:DEV_CONTAINER_FORTRESS_SHELL_CONFIG_BRANCH}",
+      "SHELL_CONFIG_LOCAL_DIR": "${localEnv:DEV_CONTAINER_FORTRESS_SHELL_CONFIG_LOCAL_DIR}",
+      "SHELL_CONFIG_PROFILE_DEFAULT": "${localEnv:DEV_CONTAINER_FORTRESS_SHELL_CONFIG_PROFILE_DEFAULT}",
+      "SHELL_CONFIG_INSTALL_ZINIT": "${localEnv:DEV_CONTAINER_FORTRESS_SHELL_CONFIG_INSTALL_ZINIT}"
+    }
+  },
+  "remoteUser": "vscode",
+  "containerUser": "vscode",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh"
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-azuretools.vscode-docker",
+        "hashicorp.terraform",
+        "tamasfe.even-better-toml"
+      ]
+    }
+  },
+  "postCreateCommand": "ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/tools.toml --target arch"
+}

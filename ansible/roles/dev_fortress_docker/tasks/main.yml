@@ -1,72 +1,33 @@
 ---
-- name: Assert Docker role only runs on Ubuntu targets
+- name: Assert Docker role only runs on supported targets
   ansible.builtin.assert:
     that:
-      - ansible_facts['os_family'] == 'Debian'
-      - ansible_facts['distribution'] == 'Ubuntu'
+      - >-
+        (ansible_facts['os_family'] == 'Debian'
+         and ansible_facts['distribution'] == 'Ubuntu')
+        or ansible_facts['os_family'] == 'Archlinux'
     fail_msg: >-
-      dev_fortress_docker currently supports Ubuntu targets only.
+      dev_fortress_docker currently supports Ubuntu and Arch Linux targets only.
 
-- name: Assert Docker-managed Ubuntu targets use systemd
+- name: Assert Docker-managed targets use systemd
   ansible.builtin.assert:
     that:
       - ansible_facts['service_mgr'] == 'systemd'
     fail_msg: >-
-      Docker CE management currently expects systemd on Ubuntu workstation and
-      cloud targets. For WSL, enable systemd first before running Dev Fortress
-      Docker bootstrap.
+      Docker management currently expects systemd on Ubuntu and Arch
+      workstation and cloud targets. For WSL, enable systemd first before
+      running Dev Fortress Docker bootstrap.
 
-- name: Ensure Docker apt prerequisite packages are present
-  become: true
-  ansible.builtin.apt:
-    name: "{{ dev_container_fortress_docker_apt_prerequisite_packages }}"
-    state: present
+- name: Install Docker packages on Ubuntu
+  ansible.builtin.include_tasks: ubuntu.yml
+  when:
+    - ansible_facts['os_family'] == 'Debian'
+    - ansible_facts['distribution'] == 'Ubuntu'
 
-- name: Ensure apt keyrings directory exists
-  become: true
-  ansible.builtin.file:
-    path: /etc/apt/keyrings
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-
-- name: Remove conflicting distro Docker packages
-  become: true
-  ansible.builtin.apt:
-    name: "{{ dev_container_fortress_docker_conflicting_packages }}"
-    state: absent
-    purge: false
-
-- name: Remove legacy one-line Docker apt source
-  become: true
-  ansible.builtin.file:
-    path: /etc/apt/sources.list.d/docker.list
-    state: absent
-  register: dev_fortress_docker_legacy_source
-
-- name: Configure Docker apt repository
-  become: true
-  ansible.builtin.deb822_repository:
-    name: docker
-    types: deb
-    uris: https://download.docker.com/linux/ubuntu
-    suites: "{{ ansible_facts['distribution_release'] }}"
-    components: stable
-    architectures: "{{ dev_container_fortress_docker_repo_architecture_effective }}"
-    signed_by: https://download.docker.com/linux/ubuntu/gpg
-    state: present
-  register: dev_fortress_docker_repository
-
-- name: Install Docker CE and plugins
-  become: true
-  ansible.builtin.apt:
-    name: "{{ dev_container_fortress_docker_packages }}"
-    state: present
-    # deb822_repository has no cache refresh of its own.
-    update_cache: >-
-      {{ dev_fortress_docker_legacy_source is changed
-         or dev_fortress_docker_repository is changed }}
+- name: Install Docker packages on Arch
+  ansible.builtin.include_tasks: archlinux.yml
+  when:
+    - ansible_facts['os_family'] == 'Archlinux'
 
 - name: Ensure Docker daemon config directory exists
   become: true

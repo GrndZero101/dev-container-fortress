@@ -2,7 +2,7 @@
 
 # Dev Fortress local container testing helper.
 # Provides a deterministic human and agent-friendly workflow around disposable
-# Docker test containers for the repository's Ubuntu and Alpine targets.
+# Docker test containers for the repository's Ubuntu, Alpine, and Arch targets.
 
 emulate -LR zsh
 setopt errexit nounset pipefail
@@ -40,6 +40,7 @@ Commands:
 Targets:
   ubuntu
   alpine
+  arch (amd64 only)
 EOF
 }
 
@@ -92,11 +93,11 @@ normalize_target() {
   local target="${1:-}"
 
   case "${target}" in
-    ubuntu|alpine)
+    ubuntu|alpine|arch)
       print -- "${target}"
       ;;
     *)
-      die "unsupported target: ${target:-<empty>} (expected ubuntu or alpine)"
+      die "unsupported target: ${target:-<empty>} (expected ubuntu, alpine, or arch)"
       ;;
   esac
 }
@@ -235,7 +236,7 @@ status_targets() {
   require_command docker
 
   if (( ${#targets} == 0 )); then
-    targets=(ubuntu alpine)
+    targets=(ubuntu alpine arch)
   fi
 
   printf '%-8s %-28s %-30s %s\n' target container image status

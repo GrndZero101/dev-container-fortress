@@ -13,7 +13,7 @@ For user-facing build and run instructions, see [Container Usage](../docs/contai
 - Use the distro package manager only for base system dependencies
 - Use Python + `uv` plus the packaged downloader for the managed tool pool
 - Avoid Homebrew inside containers
-- Keep Ubuntu and Alpine variants aligned where practical
+- Keep Ubuntu, Alpine, and Arch variants aligned where practical
 - Use a non-root runtime user for day-to-day development inside the container
 
 The downloader now lives as an installable Python package under
@@ -22,7 +22,7 @@ is `tenv`.
 
 ## Current State
 
-The Ubuntu and Alpine Dockerfiles now use a shared split bootstrap strategy:
+The Ubuntu, Alpine, and Arch Dockerfiles now use a shared split bootstrap strategy:
 
 - copy `uv` from Astral's distroless image for build-time package work
 - install `uv` again with Astral's shell installer for the final runtime user
@@ -38,6 +38,7 @@ The Ubuntu and Alpine Dockerfiles now use a shared split bootstrap strategy:
 - pre-create minimal Zsh startup files so the container shell is non-interactive on first launch
 - install Alpine's split `zsh-vcs` package so native zsh prompt fallback can still use `vcs_info`
 - on Alpine, restore user-local bin discovery through `/etc/profile.d` because login shells source `/etc/profile`, which otherwise resets `PATH` to system directories only
+- on Arch, point pacman at one [Arch Linux Archive](https://archive.archlinux.org/) snapshot through the `ARCH_ARCHIVE_DATE` build arg so the rolling release still yields a reproducible package set
 
 The Dockerfiles now resolve and install the current downloader-managed tool
 subset through the packaged downloader entrypoint. `fzf` still comes from the
@@ -57,6 +58,14 @@ publish the needed musl `arm64` release artifact.
 Alpine uses the native `apk` package because the upstream Linux tarballs are
 not musl-targeted.
 
+Arch is glibc-based, so it uses the downloader for both `rg` and `nvim`, the
+same as Ubuntu.
+
+> [!IMPORTANT]
+> The Arch target is amd64 only because the official `archlinux` base image
+> has no arm64 build. `ft container build arch` refuses arm64 hosts early, and
+> `ft container build all` skips Arch there.
+
 The Python tool installer currently provides:
 
 - manifest loading
@@ -66,7 +75,7 @@ The Python tool installer currently provides:
 - checksum verification from upstream checksum manifests
 - XDG cache reuse for downloaded assets, keyed by tool, target, OS, arch, and resolved version
 - `tenv`, `starship`, `zoxide`, and `atuin` installation for Linux `amd64` and `arm64`
-- target-specific asset selection for Ubuntu versus Alpine where needed
+- target-specific asset selection for Ubuntu, Alpine, and Arch where needed
 
 Planned follow-up work:
 
@@ -77,10 +86,11 @@ Planned follow-up work:
 
 ## Devcontainer Targets
 
-VS Code should see two devcontainer definitions under `.devcontainer/`:
+VS Code should see three devcontainer definitions under `.devcontainer/`:
 
 - `.devcontainer/ubuntu/devcontainer.json`
 - `.devcontainer/alpine/devcontainer.json`
+- `.devcontainer/arch/devcontainer.json`
 
 Each stays a thin wrapper over the matching Dockerfile and only runs a lightweight `ft plan` validation in `postCreate`.
 
@@ -91,6 +101,7 @@ Use Docker Buildx for local validation:
 ```zsh
 docker buildx build --load -f containers/ubuntu/Dockerfile -t dev-container-fortress:ubuntu-test .
 docker buildx build --load -f containers/alpine/Dockerfile -t dev-container-fortress:alpine-test .
+docker buildx build --load -f containers/arch/Dockerfile -t dev-container-fortress:arch-test .
 ```
 
 ## Local Human Testing Loop
@@ -138,7 +149,7 @@ docker buildx build --load \
   -t dev-container-fortress:ubuntu-test .
 ```
 
-The same pattern works for Alpine by swapping the Dockerfile path.
+The same pattern works for Alpine and Arch by swapping the Dockerfile path.
 
 For VS Code devcontainers, export the same repo-relative directory path before you reopen in container:
 
@@ -149,7 +160,7 @@ export DEV_CONTAINER_FORTRESS_CA_CERT_DIR=.local/certs
 If the variable is unset or empty, the CA installation step is skipped and the build behaves exactly as before. If the variable is set, the build requires the directory to exist and to contain at least one valid PEM `.crt` file.
 
 > [!IMPORTANT]
-> This feature is active only when you opt in. Certificates are loaded as individual `.crt` files and copied into the distro trust setup. On Ubuntu this matches Canonical's documented `/usr/local/share/ca-certificates` plus `update-ca-certificates` flow. On Alpine we use the same `update-ca-certificates` integration as an implementation choice based on Alpine examples. Keep the directory inside the Docker build context, and do not commit private cert material. Add it under an ignored path such as `.local/certs/`.
+> This feature is active only when you opt in. Certificates are loaded as individual `.crt` files and copied into the distro trust setup. On Ubuntu this matches Canonical's documented `/usr/local/share/ca-certificates` plus `update-ca-certificates` flow. On Alpine we use the same `update-ca-certificates` integration as an implementation choice based on Alpine examples. On Arch the installer uses the p11-kit anchors directory `/etc/ca-certificates/trust-source/anchors` plus `update-ca-trust`. Keep the directory inside the Docker build context, and do not commit private cert material. Add it under an ignored path such as `.local/certs/`.
 
 ## Shell-Config Source Options
 

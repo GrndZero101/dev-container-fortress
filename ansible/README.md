@@ -132,13 +132,17 @@ Current bootstrap command shape is now expected to become:
 uv run ft host doctor localhost
 uv run ft host ssh-key dev-fortress-ubuntu
 uv run ft host ssh-key dev-fortress-alpine
+uv run ft host ssh-key dev-fortress-arch
 uv run ft host ssh-key-enroll dev-fortress-ubuntu
 uv run ft host ssh-key-enroll dev-fortress-alpine
+uv run ft host ssh-key-enroll dev-fortress-arch
 uv run ft host doctor dev-fortress-ubuntu --probe
 uv run ft host doctor dev-fortress-alpine --probe
+uv run ft host doctor dev-fortress-arch --probe
 uv run ft host bootstrap localhost --check
 uv run ft host bootstrap dev-fortress-ubuntu --ensure-ssh-keys
 uv run ft host bootstrap dev-fortress-alpine --ensure-ssh-keys
+uv run ft host bootstrap dev-fortress-arch --ensure-ssh-keys
 ```
 
 Under the hood, `ft host bootstrap` renders temporary inventory and runs:
@@ -160,7 +164,7 @@ contract by:
 - reaching the target through the generated inventory
 - validating basic target metadata and gathered facts
 - ensuring XDG base directories exist for the target user
-- converging a minimal baseline package set on supported Linux targets such as Ubuntu and Alpine
+- converging a minimal baseline package set on supported Linux targets: Ubuntu, Alpine, and Arch
 - converging and then asserting the native bootstrap prerequisite command contract (`python3`, `git`, `curl`, `zsh`)
 - cloning and bootstrapping `shell-config` using only that minimal native prerequisite layer
 - installing the fortress profile-local `zinit` checkout so the richer plugin-backed shell behavior is available on supported hosts
@@ -171,6 +175,8 @@ contract by:
   `nvim-kickstart` launcher on supported Ubuntu targets
 - installing Docker CE on Ubuntu workstation and cloud targets using Docker's
   official apt repository, including `buildx` and Compose plugins
+- installing Docker, `buildx`, and Compose on Arch workstation and cloud
+  targets from the official Arch repositories
 - checking for baseline tools such as `python3`, `git`, `curl`, and `zsh`
 - reporting current shell-config and Homebrew installation state for the target
 
@@ -270,6 +276,22 @@ The disposable Docker host loop is now validated on both:
 
 - Ubuntu, with package convergence via `ansible.builtin.apt`
 - Alpine, with package convergence via `community.general.apk`
+
+Arch support is new in `M9a` and has not yet been proven end to end:
+
+- Arch, with package convergence via `community.general.pacman`
+
+> [!IMPORTANT]
+> Arch host caveats:
+>
+> - x86_64 only. Arch Linux ARM hosts fail early in
+>   `dev_fortress_arch_base_packages`.
+> - Arch does not support partial upgrades, so bootstrap runs a full
+>   `pacman -Syu` before installing packages. Set
+>   `dev_container_fortress_arch_full_upgrade: false` to skip it when you
+>   manage upgrades yourself.
+> - Homebrew is not installed on Arch. pacman already ships the steady-state
+>   toolchain, so the `dev_fortress_linuxbrew` role is skipped there.
 
 For the first real remote-host pass, the recommended operator sequence is:
 

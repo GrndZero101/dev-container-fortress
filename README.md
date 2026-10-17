@@ -196,6 +196,7 @@ ft container build ubuntu \
 | `ft` CLI | Working | Main operator surface for container and early host workflows |
 | Ubuntu disposable target | Working | End-to-end Docker, SSH, and Ansible check loop is proven |
 | Alpine disposable target | Working | End-to-end Docker, SSH, and Ansible check loop is proven |
+| Arch disposable target | New | amd64 only; implemented in `M9a`, end-to-end loop not yet proven |
 | VS Code devcontainers | Working | Thin wrappers over the container targets |
 | Workspace daily-driver container | Working foundation | Ubuntu-first mounted workspace loop exists under `ft workspace ...` |
 | Host target model | Working foundation | `ft host ...` inventory, key, probe, and bootstrap contract exists |
@@ -220,6 +221,8 @@ ft container build ubuntu \
 | --- | --- | --- |
 | Ubuntu container | Supported | [Container Usage](docs/container-usage.md) |
 | Alpine container | Supported | [Container Usage](docs/container-usage.md) |
+| Arch container | New, amd64 only | [Container Usage](docs/container-usage.md) |
+| Arch host bootstrap | New, x86_64 only, pacman instead of Homebrew | [Ansible README](ansible/README.md) |
 | Ubuntu disposable SSH host loop | Supported foundation | [Workstation Usage](docs/workstation-usage.md) |
 | macOS workstation | Planned / partial | [Workstation Usage](docs/workstation-usage.md) |
 | Ubuntu workstation | Planned / partial | [Workstation Usage](docs/workstation-usage.md) |
@@ -252,7 +255,7 @@ ft container build ubuntu \
 | `ft/` | Python package for the `ft` CLI, target model, and supporting logic |
 | `ansible/` | Host playbooks, inventory contract, and future roles |
 | `brew/` | Host-side Brew bundle definitions |
-| `containers/` | Ubuntu and Alpine container targets plus shared runtime helpers |
+| `containers/` | Ubuntu, Alpine, and Arch container targets plus shared runtime helpers |
 | `infra/` | Terraform-owned infrastructure layer for disposable and future repeatable host targets |
 | `.devcontainer/` | VS Code wrappers for container targets |
 | `docs/` | Usage guides, contracts, roadmap, and milestone drafts |
@@ -265,7 +268,7 @@ ft container build ubuntu \
 - Prove transport and bootstrap paths before deepening workstation automation
 - Keep the container and host stories aligned where practical without forcing them to be identical
 - Keep container userland tooling repo-owned and image-managed
-- Keep host userland tooling Homebrew-managed after the native bootstrap floor
+- Keep host userland tooling Homebrew-managed after the native bootstrap floor, except on Arch where pacman already covers it
 
 ## :zap: Current Working Surface
 

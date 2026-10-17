@@ -51,6 +51,15 @@ jobs:
               type=raw,value=alpine,enable={{is_default_branch}}
               type=match,pattern=v(.*),group=1,prefix=alpine-v
               type=sha,prefix=alpine-sha-
+          # Arch is amd64-only; the official archlinux base image has no arm64 build.
+          - name: arch
+            dockerfile: containers/arch/Dockerfile
+            target: arch
+            build-args: ""
+            tags: |
+              type=raw,value=arch,enable={{is_default_branch}}
+              type=match,pattern=v(.*),group=1,prefix=arch-v
+              type=sha,prefix=arch-sha-
 
     steps:
       - name: Check out repository

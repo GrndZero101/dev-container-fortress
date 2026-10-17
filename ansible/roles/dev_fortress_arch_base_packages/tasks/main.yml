@@ -1,0 +1,24 @@
+---
+- name: Assert Arch targets use a supported architecture
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['architecture'] == 'x86_64'
+    fail_msg: >-
+      Dev Fortress supports Arch Linux on x86_64 only. Arch Linux ARM
+      ({{ ansible_facts['architecture'] }}) is not a supported target yet.
+
+# Arch does not support partial upgrades, so refreshing the sync database
+# without upgrading can leave installs pointing at packages mirrors no longer
+# carry. Upgrade the whole system unless the operator opts out explicitly.
+- name: Upgrade Arch packages to the current repository state
+  become: true
+  community.general.pacman:
+    update_cache: true
+    upgrade: true
+  when: dev_container_fortress_arch_full_upgrade_effective | bool
+
+- name: Ensure Arch baseline packages are present
+  become: true
+  community.general.pacman:
+    name: "{{ dev_container_fortress_arch_baseline_packages }}"
+    state: present

@@ -85,6 +85,16 @@
       - python3
       - rsync
       - zsh
+    dev_container_fortress_arch_baseline_packages:
+      - ca-certificates
+      - curl
+      - git
+      - python
+      - rsync
+      - xclip
+      - zsh
+    dev_container_fortress_arch_full_upgrade_effective: >-
+      {{ dev_container_fortress_arch_full_upgrade | default(true) }}
     dev_container_fortress_ubuntu_homebrew_prerequisite_packages:
       - build-essential
       - procps
@@ -93,8 +103,13 @@
       {{
         dev_container_fortress_docker_manage
         | default(
-            ansible_facts['os_family'] == 'Debian'
-            and ansible_facts['distribution'] == 'Ubuntu'
+            (
+              (
+                ansible_facts['os_family'] == 'Debian'
+                and ansible_facts['distribution'] == 'Ubuntu'
+              )
+              or ansible_facts['os_family'] == 'Archlinux'
+            )
             and dev_fortress_target_kind in ['workstation', 'cloud']
           )
       }}
@@ -130,6 +145,10 @@
       - containerd.io
       - docker-buildx-plugin
       - docker-compose-plugin
+    dev_container_fortress_docker_arch_packages:
+      - docker
+      - docker-buildx
+      - docker-compose
     dev_container_fortress_docker_users_effective:
       - "{{ ansible_facts['user_id'] }}"
     dev_container_fortress_docker_daemon_config_effective:
@@ -154,6 +173,11 @@
         zsh: zsh
       alpine:
         python3: python3
+        git: git
+        curl: curl
+        zsh: zsh
+      arch:
+        python3: python
         git: git
         curl: curl
         zsh: zsh
@@ -233,6 +257,9 @@
     - role: dev_fortress_alpine_base_packages
       when:
         - ansible_facts['os_family'] == 'Alpine'
+    - role: dev_fortress_arch_base_packages
+      when:
+        - ansible_facts['os_family'] == 'Archlinux'
     - role: dev_fortress_native_bootstrap_prereqs
     - role: dev_fortress_docker
       when:

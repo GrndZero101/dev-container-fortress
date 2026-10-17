@@ -34,6 +34,18 @@ ansible_python_interpreter = "/usr/bin/python3"
 tags = ["docker", "alpine", "ssh", "test"]
 
 [[targets]]
+name = "dev-fortress-arch"
+kind = "docker"
+connection = "ssh"
+host = "127.0.0.1"
+port = 2224
+user = "vscode"
+auth_method = "ssh_key"
+ssh_key_name = "dev-fortress-arch"
+ansible_python_interpreter = "/usr/bin/python3"
+tags = ["docker", "arch", "ssh", "test"]
+
+[[targets]]
 name = "workstation-example"
 kind = "workstation"
 connection = "ssh"
