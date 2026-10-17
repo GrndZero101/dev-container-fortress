@@ -1,16 +1,16 @@
 # Target Validation
 
-This document captures the current end-to-end validation loop across the three
+This document captures the current end-to-end validation loop across the four
 main Dev Fortress SSH targets:
 
 - disposable Ubuntu container
 - disposable Alpine container
+- disposable Arch container
 - disposable Ubuntu EC2 host
 
 > [!NOTE]
-> The disposable Arch container (`dev-fortress-arch`, amd64 only) uses the same
-> loop as Alpine with `arch` substituted. It is new in `M9a` and not yet part of
-> the proven validation set.
+> The disposable Arch container (`dev-fortress-arch`) is amd64 only. It uses the
+> same loop as Alpine with `arch` substituted.
 
 It is intentionally procedural for now.
 The long-term goal is to collapse more of this into higher-level `ft` commands,
