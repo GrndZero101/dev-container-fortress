@@ -149,6 +149,14 @@ clear message rather than failing deep inside a build.
 - [ ] Open one PR for the milestone once container and host targets both pass verification
 - [ ] Squash merge into `main`
 
+## Decisions
+
+- Arch host bootstrap runs a full `pacman -Syu` before installing packages,
+  because Arch does not support partial upgrades. Operators can opt out with
+  `dev_container_fortress_arch_full_upgrade: false`.
+- Docker is managed by default on Arch `workstation` and `cloud` targets, the
+  same as Ubuntu.
+
 ## Progress Notes
 
 - Implementation landed on `feat/m0009a-arch-linux-target`: target registry,
