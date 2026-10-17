@@ -36,8 +36,11 @@ jobs:
       - name: Install zsh for repo-owned hooks
         run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
 
+      # Match bootstrap.zsh: ansible-core does not support Python 3.15 yet.
       - name: Set up uv
         uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.14"
 
       - name: Sync workspace
         run: uv sync --locked
