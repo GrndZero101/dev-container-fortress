@@ -10,7 +10,21 @@ data "aws_subnets" "default" {
 }
 
 data "aws_ssm_parameter" "ubuntu_ami" {
+  count = var.os == "ubuntu" ? 1 : 0
+
   name = "/aws/service/canonical/ubuntu/server/${var.ubuntu_release}/stable/current/${local.ubuntu_arch[var.architecture]}/hvm/ebs-gp3/ami-id"
+}
+
+data "aws_ami" "arch" {
+  count = var.os == "arch" ? 1 : 0
+
+  owners      = ["self"]
+  most_recent = true
+
+  filter {
+    name   = "name"
+    values = ["${var.arch_ami_name_prefix}*"]
+  }
 }
 
 data "http" "current_public_ip" {

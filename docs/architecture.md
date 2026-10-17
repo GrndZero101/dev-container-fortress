@@ -402,6 +402,9 @@ Recommended early Terraform rules:
 - keep spot-selection helpers optional behind a fixed fallback instance shape
 - optimize for cheap, replaceable hosts with strong tagging and obvious cleanup
 - make state, credentials, and teardown expectations explicit in docs before broadening the infra layer
+- keep reusable images separate from disposable hosts: `infra/aws-arch-ami/`
+  imports the signed upstream Arch cloud image once as a private AMI, and the
+  disposable host stack only looks it up through `os = "arch"`
 
 ### Operator CLI Direction for Hosts
 

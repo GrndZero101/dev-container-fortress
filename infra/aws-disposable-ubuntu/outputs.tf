@@ -29,8 +29,8 @@ output "capacity_market" {
 }
 
 output "ssh_user" {
-  description = "SSH user expected by the Ubuntu cloud image."
-  value       = "ubuntu"
+  description = "SSH user created by the cloud image."
+  value       = local.ssh_user
 }
 
 output "ssh_port" {
@@ -82,10 +82,10 @@ output "host_target_toml_fragment" {
     connection = "ssh"
     host = "${aws_instance.this.public_dns != "" ? aws_instance.this.public_dns : aws_instance.this.public_ip}"
     port = 22
-    user = "ubuntu"
+    user = "${local.ssh_user}"
     auth_method = "ssh_key"
     ssh_key_name = "${var.name}"
     ansible_python_interpreter = "${var.ansible_python_interpreter}"
-    tags = ["ssh", "ubuntu", "cloud", "disposable"]
+    tags = ["ssh", "${var.os}", "cloud", "disposable"]
   EOT
 }

@@ -21,7 +21,7 @@ bootstrap path. Arch should slot into the same `ft container ...`,
 - [x] Arch system packages come from a pinned Arch Linux Archive snapshot date rather than the moving rolling-release mirrors
 - [x] `ft container build|up|validate|down arch` works end to end, including the SSH-capable disposable host target
 - [x] `ft/tools/tools.toml` declares Arch assets for every enabled tool and installs them with the existing checksum and signature verification
-- [ ] `ft host bootstrap` converges a minimally prepared Arch host through Ansible, including base packages, Docker, `shell-config`, and the login shell
+- [x] `ft host bootstrap` converges a minimally prepared Arch host through Ansible, including base packages, Docker, `shell-config`, and the login shell
 - [x] The Arch Homebrew position is explicit: pacman provides the steady-state host toolchain and the linuxbrew role is skipped on Arch
 - [x] Unsupported combinations, starting with Arch on arm64, fail clearly with an actionable message
 - [x] A matching `.devcontainer/arch/devcontainer.json` exists as a thin wrapper over the container target
@@ -34,7 +34,7 @@ bootstrap path. Arch should slot into the same `ft container ...`,
 - [ ] Building or installing AUR packages
 - [ ] Replacing the `ft install` container tool contract with pacman-provided userland tools inside images
 - [ ] Supporting Arch derivatives such as Manjaro or EndeavourOS beyond best-effort detection
-- [ ] Disposable Arch cloud hosts through Terraform
+- [ ] First-class `ft infra` commands for Arch cloud hosts; the first pass reuses the disposable host stack through `os = "arch"`, a Terraform workspace, and `TF_VAR_*`
 - [ ] Neovim kickstart management on Arch unless it falls out for free
 
 ## Design Direction
@@ -111,8 +111,8 @@ clear message rather than failing deep inside a build.
 
 - [x] Problem: the host playbook gates roles on Ubuntu and Alpine facts only
 - [x] Scope: add a `dev_fortress_arch_base_packages` role using `community.general.pacman`, add Arch entries to the native bootstrap command-package map, gate roles on `os_family == 'Archlinux'`, install Docker from the official `docker` package, and skip linuxbrew on Arch
-- [ ] Acceptance: `ft host bootstrap <arch-target> --check` reports cleanly, a real run converges, and a second run reports no changes
-  - Verified against the disposable SSH target; the Docker role still needs a systemd Arch `workstation` or `cloud` host
+- [x] Acceptance: `ft host bootstrap <arch-target> --check` reports cleanly, a real run converges, and a second run reports no changes
+  - Verified against the disposable SSH target and a disposable Arch EC2 `cloud` host, including the Docker role
 
 ### M9a-6 Fail clearly on unsupported Arch combinations
 
@@ -124,7 +124,7 @@ clear message rather than failing deep inside a build.
 
 - [x] Problem: an Arch image that CI never builds will rot quickly on a rolling release
 - [x] Scope: add Arch to the build, smoke-test, and GHCR publish matrix as amd64 only
-- [ ] Acceptance: CI builds and smoke-tests the Arch image on every relevant change and publishes `arch`, `arch-v*`, and `arch-sha-*` tags
+- [x] Acceptance: CI builds and smoke-tests the Arch image on every relevant change and publishes `arch`, `arch-v*`, and `arch-sha-*` tags
 
 ### M9a-8 Update documentation
 
@@ -140,7 +140,8 @@ clear message rather than failing deep inside a build.
 - [x] `ft host bootstrap` against the disposable Arch SSH target converges and is idempotent on a second run
 - [x] `ansible-lint` and the playbook syntax check pass with the new role
 - [x] Requesting Arch on arm64 fails early with a clear message
-- [ ] CI builds, smoke-tests, and publishes the Arch image
+- [x] CI builds and smoke-tests the Arch image on every branch push
+- [ ] The first `main` run publishes the `arch` and `arch-sha-*` tags
 
 ## Branch and Merge Plan
 
@@ -157,6 +158,12 @@ clear message rather than failing deep inside a build.
   `dev_container_fortress_arch_full_upgrade: false`.
 - Docker is managed by default on Arch `workstation` and `cloud` targets, the
   same as Ubuntu.
+- When the full upgrade replaces the running kernel, bootstrap reboots `cloud`
+  targets and stops `workstation` targets with a reboot request, overridable
+  through `dev_container_fortress_arch_reboot_after_kernel_upgrade`.
+- Arch cloud hosts boot a private AMI imported from the official, signed
+  arch-boxes cloud image by `infra/aws-arch-ami/`, because the only public Arch
+  AMIs in `ap-southeast-1` come from an unverified community publisher.
 
 ## Progress Notes
 
@@ -178,12 +185,32 @@ clear message rather than failing deep inside a build.
     bootstrap, and a second pass with `changed=0`
   - the devcontainer opens through `@devcontainers/cli` 0.89.0 and its
     `postCreateCommand` succeeds
-- Still open:
-  - the Docker role on Arch is unexercised, because it requires systemd and
-    only runs on `workstation` and `cloud` targets, which the disposable
-    container is not
-  - CI build and publish of the Arch image, which first runs when the branch
-    lands on `main`; `publish-images.yml` does not run on pull requests
+- Verified against a disposable Arch EC2 host (`t3.medium` Spot,
+  `ap-southeast-1`, private AMI `dev-fortress-arch-20261015.611680`) on
+  2026-10-17:
+  - the imported image boots in UEFI mode on Nitro with NVMe root, grows the
+    root filesystem, and accepts the `arch` cloud-init user
+  - `ft host validate dev-fortress-ec2-arch` passes check mode, a real
+    bootstrap including the kernel-upgrade reboot, and a second pass with
+    `changed=0`
+  - Docker 29.9.1 runs `hello-world` as the `arch` user through the `docker`
+    group, on overlayfs and cgroup v2
+  - `ft infra aws-disposable-ubuntu destroy` tears the host down cleanly
+- Bugs found and fixed by the cloud run:
+  - the full upgrade replaced the running kernel and removed its modules, so
+    dockerd could not load netfilter modules; bootstrap now reboots or stops
+  - check mode failed on fresh hosts that lacked `git` or `zsh`; it now ends
+    that host cleanly with an explicit message
+  - check mode failed on hosts without Docker yet; service and group checks now
+    wait for a real install
+- CI: `ci.yml` replaces `publish-images.yml`, runs checks plus the image matrix
+  on every branch push, and fixed smoke tests that passed despite failing
+  checks. The Arch image builds and smoke-tests green on this branch.
+- Still open: the first `main` run that publishes the `arch` tags.
+- Follow-ups worth a roadmap slot:
+  - `ft host ssh <target> -- <command>` for one-off remote commands
+  - an OS or workspace option on `ft infra aws-disposable-ubuntu` so Arch hosts
+    do not need `TF_WORKSPACE`, `TF_VAR_*`, and a shared capacity file swap
 - Known caveat: `become` tasks on Arch log `Module invocation had junk after
   the JSON data` warnings. systemd 262 emits OSC 3008 context escape sequences
   around privileged sessions. Ansible still parses the module result, so the

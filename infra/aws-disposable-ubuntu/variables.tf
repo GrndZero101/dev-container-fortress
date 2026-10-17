@@ -22,8 +22,25 @@ variable "subnet_id" {
   default     = null
 }
 
+variable "os" {
+  description = "Host operating system: ubuntu uses the Canonical SSM-published AMI; arch uses the private AMI from infra/aws-arch-ami."
+  type        = string
+  default     = "ubuntu"
+
+  validation {
+    condition     = contains(["ubuntu", "arch"], var.os)
+    error_message = "os must be either ubuntu or arch."
+  }
+}
+
+variable "arch_ami_name_prefix" {
+  description = "Name prefix of the self-owned Arch AMIs registered by infra/aws-arch-ami; the most recent match is used."
+  type        = string
+  default     = "dev-fortress-arch-"
+}
+
 variable "architecture" {
-  description = "Instance architecture used to choose the Ubuntu AMI."
+  description = "Instance architecture used to choose the AMI. Arch supports amd64 only."
   type        = string
   default     = "arm64"
 

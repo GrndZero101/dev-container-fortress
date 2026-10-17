@@ -68,6 +68,7 @@ Recommended shape:
 
 - `infra/README.md`: repository-wide infra boundary and rules
 - `infra/aws-disposable-ubuntu/`: first disposable Ubuntu cloud target
+- `infra/aws-arch-ami/`: private Arch AMI imported from the official signed cloud image, consumed by the disposable host stack with `os = "arch"`
 
 Keep each target directory self-contained and obvious to inspect.
 Do not introduce a shared abstraction layer until at least two real target
