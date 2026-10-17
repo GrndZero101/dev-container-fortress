@@ -141,7 +141,7 @@ clear message rather than failing deep inside a build.
 - [x] `ansible-lint` and the playbook syntax check pass with the new role
 - [x] Requesting Arch on arm64 fails early with a clear message
 - [x] CI builds and smoke-tests the Arch image on every branch push
-- [ ] The first `main` run publishes the `arch` and `arch-sha-*` tags
+- [x] The first `main` run publishes the `arch` and `arch-sha-*` tags
 
 ## Branch and Merge Plan
 
@@ -206,7 +206,8 @@ clear message rather than failing deep inside a build.
 - CI: `ci.yml` replaces `publish-images.yml`, runs checks plus the image matrix
   on every branch push, and fixed smoke tests that passed despite failing
   checks. The Arch image builds and smoke-tests green on this branch.
-- Still open: the first `main` run that publishes the `arch` tags.
+- The first `main` run after the squash merge (`e71ba49`) published
+  `ghcr.io/grndzero101/dev-container-fortress:arch` and `:arch-sha-e71ba49`.
 - Follow-ups worth a roadmap slot:
   - `ft host ssh <target> -- <command>` for one-off remote commands
   - an OS or workspace option on `ft infra aws-disposable-ubuntu` so Arch hosts
