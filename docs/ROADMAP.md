@@ -527,9 +527,10 @@ Promote them only when they become concrete enough to deserve milestone scope.
 
 The local `ft` loop (see `M7`) stays the primary verification surface for now.
 
-- gate `publish-images.yml` on pytest, ruff, and pre-commit; today a push to
-  `main` publishes images without running the test suite
-- pull-request checks once the repository takes outside contributions
+- branch and pull-request CI now gates image builds and GHCR publishing on
+  pre-commit, pytest, and Terraform checks (`ci.yml`, landed with `M9a`)
+- possible follow-ups: Buildx layer caching, arm64 image builds, and branch
+  protection that requires the `CI` checks
 
 ### Onboarding and Toolchain
 

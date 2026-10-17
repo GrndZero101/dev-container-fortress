@@ -261,7 +261,25 @@ The current baseline keeps the hooks intentionally light:
   for the repo-owned host playbook
 - `ansible-lint` for the Ansible tree under `ansible/`
 - `ruff` lint and format for Python
-- `zsh -n` syntax checks for repo-owned Zsh entrypoints under `scripts/` plus `bootstrap.zsh`
+- `zsh -n` syntax checks for repo-owned Zsh entrypoints under `scripts/` and
+  `infra/`, plus `bootstrap.zsh`
+
+### Continuous Integration
+
+`.github/workflows/ci.yml` runs the same checks on every branch push:
+
+1. `Lint and test`: the full pre-commit suite, `pytest ft/tests`, and
+   `terraform fmt -check` plus `terraform validate` for every stack under `infra/`
+2. `Build and smoke test`: builds each image in the matrix and runs its
+   in-image smoke checks once the first job passes
+
+Only pushes to `main` and `v*` tags publish images to GHCR. Feature branches
+build and test without publishing. Pull requests from forks trigger the same
+checks; same-repository pull requests reuse their branch push run.
+
+> [!NOTE]
+> CI does not replace the local `ft` loops. It cannot run `ft host validate`
+> or cloud-host checks, so keep running those locally for risky changes.
 
 ## Workspace Daily-Driver Loop
 

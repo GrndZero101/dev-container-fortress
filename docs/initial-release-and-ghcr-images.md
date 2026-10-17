@@ -232,7 +232,7 @@ Suggested implementation sequence:
 Likely files involved:
 
 ```text
-.github/workflows/publish-images.yml
+.github/workflows/ci.yml
 containers/ubuntu/Dockerfile
 containers/alpine/Dockerfile
 docs/devcontainer-usage.md
