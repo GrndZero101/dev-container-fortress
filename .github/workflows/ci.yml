@@ -37,7 +37,7 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@v10.2.0
 
       - name: Sync workspace
         run: uv sync --locked
