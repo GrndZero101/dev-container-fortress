@@ -51,7 +51,7 @@ EC2 over SSH (`M5a`), but the onramp around them is manual and spread across
 - [ ] Re-running the command on an already converged or hand-built host is safe and reports what it changed
 - [x] A Git identity step works non-interactively from environment variables, prompts only on a TTY, and documents a manual fallback for corporate and GitLab identities (`ft identity`, 2026-10-18)
 - [ ] Dev Fortress installs stock tmux with no config by default, and offers `minimal`, `full`, and `raidboss` profiles ported from the `dotfiles` repo, each selectable with one setting
-- [ ] Claude Code is installed by default on host targets through its native installer, so it updates itself between bootstrap runs
+- [ ] Large extras are optional components, off by default and selectable by flag, environment variable, config file, or a checkbox picker; Claude Code (`claude-code`) is the first, installed through its native installer so it updates itself between bootstrap runs
 - [ ] The flow is verified on fresh WSL2 Ubuntu, fresh Ubuntu EC2 running the one-liner on the box, and one brownfield host
 - [ ] One "Zero to Hero" quickstart replaces the scattered onramp docs, and `README.md` points to it
 
@@ -92,6 +92,8 @@ existing `DEV_CONTAINER_FORTRESS_*` pattern:
 | workspace image | local build | `DEV_CONTAINER_FORTRESS_WORKSPACE_IMAGE=published` |
 | `shell-config` profile | `zsh-tll-citadel-dev-fortress` | existing profile variable |
 | tmux profile | none (stock tmux, no config written) | `DEV_CONTAINER_FORTRESS_TMUX_PROFILE=full` |
+| optional components | none | `DEV_CONTAINER_FORTRESS_OPTIONS=claude-code`, or `options.toml` |
+| option picker | off | `DEV_CONTAINER_FORTRESS_INTERACTIVE=1` |
 | Git identity | prompt on a TTY, else skip with a hint | `DEV_CONTAINER_FORTRESS_GIT_NAME`, `DEV_CONTAINER_FORTRESS_GIT_EMAIL` |
 
 Arguments after `sh -s --` should map to the same settings for people who
@@ -231,14 +233,20 @@ otherwise). The two repos share a small contract:
 ### M5b-9 Install Claude Code on host targets
 
 - [x] Problem: Claude Code is installed by hand on every new host
-- [x] Scope: a host role that runs the native installer as the operator user, skips hosts where it already exists, and leaves updates to Claude Code itself. `dev_fortress_claude_code`, on `workstation` and `cloud` targets, with `DEV_CONTAINER_FORTRESS_CLAUDE_CODE=0` to opt out
-- [ ] Acceptance: `claude --version` works after a fresh bootstrap, and a re-run reports no change (the role alone passed both under a fresh `HOME`; confirm in the fresh EC2 one-liner run)
+- [x] Scope: a host role that runs the native installer as the operator user, skips hosts where it already exists, and leaves updates to Claude Code itself. `dev_fortress_claude_code`, enabled by the `claude-code` option (`M5b-11`)
+- [ ] Acceptance: with `claude-code` selected, `claude --version` works after a fresh bootstrap, and a re-run reports no change (the role alone passed both under a fresh `HOME`; confirm in the fresh EC2 one-liner run)
 
 ### M5b-10 Default to Ubuntu 26.04 and make release trials easy
 
 - [x] Problem: everything defaulted to 24.04, and trying a new Ubuntu release with the full toolchain meant hand-editing Dockerfiles and Terraform
 - [x] Scope: 26.04 as the default for the Ubuntu image, EC2 AMI, and installer support list; a profile-level `os_release` with an `ubuntu-full-rolling` profile; `TF_VAR_ubuntu_release` for EC2
 - [x] Acceptance: `ubuntu-full` builds and validates on 26.04, `ubuntu-full-rolling` builds and validates on 26.10, and the host roles converge on a 26.04 host
+
+### M5b-11 Make large extras optional
+
+- [x] Problem: agentic coding tools are large and not wanted on every machine, so they should not be in the default bootstrap
+- [x] Scope: an option catalog in `ft`, a non-interactive selection (`--options` on `ft host bootstrap` and `install.sh`, `DEV_CONTAINER_FORTRESS_OPTIONS`, or `options.toml`), and a checkbox picker (`ft options pick`, `install.sh --interactive`); `claude-code` is the first option
+- [ ] Acceptance: the default one-liner installs no optional component, `--options claude-code` installs Claude Code, and `--interactive` under `curl | sh` shows the picker and saves the choice (unit tests and a pseudo-terminal picker run pass; the full installer runs are still to do)
 
 ## Verification Notes
 
@@ -267,8 +275,10 @@ Recorded on 2026-10-18:
   are ported into Dev Fortress
 - the identity step needs a manual fallback for corporate and GitLab use
 - Homebrew moves to its latest stable tag for one-pass convergence
-- Claude Code is a default package on every target, installed through its
-  native installer so it updates itself (the container side is in `M5c`)
+- Claude Code installs through its native installer so it updates itself
+  (the container side is in `M5c`). It was first planned as a default package,
+  then made an optional component the same day, because agentic coding tools
+  are large (`M5b-11`)
 
 Settled when starting the milestone:
 
@@ -292,16 +302,21 @@ yet):
 - `M5b-5` and `M5b-9`: the role changes (Homebrew's newest stable tag, and
   the `dev_fortress_claude_code` role) are done; only their fresh-host
   acceptance runs are left
+- `M5b-11`: optional components, with `claude-code` off by default, are done
+  in `ft` and `install.sh`; the full installer runs are left
 - decided: stock tmux by default with `csm` switching, local workspace builds
   by default, and Homebrew in containers in `M5c`
 
 Next, in suggested order:
 
-1. `M5b-5` and `M5b-9` acceptance: during the fresh EC2 one-liner run,
-   confirm one-pass convergence on the stable tag, `claude --version`, and
-   `changed=0` on the re-run (both role changes are done)
-2. re-run `ft host bootstrap localhost -K` on the `dev-fortress` workstation,
-   which already has Claude Code, and expect `changed=0`
+1. `M5b-5`, `M5b-9`, and `M5b-11` acceptance: during the fresh EC2 one-liner
+   run, confirm one-pass convergence on the stable tag and that no option is
+   installed by default; then re-run with `--options claude-code` for
+   `claude --version`, and once more for `changed=0`. Try `--interactive`
+   under `curl | sh` on a terminal
+2. re-run `ft host bootstrap localhost -K --options claude-code` on the
+   `dev-fortress` workstation, which already has Claude Code, and expect
+   `changed=0`
 3. `M5b-7`: port the tmux profiles from `dotfiles`, plus the `csm` switch in
    `shell-config`
 4. `M5b-4`: `workspace` mode, with a local build by default
@@ -524,11 +539,8 @@ platform (glibc or musl, x64 or arm64), verifies its SHA-256 against the
 release manifest, and refuses to run under `sudo`, so the role uses no
 `become`. Once the launcher exists, the role leaves updates to Claude Code.
 
-It runs by default on `workstation` and `cloud` targets, skipping Alpine,
-whose baseline has no `bash`, and the disposable `docker` SSH targets.
-`dev_container_fortress_claude_code_manage` or
-`DEV_CONTAINER_FORTRESS_CLAUDE_CODE=0` turns it off, for example where a
-corporate policy blocks Claude Code.
+It first ran by default on `workstation` and `cloud` targets; `M5b-11` below
+made it an opt-in option instead.
 
 Run alone against `localhost` with a throwaway `HOME`:
 
@@ -541,3 +553,31 @@ The installer wrote only `~/.local/bin/claude`, `~/.local/share/claude`
 (273 MB), `~/.claude`, `~/.claude.json`, and cache and state directories. It
 did not touch any shell rc file; `shell-config` already puts `~/.local/bin` on
 `PATH`. `ansible-lint` passes on the production profile.
+
+### `M5b-11` optional components, 2026-10-18
+
+Agentic coding tools are large, so the default bootstrap should not install
+them. `ft/src/ft/options.py` holds a small catalog (just `claude-code` for now),
+each entry mapped to the inventory variable that turns its role on. `ft`
+resolves the selection and renders every catalog variable as `true` or `false`
+for the `dev_fortress` group, and the playbook defaults each one to `false`.
+Precedence, highest first: `--options`, `DEV_CONTAINER_FORTRESS_OPTIONS`,
+`${XDG_CONFIG_HOME}/dev-container-fortress/options.toml`, then nothing. `none`
+selects nothing explicitly. The deploy and `ft host validate` paths use the
+same resolution, so a saved choice applies everywhere.
+
+- `ft options` lists the catalog and where the selection came from
+- `ft options pick` is a checkbox picker that saves `options.toml`; it reuses
+  the host target picker, now split into a generic `_interactive_multi_select`
+- `install.sh --options LIST` and `--interactive` (or
+  `DEV_CONTAINER_FORTRESS_INTERACTIVE=1`) map onto the same model. The picker
+  reads `/dev/tty`, so it works under `curl | sh`; without a terminal, or when
+  cancelled, the installer warns and continues with the non-interactive
+  selection
+- the Claude Code role now fails clearly on a target without `/bin/bash`
+  rather than skipping Alpine silently
+
+Checked: 13 new tests (200 in total), `ruff`, `ansible-lint` on the production
+profile, and `shellcheck` on the installer. Driving `ft options pick` on a
+pseudo-terminal with Space and Enter saved `enabled = ["claude-code"]`, and
+`ft options` then reported it from `config`.
