@@ -279,6 +279,11 @@ Only pushes to `main` and `v*` tags publish images to GHCR. Feature branches
 build and test without publishing. Pull requests from forks trigger the same
 checks; same-repository pull requests reuse their branch push run.
 
+Both jobs run on a pinned Ubuntu LTS runner (`ubuntu-26.04`), not
+`ubuntu-latest`, so the runner OS only changes when the workflow is edited. When
+a new Ubuntu LTS runner label is generally available, bump both `runs-on`
+values together and let the branch CI run prove the move.
+
 > [!NOTE]
 > CI does not replace the local `ft` loops. It cannot run `ft host validate`
 > or cloud-host checks, so keep running those locally for risky changes.

@@ -9,21 +9,27 @@ data "aws_subnets" "default" {
   }
 }
 
-data "aws_ssm_parameter" "ubuntu_ami" {
-  count = var.os == "ubuntu" ? 1 : 0
+# Exactly one of the two OS AMI lookups runs, chosen by the active OS profile.
+data "aws_ssm_parameter" "os_ami" {
+  count = local.os_profile.ami_ssm_parameter != null ? 1 : 0
 
-  name = "/aws/service/canonical/ubuntu/server/${var.ubuntu_release}/stable/current/${local.ubuntu_arch[var.architecture]}/hvm/ebs-gp3/ami-id"
+  name = format(local.os_profile.ami_ssm_parameter, var.architecture)
 }
 
-data "aws_ami" "arch" {
-  count = var.os == "arch" ? 1 : 0
+data "aws_ami" "os_ami" {
+  count = local.os_profile.ami_ssm_parameter == null ? 1 : 0
 
-  owners      = ["self"]
+  owners      = local.os_profile.ami_owners
   most_recent = true
 
   filter {
     name   = "name"
-    values = ["${var.arch_ami_name_prefix}*"]
+    values = [local.os_profile.ami_name_pattern]
+  }
+
+  filter {
+    name   = "architecture"
+    values = [local.ec2_architecture[var.architecture]]
   }
 }
 

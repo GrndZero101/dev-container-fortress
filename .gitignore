@@ -219,6 +219,8 @@ __marimo__/
 docs/coding_ai_tasks/**
 # Local private certificate material for opt-in corporate CA builds
 .local/certs/
+# shell-config copies staged into the build context by --shell-config-stage-from
+.local/sources/
 
 # Artifacts from debugging and experimentation
 artifacts/

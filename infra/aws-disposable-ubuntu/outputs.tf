@@ -55,17 +55,17 @@ output "key_pair_name" {
 
 output "session_manager_enabled" {
   description = "Whether the disposable host was provisioned with an IAM instance profile for Session Manager."
-  value       = var.enable_session_manager
+  value       = local.session_manager_enabled
 }
 
 output "session_manager_role_name" {
   description = "IAM role name attached for Session Manager access, when enabled."
-  value       = var.enable_session_manager ? aws_iam_role.session_manager[0].name : null
+  value       = local.session_manager_enabled ? aws_iam_role.session_manager[0].name : null
 }
 
 output "session_manager_instance_profile_name" {
   description = "IAM instance profile attached for Session Manager access, when enabled."
-  value       = var.enable_session_manager ? aws_iam_instance_profile.session_manager[0].name : null
+  value       = local.session_manager_enabled ? aws_iam_instance_profile.session_manager[0].name : null
 }
 
 output "effective_ssh_ingress_cidrs" {

@@ -95,6 +95,10 @@ Each milestone should have:
 - Make existing aligned workstations and fresh hosts converge toward the same
   declared Dev Fortress baseline.
 - Build toward milestone-based squash merges rather than unbounded branch drift.
+- Serve four use cases: a direct Ubuntu host (physical, virtual, or cloud), WSL2
+  Ubuntu on Windows, a VS Code devcontainer, and a devcontainer CLI terminal
+  mode. Treat every one as a long-lived, composable development environment
+  rather than a tightly pinned build artifact.
 
 ## Milestones
 
@@ -344,12 +348,67 @@ Current state:
 
 - `ft workspace ...` profiles, live bind mounts, tool layers, and the auth
   contract are implemented and verified locally
-- the persisted `share` mount hides the image's `uv` tool and Python installs,
-  including `ft`, so it must be narrowed first
+- persisted state is an explicit allowlist (`state`, `zoxide`, `atuin`) shared
+  by workspaces and devcontainers; the image owns the rest of `${XDG_DATA_HOME}`
 - the disposable EC2 develop-in-container loop is documented but not yet proven
 
 Details:
 [M5a draft](milestones/M5a-disposable-daily-driver-container.md)
+
+### `M5b` Zero to Hero: Workstation Composability
+
+Status: `next`
+
+Objective:
+Take a brand-new or existing Ubuntu machine to a working Dev Fortress
+workstation from one `curl | sh` command with sane defaults, while keeping
+host or workspace mode, tmux profiles, and the identity step composable.
+
+Exit criteria:
+
+- one command converges a fresh Ubuntu 24.04 host, WSL2 Ubuntu, or Ubuntu EC2
+  instance, with `host` mode as the default and a thin `workspace` mode
+- the installer installs its own prerequisites, registers `localhost`, and runs
+  the host bootstrap, with at most one `sudo` prompt
+- stable Homebrew and one-pass convergence; re-runs on brownfield hosts are safe
+- a Git identity step with a manual corporate and GitLab fallback
+- tmux profiles (`minimal`, `full`, `raidboss`) ported from `dotfiles`
+- one consolidated "Zero to Hero" quickstart
+
+Non-goals:
+
+- macOS hosts, which come next, and integrating the separate `dotfiles` repo
+
+Details:
+[M5b draft](milestones/M5b-zero-to-hero-workstation-composability.md)
+
+### `M5c` Composable Container Workspaces
+
+Status: `planned`
+
+Objective:
+Make the container targets long-lived, composable development environments by
+standardizing their userland on Homebrew and making the VS Code devcontainer
+and devcontainer CLI terminal mode genuinely useful.
+
+Exit criteria:
+
+- container userland tools come from Homebrew, using the same bundle model as
+  the hosts
+- Claude Code is installed in every container target through its native
+  installer
+- one recommended way to get code into a devcontainer (bind mount or volume
+  clone), with the other one as a documented variant
+- a devcontainer CLI terminal mode works end to end
+- `ft workspace` and `.devcontainer/` share one definition or document why
+  they differ
+
+Non-goals:
+
+- byte-for-byte reproducible image builds, and new container distros
+
+Details:
+[M5c draft](milestones/M5c-composable-container-workspaces.md)
 
 ### `M6` Operator CLI Maturity
 

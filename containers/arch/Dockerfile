@@ -97,6 +97,8 @@ RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/bin \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share/dev-container-fortress \
+  && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share/zoxide \
+  && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share/atuin \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/state \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.cache \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.config \
@@ -116,6 +118,10 @@ ENV XDG_CACHE_HOME=${HOME}/.cache
 ENV XDG_DATA_HOME=${HOME}/.local/share
 ENV XDG_CONFIG_HOME=${HOME}/.config
 ENV XDG_STATE_HOME=${HOME}/.local/state
+# Mounted checkouts are shared with the host, so keep the container's project
+# environment beside the host .venv instead of overwriting it. uv resolves
+# this relative path per project root, and the directory ignores itself.
+ENV UV_PROJECT_ENVIRONMENT=.venv-container
 ENV PATH=${HOME}/.local/bin:${PATH}
 ENV SHELL_CONFIG_PROFILE=${SHELL_CONFIG_PROFILE_DEFAULT}
 

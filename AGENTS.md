@@ -103,8 +103,8 @@
 
 * Keep Dockerfiles focused on reproducible builds and a clear layer structure.
 * Use distro packages for low-level system prerequisites inside containers.
-* Use Python plus `uv` tooling for pinned userland tool installation inside containers.
-* Avoid introducing Homebrew into container targets unless explicitly requested.
+* Use Python plus `uv` tooling for pinned userland tool installation inside containers until `M5c` moves them to Homebrew.
+* Homebrew in container targets is the agreed direction (`M5c`). These environments are long-lived and composable rather than strictly deterministic, so do not argue against Homebrew in containers on reproducibility grounds alone.
 * Prefer deterministic downloads, pinned versions, and checksum verification for externally fetched tools.
   * Exception: `uv` itself deliberately tracks the latest release in container images. Do not pin it unless a regression forces a temporary pin.
 * Keep image size and build complexity in mind, but do not sacrifice auditability for minor optimizations.
@@ -161,6 +161,7 @@
 
 * Treat `docs/ROADMAP.md` as the strategic roadmap and milestone ordering document.
 * Treat `docs/milestones/` as the working planning surface for milestone drafts, issue slices, and checkbox progress.
+* Treat the root `TODO.md` as the short "up next" queue: a few one-line items that link into milestone files. Update it when the next action changes, and keep detail in the milestone file rather than duplicating it.
 * Keep one markdown file per milestone under `docs/milestones/`, and update it as work advances.
 * Use milestone files as the copy/paste source for later GitHub milestones and issues.
 * Name milestone branches after a zero-padded sortable milestone ID and outcome, for example `feat/m0003a-installer-onramp` or `feat/m0004-first-real-host-roles`.

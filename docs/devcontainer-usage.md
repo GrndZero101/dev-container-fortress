@@ -38,6 +38,33 @@ After the container opens:
 - the default shell profile should be `zsh-tll-citadel-dev-fortress` unless you changed the build args
 - `postCreate` should run a lightweight `ft plan` validation for the selected target
 
+## Persisted State
+
+Each definition mounts three named Docker volumes so shell history and
+navigation state survive `Rebuild Container`:
+
+| Volume | Container path | Holds |
+| --- | --- | --- |
+| `dev-fortress-state-<id>` | `~/.local/state` | zsh history, Neovim undo and shada |
+| `dev-fortress-zoxide-<id>` | `~/.local/share/zoxide` | zoxide directory database |
+| `dev-fortress-atuin-<id>` | `~/.local/share/atuin` | atuin history database |
+
+`<id>` is the `${devcontainerId}` that VS Code computes per dev container, so the
+Ubuntu, Alpine, and Arch definitions keep separate state.
+
+> [!IMPORTANT]
+> The image owns the rest of `~/.local/share`, including `uv`, the managed
+> Python, and `ft`. Do not add a mount over `~/.local/share` or `~/.local`; it
+> hides those installs and breaks `ft`. See the persisted state contract in
+> [container standards](container-standards.md#persisted-state-contract).
+
+To start from clean state, remove the volumes after closing the container:
+
+```bash
+docker volume ls --filter name=dev-fortress-
+docker volume rm <volume-name>
+```
+
 ## Validate the Devcontainer
 
 Open a terminal in the container and run:

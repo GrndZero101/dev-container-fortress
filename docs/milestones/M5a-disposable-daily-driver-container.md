@@ -23,11 +23,11 @@ safe to destroy and recreate frequently without hidden snowflake state.
 - [x] The contract clearly separates thin host responsibilities from container responsibilities
 - [x] `ft` exposes a first-class operator workflow for the daily-driver container instead of requiring ad hoc `docker run` commands
 - [x] The workflow supports bind-mounted local working copies of `dev-container-fortress` and `shell-config`
-- [ ] The workflow supports a small explicit set of persisted state mounts for caches and auth material
+- [x] The workflow supports a small explicit set of persisted state mounts for caches and auth material
 - [x] The initial auth and secrets contract is explicit for SSH, Git HTTPS/OAuth, and GPG-backed `pass` or `gopass`
 - [x] Optional heavy CLI layers such as `gh`, `glab`, `aws`, and `az` are modeled as opt-in image or tool profiles rather than mandatory base-image contents
-- [ ] A disposable Ubuntu EC2 host can be provisioned, bootstrapped, used for real development inside the daily-driver container, and destroyed again with the same documented operator loop
-- [ ] The recommended loop is documented truthfully in user-facing docs once implemented
+- [x] A disposable Ubuntu EC2 host can be provisioned, bootstrapped, used for real development inside the daily-driver container, and destroyed again with the same documented operator loop
+- [x] The recommended loop is documented truthfully in user-facing docs once implemented
 
 ## Non-Goals
 
@@ -92,7 +92,9 @@ Required bind mounts:
 Candidate persisted mounts:
 
 - `${HOME}/.cache`
-- `${HOME}/.local/share`
+- `${HOME}/.local/state`
+- `${HOME}/.local/share/zoxide` and `${HOME}/.local/share/atuin`, never all of
+  `${HOME}/.local/share`, which the image owns
 - `${HOME}/.config/gh`
 - `${HOME}/.config/glab`
 - `${HOME}/.aws`
@@ -157,7 +159,7 @@ opt-in and do not become mandatory weight for all users and all targets.
 
 - [x] Problem: disposable hosts and containers need a truthfully scoped story for what should persist across rebuilds and what should not
 - [x] Scope: define persisted cache, CLI config, SSH, forge, cloud, and secrets-adjacent mount policy
-- [ ] Acceptance: auth and persistence boundaries are explicit enough for repeatable use on local hosts and disposable EC2
+- [x] Acceptance: auth and persistence boundaries are explicit enough for repeatable use on local hosts and disposable EC2
 
 ### M5a-5 Add optional tool-layer selection
 
@@ -167,18 +169,18 @@ opt-in and do not become mandatory weight for all users and all targets.
 
 ### M5a-6 Prove the disposable EC2 operator loop
 
-- [ ] Problem: the strongest reproducibility claim is not proven until a real disposable cloud host can be used for actual development inside the container
-- [ ] Scope: validate the end-to-end EC2 flow: provision, bootstrap, mount repos, work inside container, and destroy
-- [ ] Acceptance: the documented Ubuntu EC2 loop works end to end and is worth repeating daily
+- [x] Problem: the strongest reproducibility claim is not proven until a real disposable cloud host can be used for actual development inside the container
+- [x] Scope: validate the end-to-end EC2 flow: provision, bootstrap, mount repos, work inside container, and destroy
+- [x] Acceptance: the documented Ubuntu EC2 loop works end to end and is worth repeating daily
 
 ## Verification Notes
 
-- [ ] A fresh Ubuntu EC2 host can be provisioned through the repo-owned infra path
-- [ ] `ft host bootstrap` prepares the host without requiring workstation-only snowflake state
+- [x] A fresh Ubuntu EC2 host can be provisioned through the repo-owned infra path
+- [x] `ft host bootstrap` prepares the host without requiring workstation-only snowflake state
 - [x] The daily-driver container can start against bind-mounted `dev-container-fortress` and `shell-config` checkouts
 - [ ] Normal development tasks work from inside the container, including editing, git operations, shell-config iteration, and Fortress self-hosting checks
-- [ ] Replacing the container does not lose intentionally persisted state
-- [ ] Destroying and recreating the EC2 host does not require undocumented operator recovery steps
+- [x] Replacing the container does not lose intentionally persisted state
+- [x] Destroying and recreating the EC2 host does not require undocumented operator recovery steps
 
 ## Progress Notes
 
@@ -194,23 +196,139 @@ Verified locally with `ubuntu-base`:
 - `ft workspace exec` failed whenever stdin was not a terminal because it always
   requested a TTY; fixed in the same sweep for `ft container exec` too
 
-Open, in suggested order:
+Fixed on 2026-10-18 on `feat/m0005a-disposable-daily-driver-container`:
 
-1. **Persisted `share` mount hides the image toolchain.** The `share` mount
-   covers all of `${XDG_DATA_HOME}`, but the image installs `uv` tools and
-   Python there, so `~/.local/bin/ft` is a dangling symlink inside every
-   workspace. Narrow the mount to the state that should persist, or move the
-   image's `uv` tool and Python roots out of `${XDG_DATA_HOME}`. This blocks the
-   persisted-state exit criterion and `M5a-4`.
-2. `ft workspace validate` does not check `ft` or the core toolchain, which is
-   why it passed while `ft` was missing.
-3. Prove `M5a-6`: provision EC2, bootstrap, run the workspace with mounted
-   checkouts, develop, and destroy, following `docs/ec2-development-loop.md`.
-4. Confirm that replacing the container keeps intentionally persisted state.
+- the blanket `share` mount over `${XDG_DATA_HOME}` hid the image's `uv` tools,
+  managed Python, `ft`, Neovim runtime, and prewarmed zinit plugins. It is
+  replaced by an allowlist of narrow mounts: `state` (`${XDG_STATE_HOME}`, which
+  holds zsh history), `zoxide`, and `atuin`. The rule now lives in the persisted
+  state contract in `docs/container-standards.md`
+- zsh history lives under `${XDG_STATE_HOME}`, so it was never persisted before
+- `ft workspace validate` now runs `ft`, `uv`, `python3.14`, and `nvim` instead
+  of trusting `PATH`
+- the repo devcontainer definitions persist the same three paths as named
+  volumes, and the images pre-create them with `vscode` ownership
+- verified with `ubuntu-base`: validate passes, and zoxide data, `state`, and
+  `atuin` contents survive `ft workspace up` replacing the container
+- verified the Ubuntu devcontainer with the `devcontainer` CLI: the three named
+  volumes mount as `vscode`, `postCreate` passes, and zoxide data and `state`
+  survive `devcontainer up --remove-existing-container`
+
+> [!NOTE]
+> Older workspace state directories still contain an unused `share/`
+> subdirectory. It only holds a zoxide database and re-downloaded zinit
+> plugins, so remove it by hand:
+> `rm -rf ~/.local/state/dev-container-fortress/workspaces/*/share`
+
+### EC2 loop run on 2026-10-18
+
+Followed `docs/ec2-development-loop.md` on a t4g.medium arm64 Spot host in
+`ap-southeast-1` (tboss-mgmt). This note was written and committed from inside
+the `ubuntu-full` workspace on that host.
+
+- `capacity select`, `plan`, and `apply` provisioned the host and imported it
+  into `hosts.toml`
+- `ft host validate` failed on the first converge: Homebrew poured seven
+  formulae twice in one run and the second pour deleted the first ("Bottle
+  destination already exists"). A rerun converged, and the idempotency pass
+  reported `changed=0`
+- `ft deploy init --dev-branch` cloned both repos; `ft doctor` and the 168
+  tests passed on the host
+- the first arm64 `ubuntu-full` build failed: `install-aws-cli` always fetched
+  the x86_64 bundle (fixed in `f5fcd9a`, pulled onto the host with Git)
+- after the fix, `ft workspace validate ubuntu-full` passed every check, the
+  tests passed inside the workspace, and zoxide and `state` contents survived
+  `ft workspace up` replacing the container
+- this note was committed inside the workspace and pushed from it as `1476c0a`
+  after `gh auth login --web` (device flow) and `gh auth setup-git`, then
+  pulled on the workstation. `gh auth logout` ran before teardown
+- `ft infra aws-disposable-ubuntu destroy` removed all six resources and the
+  instance terminated
+
+Gaps found while dogfooding the loop:
+
+- the role tracks the Homebrew development branch (the host ran
+  `7.0.9-157-g013821d`) rather than the latest stable tag, which makes host
+  bootstrap non-deterministic and may explain the duplicate pour
+- convergence needs two passes: the second pass still changed the Linuxbrew
+  formulae and `neovim_kickstart` tasks
+- host and workspace share one `.venv` in the bind-mounted checkout, so each
+  side's `uv run` recreates it for its own interpreter
+- `--shell-config-stage-from` copies into `.local/sources/`, which was not
+  ignored by Git (fixed in this commit)
+- the workspace has no Git identity on first use. The identity must be the
+  GitHub noreply address: GitHub declined a push authored with the account's
+  private email
+- push access works through `gh auth login --web` inside the workspace, but
+  the runbook does not document it. The first device code expired unused, and
+  the token is stored in plain text in the `config-gh` mount because the
+  container has no keyring. Ubuntu's `gh` 2.45 also lacks `--skip-ssh-key`
+- `destroy` leaves the imported target in `hosts.toml` with the old address;
+  the next `apply` overwrites it
+- `ft host ssh <target> -- <command>` is still missing (already an `M6` gap),
+  and `ft host show` truncates the managed key path
+
+The loop works end to end, but only with steps the runbook did not cover, so
+the EC2 exit criterion and the `M5a-6` acceptance stay open until a rerun from
+the runbook alone passes.
+
+Follow-ups done after the run:
+
+- `docs/ec2-development-loop.md` now covers the workspace Git identity (with the
+  noreply caveat), the `gh` device-flow login, a GitLab and corporate fallback,
+  and the commit, push, and pull round trip
+- the runbook's `~/...` paths never worked through `ft deploy exec`, which
+  quotes each argument; it now uses `../shell-config` and sibling discovery
+- the images set `UV_PROJECT_ENVIRONMENT=.venv-container`, so the host `.venv`
+  and the container environment no longer overwrite each other
+- `test_workspace_auth_checks_reflect_profile_mounts` read the real `BROWSER`
+  and failed inside workspaces; it now clears it
+
+Stable Homebrew and one-pass host convergence moved to `M5b`, which owns the
+fresh and brownfield host onramp.
+
+### EC2 loop rerun on 2026-10-18, runbook only
+
+Followed `docs/ec2-development-loop.md` alone on an m8g.large (Graviton4,
+2 vCPU, 8 GiB) arm64 Spot host. This note was committed from inside the
+`ubuntu-full` workspace on that host.
+
+- `ft host validate` passed first time in under 7 minutes: one real converge,
+  then an idempotency pass with `changed=0`. The Homebrew duplicate-pour race
+  did not recur
+- `ft deploy init --dev-branch`, `ft doctor`, and the 168 tests passed on the host
+- the runbook's `ubuntu-full` build passed in 1 minute 40 seconds with the
+  `../shell-config` path, and `up` and `validate` passed without
+  `--shell-config-checkout`, using sibling discovery
+- the tests passed inside the workspace in `.venv-container`, and the host
+  `.venv` was untouched
+- the host `.venv` uses Homebrew's Python 3.15 rather than the uv-managed 3.14,
+  because `ft deploy init` does not run `bootstrap.zsh` and nothing pins the
+  version; tracked for `M5b`
+- the first `gh` device code expired unused after its 15 minutes, so start the
+  login only when someone is ready to enter the code. The push round trip was
+  already proven on the first run, so this commit came back to the local clone
+  with `git format-patch` and `git am` instead, keeping its hash
+- the host was inspected over `ft host ssh` and VS Code Remote-SSH. VS Code on
+  Windows reads the Windows OpenSSH config, so it needs
+  `ft host ssh-config --windows`; with WSL interop disabled the Windows
+  profile cannot be inferred and `--windows-ssh-dir` is required
+- `ft infra aws-disposable-ubuntu destroy` removed all six resources and left
+  an empty state
+
+The rerun passed from the runbook alone, which closes the EC2 exit criterion
+and the `M5a-6` acceptance. The shell-config iteration part of the "normal
+development tasks" check was not exercised on EC2, so that box stays open.
+
+Open:
+
+1. The separate `tboss-workspace` devcontainers persist cache and auth paths but
+   not `state`, `zoxide`, or `atuin`; aligning them is tracked in that repo's
+   `TODO.md`.
 
 ## Branch and Merge Plan
 
-- [ ] Branch from `main` as `feat/m0005a-disposable-daily-driver-container`
-- [ ] Commit freely at verified checkpoints
+- [x] Branch from `main` as `feat/m0005a-disposable-daily-driver-container`
+- [x] Commit freely at verified checkpoints
 - [ ] Open one PR for the milestone once the proposed operator contract is stable
 - [ ] Squash merge into `main`

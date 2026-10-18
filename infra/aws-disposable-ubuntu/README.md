@@ -39,8 +39,8 @@ The first Terraform pass here is intentionally small:
 
 - default-VPC-first networking
 - one SSH security group
-- one Ubuntu EC2 instance
-- one EC2 IAM role and instance profile for AWS Systems Manager Session Manager
+- one EC2 instance, Ubuntu by default, with the OS chosen from a data-driven profile map
+- one EC2 IAM role and instance profile for AWS Systems Manager Session Manager, when the OS image ships the agent
 - optional Spot market request with an explicit on-demand stability mode
 - one EC2 key pair created from operator-supplied public key material
 - dynamic SSH ingress detection from the current public IP when explicit CIDRs are not supplied
@@ -262,11 +262,11 @@ through `ft`:
 ```zsh
 terraform -chdir=infra/aws-disposable-ubuntu workspace new arch
 uv run ft infra aws-disposable-ubuntu capacity select --market spot --architecture amd64
-export TF_WORKSPACE=arch TF_VAR_os=arch TF_VAR_enable_session_manager=false
+export TF_WORKSPACE=arch TF_VAR_os=arch
 uv run ft infra aws-disposable-ubuntu apply --target-name dev-fortress-ec2-arch
 uv run ft host validate dev-fortress-ec2-arch
 uv run ft infra aws-disposable-ubuntu destroy --target-name dev-fortress-ec2-arch
-unset TF_WORKSPACE TF_VAR_os TF_VAR_enable_session_manager
+unset TF_WORKSPACE TF_VAR_os
 ```
 
 > [!NOTE]
@@ -274,8 +274,36 @@ unset TF_WORKSPACE TF_VAR_os TF_VAR_enable_session_manager
 > tfvars take precedence over `TF_VAR_*`. Rerun it with your usual Ubuntu
 > settings before the next Ubuntu apply.
 >
-> The Arch image has no SSM agent, so disable the Session Manager role for Arch
-> hosts and reach them over SSH only.
+> The Arch image has no SSM agent. Its OS profile sets `ssm_agent = false`, so
+> the stack skips the Session Manager role and Arch hosts are reached over SSH
+> only.
+
+## Adding an OS Target
+
+Every OS-specific fact lives in one entry of `local.os_profiles` in
+[`locals.tf`](locals.tf). Nothing else in the stack branches on `var.os`, and the
+`os` and `architecture` validations read their allowed values from the map.
+
+| Field | Meaning |
+| --- | --- |
+| `ssh_user` | login user the cloud image creates through cloud-init |
+| `ssm_agent` | whether the image ships the Session Manager agent |
+| `architectures` | supported values of `var.architecture` (`amd64`, `arm64`) |
+| `ami_ssm_parameter` | public SSM parameter path; `%s` becomes the architecture |
+| `ami_owners`, `ami_name_pattern` | newest AMI matching these, filtered by architecture |
+
+Set either `ami_ssm_parameter`, or both `ami_owners` and `ami_name_pattern`, and
+leave the other fields `null`. For example, a Debian profile would use Debian's
+public SSM parameters, and a Fedora profile would use the Fedora project's AMI
+owner ID with a name pattern.
+
+> [!IMPORTANT]
+> A profile must not reference `var.os` or `var.architecture`; their validations
+> read this map, so a reference creates a Terraform dependency cycle. Put the
+> architecture in the SSM path as `%s` instead.
+
+Adding a profile only makes the host reachable. The OS still needs support in
+`ft host bootstrap` and the Ansible roles before `ft host validate` can pass.
 
 ## Cost, Interruption, and Trust Caveats
 

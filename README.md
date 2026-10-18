@@ -196,12 +196,12 @@ ft container build ubuntu \
 | `ft` CLI | Working | Main operator surface for container and early host workflows |
 | Ubuntu disposable target | Working | End-to-end Docker, SSH, and Ansible check loop is proven |
 | Alpine disposable target | Working | End-to-end Docker, SSH, and Ansible check loop is proven |
-| Arch disposable target | New | amd64 only; implemented in `M9a`, end-to-end loop not yet proven |
+| Arch disposable target | Working | amd64 only; container loop and a disposable Arch EC2 host verified in `M9a` |
 | VS Code devcontainers | Working | Thin wrappers over the container targets |
-| Workspace daily-driver container | Working foundation | Ubuntu-first mounted workspace loop exists under `ft workspace ...` |
+| Workspace daily-driver container | Working | `ft workspace ...` verified locally and on a disposable Ubuntu EC2 host in `M5a`, including amd64 and arm64 images |
 | Host target model | Working foundation | `ft host ...` inventory, key, probe, and bootstrap contract exists |
-| Real host provisioning roles | In progress | Current milestone is `M4 First Real Host Roles` |
-| Full workstation bootstrap | Partial | Still scaffolded beyond the thin host bootstrap contract |
+| Real host provisioning roles | Working | Ubuntu roles converge WSL2 `localhost` and Ubuntu EC2 hosts; Arch and Alpine base roles exist |
+| Full workstation bootstrap | Partial | Works on Ubuntu and WSL2 with several manual steps; the one-command onramp is `M5b` |
 
 ## :wrench: Operator Surface
 
