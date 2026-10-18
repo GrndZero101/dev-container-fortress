@@ -160,6 +160,20 @@ workstation rather than shell behavior, and a working tmux setup should come
 out of the box without the separate `dotfiles` repo. Personal tmux tweaks stay
 in `dotfiles`.
 
+Switching profiles after install belongs to `csm`, the `shell-config` operator
+surface: something like `csm tmux-profile [name]`, with `csm tmux-profile -i`
+using the existing `csm` picker (`fzf` when installed, a native zsh menu
+otherwise). The two repos share a small contract:
+
+- Dev Fortress installs the profile files in one XDG-aligned directory and
+  owns their content
+- the active profile is one symlink at `${XDG_CONFIG_HOME}/tmux/tmux.conf`,
+  and `none` means no Dev Fortress link, so stock tmux applies
+- `csm` lists whatever profiles that directory contains, flips the link, and
+  reloads running tmux servers with `tmux source-file`
+- the bootstrap sets the profile only when one is requested explicitly or no
+  link exists yet, so a re-run never undoes a `csm` choice
+
 ## Issue Drafts
 
 ### M5b-1 Spike the single-prompt privilege model
@@ -202,7 +216,8 @@ in `dotfiles`.
 
 - [ ] Problem: tmux setup lives only in the separate `dotfiles` repo
 - [ ] Scope: port the `minimal`, `full`, and `raidboss` profiles into a role with one profile variable, a no-config default, and brownfield-safe linking
-- [ ] Acceptance: the default leaves stock tmux untouched, each profile installs and starts cleanly on Ubuntu, and switching profiles, including back to none, is safe
+- [ ] Scope (`shell-config`): add a `csm` tmux profile command with an `fzf` picker and a native fallback, reading the Dev Fortress profile directory
+- [ ] Acceptance: the default leaves stock tmux untouched, each profile installs and starts cleanly on Ubuntu, `csm` switches profiles, including back to none, and a bootstrap re-run keeps the `csm` choice
 
 ### M5b-8 Consolidate the onramp docs
 
