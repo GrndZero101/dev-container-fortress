@@ -520,6 +520,30 @@ Non-goals:
 Details:
 [M7a draft](milestones/M7a-secrets-management.md)
 
+### `M7b` Cloud Test Fleet
+
+Status: `next`, after the `M5b` PR and before `M5c`
+
+Objective:
+Verify Dev Fortress on several fresh supported OS targets at once with one
+cheap, short-lived EC2 fleet.
+
+Exit criteria:
+
+- one apply creates, and one destroy removes, a five-host fleet: Ubuntu 24.04,
+  26.04, and 26.10, Arch, and Alpine, across amd64 and arm64
+- `ft` imports every fleet host as a host target without hand edits
+- each target runs its documented check, and re-runs converge
+- the single-host disposable stack keeps working for one-off hosts
+
+Non-goals:
+
+- running the fleet from CI
+- long-lived hosts or public community Arch AMIs
+
+Details:
+[M7b draft](milestones/M7b-cloud-test-fleet.md)
+
 ### `M8` Shell UX Polish
 
 Status: `later`

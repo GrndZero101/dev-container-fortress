@@ -363,14 +363,14 @@ Next, in suggested order:
 
 1. `M5b-8`: the consolidated quickstart, then open the PR
 2. optional: `workspace` mode on a fresh arm64 EC2 host (local build only; the
-   published images are amd64)
+   published images are amd64), now a natural first `M7b` fleet check
 
 Working notes for the next session:
 
 - testing strategy from 2026-10-19: verify on the operator's `dev-fortress`
   WSL2 host as the brownfield case, and on disposable EC2 hosts for fresh
-  runs, not throwaway WSL2 distros. Running several EC2 hosts at once needs
-  per-name Terraform state (see `TODO.md`)
+  runs, not throwaway WSL2 distros. The five-host EC2 fleet is planned in
+  [`M7b`](M7b-cloud-test-fleet.md)
 - the retired throwaway WSL2 recipe, for reference: `wsl.exe --install
   Ubuntu-26.04 --name m5b-test --no-launch`, a password-`sudo` user added as
   root, the branch shared as a git bundle in `/mnt/wsl`, and the one-liner run
