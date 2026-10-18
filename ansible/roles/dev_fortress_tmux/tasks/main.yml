@@ -170,15 +170,18 @@
     - dev_fortress_tmux_active in ['full', 'raidboss']
     - not ansible_check_mode
 
-- name: Report that an existing tmux config blocked the profile link
+# Queued for the end-of-run notices in host.yml, where it is not lost among
+# the task output.
+- name: Note that an existing tmux config blocked the profile link
   vars:
     blocker: >-
       {{ '~/.tmux.conf' if dev_fortress_tmux_home_conf | bool else dev_container_fortress_tmux_conf_effective }}
-  ansible.builtin.debug:
-    msg: >-
+    notice: >-
       {{ blocker }} is not a Dev Fortress link, and tmux loads it, so
       tmux-{{ dev_container_fortress_tmux_profile_effective }} was not linked. Move it
       aside, for example into ~/.local/state/tmux-backup/, and re-run.
+  ansible.builtin.set_fact:
+    dev_fortress_tmux_notices: ["{{ notice | trim }}"]
   when: dev_fortress_tmux_blocked | bool
 
 - name: Report the active tmux profile

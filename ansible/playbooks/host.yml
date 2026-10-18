@@ -338,3 +338,18 @@
         - dev_container_fortress_claude_code_manage_effective | bool
     - role: dev_fortress_shell_config_ready
       when: dev_container_fortress_host_mode_effective == 'host'
+
+  # Roles queue anything the operator should act on in a `<role>_notices`
+  # list, such as a dotfile moved aside or a config link left alone. Printing
+  # them last keeps them out of the task noise.
+  post_tasks:
+    - name: Report what this run left for you to review
+      vars:
+        dev_fortress_notices: >-
+          {{
+            (dev_fortress_shell_config_bootstrap_notices | default([]))
+            + (dev_fortress_tmux_notices | default([]))
+          }}
+      ansible.builtin.debug:
+        msg: "{{ dev_fortress_notices }}"
+      when: dev_fortress_notices | length > 0
