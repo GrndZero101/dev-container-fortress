@@ -169,8 +169,8 @@ opt-in and do not become mandatory weight for all users and all targets.
 
 ### M5a-6 Prove the disposable EC2 operator loop
 
-- [ ] Problem: the strongest reproducibility claim is not proven until a real disposable cloud host can be used for actual development inside the container
-- [ ] Scope: validate the end-to-end EC2 flow: provision, bootstrap, mount repos, work inside container, and destroy
+- [x] Problem: the strongest reproducibility claim is not proven until a real disposable cloud host can be used for actual development inside the container
+- [x] Scope: validate the end-to-end EC2 flow: provision, bootstrap, mount repos, work inside container, and destroy
 - [ ] Acceptance: the documented Ubuntu EC2 loop works end to end and is worth repeating daily
 
 ## Verification Notes
@@ -239,6 +239,11 @@ the `ubuntu-full` workspace on that host.
 - after the fix, `ft workspace validate ubuntu-full` passed every check, the
   tests passed inside the workspace, and zoxide and `state` contents survived
   `ft workspace up` replacing the container
+- this note was committed inside the workspace and pushed from it as `1476c0a`
+  after `gh auth login --web` (device flow) and `gh auth setup-git`, then
+  pulled on the workstation. `gh auth logout` ran before teardown
+- `ft infra aws-disposable-ubuntu destroy` removed all six resources and the
+  instance terminated
 
 Gaps found while dogfooding the loop:
 
@@ -251,15 +256,30 @@ Gaps found while dogfooding the loop:
   side's `uv run` recreates it for its own interpreter
 - `--shell-config-stage-from` copies into `.local/sources/`, which was not
   ignored by Git (fixed in this commit)
-- the workspace has no Git identity and no forge login on first use, and
-  nothing gives the EC2 host push access; the runbook does not cover either
+- the workspace has no Git identity on first use. The identity must be the
+  GitHub noreply address: GitHub declined a push authored with the account's
+  private email
+- push access works through `gh auth login --web` inside the workspace, but
+  the runbook does not document it. The first device code expired unused, and
+  the token is stored in plain text in the `config-gh` mount because the
+  container has no keyring. Ubuntu's `gh` 2.45 also lacks `--skip-ssh-key`
+- `destroy` leaves the imported target in `hosts.toml` with the old address;
+  the next `apply` overwrites it
 - `ft host ssh <target> -- <command>` is still missing (already an `M6` gap),
   and `ft host show` truncates the managed key path
 
+The loop works end to end, but only with steps the runbook does not cover, so
+the EC2 exit criterion and the `M5a-6` acceptance stay open until it does.
+
 Open, in suggested order:
 
-1. Finish `M5a-6`: push from the EC2 workspace, then destroy the host.
-2. The separate `tboss-workspace` devcontainers persist cache and auth paths but
+1. Document the workspace Git identity and `gh` device-flow login in
+   `docs/ec2-development-loop.md`, then rerun the loop from the runbook alone.
+2. Pin the Linuxbrew role to the latest stable Homebrew tag and make host
+   convergence settle in one pass.
+3. Give the host and the workspace separate Python environments for the shared
+   checkout.
+4. The separate `tboss-workspace` devcontainers persist cache and auth paths but
    not `state`, `zoxide`, or `atuin`; aligning them is tracked in that repo's
    `TODO.md`.
 
