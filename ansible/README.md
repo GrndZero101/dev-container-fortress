@@ -51,7 +51,8 @@ Use the repo-local tooling through `uv run`, including:
 Examples:
 
 - `shell-config` owns shell behavior
-- tmux config should own tmux behavior
+- the Dev Fortress tmux profiles own tmux behavior, and `csm tmux-profile`
+  switches them
 - this layer installs and wires those components together
 
 ## Target Contract
@@ -122,6 +123,16 @@ The inventory is intentionally thin for the first foundation pass:
 - `ansible_ssh_common_args` for disposable Docker SSH targets using a Dev Fortress-managed known-hosts file
 - `dev_fortress_target_kind`
 - `dev_fortress_target_tags`
+- `ansible_python_interpreter`, from the target or, for local targets, the
+  controller's own Python
+
+> [!NOTE]
+> Local targets run modules on `{{ ansible_playbook_python }}`, the uv-managed
+> Python in the repo `.venv`, so every workstation uses the interpreter that
+> `.python-version` pins rather than whatever the distro ships. Modules that
+> need distro bindings, such as `apt`, respawn under the system `python3` on
+> their own, which is why `install.sh` still installs `python3-apt`. SSH targets
+> keep an explicit `ansible_python_interpreter` because uv is not on them yet.
 
 This is meant to stabilize the target and transport contract before the repo
 grows broader workstation or Terraform-driven host provisioning.
@@ -157,9 +168,7 @@ The playbook is now inventory-driven rather than pinned to `localhost`, so the
 same operator surface can grow from local bootstrap targets into SSH-based
 remote targets later.
 
-For the current M5 foundation pass, the host playbook still does not yet apply
-full workstation roles such as tmux. It now proves the shared
-contract by:
+The host playbook proves the shared contract by:
 
 - reaching the target through the generated inventory
 - validating basic target metadata and gathered facts
@@ -168,7 +177,7 @@ contract by:
 - converging and then asserting the native bootstrap prerequisite command contract (`python3`, `git`, `curl`, `zsh`)
 - cloning and bootstrapping `shell-config` using only that minimal native prerequisite layer
 - installing the fortress profile-local `zinit` checkout so the richer plugin-backed shell behavior is available on supported hosts
-- converging the target user's login shell to `zsh` for non-local targets by default
+- converging the target user's login shell to `zsh` for non-local targets by default, and for `localhost` when `install.sh` runs in host mode
 - installing Linuxbrew in the supported Ubuntu prefix and converging a reduced first-pass formula set for Ubuntu targets
 - installing Linuxbrew in the supported Ubuntu prefix and converging the core fortress-facing tool set for Ubuntu targets
 - cloning `kickstart.nvim` into a parallel Neovim app config and exposing an
@@ -248,6 +257,10 @@ its broader operator workflow baseline, including tools such as:
 - `yq`
 - `zoxide`
 - `direnv`
+- `gh`
+- `glab`
+- `gitmux` and `sesh`, the companions of the `tmux-full` and `tmux-raidboss`
+  profiles
 
 Homebrew is expected to pull the necessary transitive dependencies for those
 formulae. Notable examples include `pass` and `gopass` bringing in the required

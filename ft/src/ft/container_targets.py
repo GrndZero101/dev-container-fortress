@@ -18,11 +18,14 @@ class ContainerTarget:
         name: Short target name used on the CLI and in ``containers/<name>``.
         ssh_host_port: Loopback host port forwarded to the container's sshd.
         architectures: Normalized host architectures the image can be built for.
+        release_build_arg: Dockerfile build argument that selects the base OS
+            release, or None when the target has no release selection.
     """
 
     name: str
     ssh_host_port: int
     architectures: tuple[str, ...] = ("amd64", "arm64")
+    release_build_arg: str | None = None
 
     @property
     def ssh_host_target_name(self) -> str:
@@ -48,7 +51,9 @@ class ContainerTarget:
 CONTAINER_TARGETS: dict[str, ContainerTarget] = {
     target.name: target
     for target in (
-        ContainerTarget(name="ubuntu", ssh_host_port=2222),
+        ContainerTarget(
+            name="ubuntu", ssh_host_port=2222, release_build_arg="UBUNTU_RELEASE"
+        ),
         ContainerTarget(name="alpine", ssh_host_port=2223),
         # The official archlinux image is published for amd64 only.
         ContainerTarget(name="arch", ssh_host_port=2224, architectures=("amd64",)),

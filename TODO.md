@@ -8,21 +8,25 @@ records the result.
 
 ## Up Next
 
-1. **Merge `M5a`:** open the PR for
-   `feat/m0005a-disposable-daily-driver-container` and squash-merge it into
-   `main`; the exit criteria in the
-   [M5a file](docs/milestones/M5a-disposable-daily-driver-container.md) are ticked.
-2. **Start `M5b` Zero to Hero:** settle the open decisions in the
-   [M5b file](docs/milestones/M5b-zero-to-hero-workstation-composability.md)
-   (where tmux profiles live, the default tmux profile, and image pull versus
-   local build for `workspace` mode), then begin with the `M5b-1` privilege
-   spike.
+1. **`M5b`:** pick up from the "Resume Here" section of the
+   [M5b file](docs/milestones/M5b-zero-to-hero-workstation-composability.md);
+   the quickstart (`M5b-8`) is done, and the PR is open
+   ([#5](https://github.com/GrndZero101/dev-container-fortress/pull/5)); next
+   is the green CI and the operator's squash merge.
+2. **Then `M7b`:** a five-host EC2 test fleet (Ubuntu 24.04, 26.04, 26.10,
+   Arch, Alpine) with one apply and one destroy; see the
+   [M7b file](docs/milestones/M7b-cloud-test-fleet.md).
 3. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
    the devcontainer and CLI terminal-mode flows; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 
 ## Parked
 
+- Bump `.python-version` to 3.15 once an `ansible-core` release supports it;
+  2.21.5 crashes on 3.15 (`dataclasses` has no `_is_type`).
+- Find what wipes `WSLInterop` when a sibling WSL2 distro shuts down (it now
+  reproduces with a fresh store distro), and consider a self-heal timer;
+  `wsl-restore-interop` restores it meanwhile.
 - Align the `tboss-workspace` devcontainers with the persisted state contract;
   tracked in that repo's `TODO.md`.
 - Optional: turn off build-record artifacts in CI with

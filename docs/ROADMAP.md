@@ -316,7 +316,7 @@ Details:
 
 ### `M5a` Disposable Daily-Driver Container
 
-Status: `now`
+Status: `done`
 
 Objective:
 Define and prove the first real day-to-day development container workflow so a
@@ -357,7 +357,7 @@ Details:
 
 ### `M5b` Zero to Hero: Workstation Composability
 
-Status: `next`
+Status: `now`
 
 Objective:
 Take a brand-new or existing Ubuntu machine to a working Dev Fortress
@@ -366,13 +366,14 @@ host or workspace mode, tmux profiles, and the identity step composable.
 
 Exit criteria:
 
-- one command converges a fresh Ubuntu 24.04 host, WSL2 Ubuntu, or Ubuntu EC2
+- one command converges a fresh Ubuntu 26.04 host, WSL2 Ubuntu, or Ubuntu EC2
   instance, with `host` mode as the default and a thin `workspace` mode
 - the installer installs its own prerequisites, registers `localhost`, and runs
   the host bootstrap, with at most one `sudo` prompt
 - stable Homebrew and one-pass convergence; re-runs on brownfield hosts are safe
 - a Git identity step with a manual corporate and GitLab fallback
-- tmux profiles (`minimal`, `full`, `raidboss`) ported from `dotfiles`
+- stock tmux by default, with `minimal`, `full`, and `raidboss` profiles
+  ported from `dotfiles` as one-setting opt-ins
 - one consolidated "Zero to Hero" quickstart
 
 Non-goals:
@@ -395,8 +396,8 @@ Exit criteria:
 
 - container userland tools come from Homebrew, using the same bundle model as
   the hosts
-- Claude Code is installed in every container target through its native
-  installer
+- Claude Code is available in every container target as an opt-in through
+  its native installer, using the same option model as the hosts
 - one recommended way to get code into a devcontainer (bind mount or volume
   clone), with the other one as a documented variant
 - a devcontainer CLI terminal mode works end to end
@@ -456,7 +457,11 @@ Exit criteria:
 
 Details:
 Track as a maintainability-focused follow-on once the current M5 operator loop
-stabilizes.
+stabilizes. The likely vehicle is a port into the
+[`python-template-cli-typer`](https://github.com/GrndZero101/python-template-cli-typer)
+template, whose guardrails, hooks, and rules should keep the rewrite
+maintainable. Self-contained modules such as `ft/src/ft/options.py` and
+`ft/src/ft/identity.py` should move across largely unchanged.
 
 ### `M7` Local Verification Workflow
 
@@ -514,6 +519,30 @@ Non-goals:
 
 Details:
 [M7a draft](milestones/M7a-secrets-management.md)
+
+### `M7b` Cloud Test Fleet
+
+Status: `next`, after the `M5b` PR and before `M5c`
+
+Objective:
+Verify Dev Fortress on several fresh supported OS targets at once with one
+cheap, short-lived EC2 fleet.
+
+Exit criteria:
+
+- one apply creates, and one destroy removes, a five-host fleet: Ubuntu 24.04,
+  26.04, and 26.10, Arch, and Alpine, across amd64 and arm64
+- `ft` imports every fleet host as a host target without hand edits
+- each target runs its documented check, and re-runs converge
+- the single-host disposable stack keeps working for one-off hosts
+
+Non-goals:
+
+- running the fleet from CI
+- long-lived hosts or public community Arch AMIs
+
+Details:
+[M7b draft](milestones/M7b-cloud-test-fleet.md)
 
 ### `M8` Shell UX Polish
 

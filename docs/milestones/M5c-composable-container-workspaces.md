@@ -34,7 +34,7 @@ milestone owns the last two:
 
 - [ ] The container images install their userland tools through Homebrew, with the same bundle model as the host targets, and the decision is recorded in `docs/architecture.md` and `docs/container-standards.md`
 - [ ] Tools added inside a running container with `brew install` persist across container replacement where that is intended, or the docs state clearly that they do not
-- [ ] Claude Code is installed by default in every container target through its native installer and can update itself in place
+- [ ] Claude Code can be selected for every container target through the `M5b` option model, installs through its native installer, and updates itself in place
 - [ ] The devcontainer documents and supports one recommended way to get code in, either a bind mount of the host checkout or a clone into a volume, and the other way works as a documented variant
 - [ ] A devcontainer CLI terminal mode works end to end: `up`, enter a shell, develop, commit, push, and come back later to the same state
 - [ ] `ft workspace` and the devcontainer CLI either share one definition or have a documented reason to differ, so there are no two overlapping container paths
@@ -76,9 +76,11 @@ To work out:
 ### Claude Code
 
 Install Claude Code with its native installer rather than a package manager,
-so it can keep itself up to date between rebuilds. `M5b` covers the host
-targets and this milestone covers the containers. Its config and login state
-need a persisted mount, like the other CLI auth paths.
+so it can keep itself up to date between rebuilds. It is an optional component,
+not baseline, because it is large (about 270 MB): `M5b` added the `claude-code`
+option for host targets, and this milestone should honour the same selection
+for workspaces. Its config and login state need a persisted mount, like the
+other CLI auth paths.
 
 ### Getting Code Into a Devcontainer
 
@@ -114,11 +116,11 @@ profiles. Spike this before building more.
 - [ ] Scope: replace them with a Homebrew bundle and update the container standards and architecture docs
 - [ ] Acceptance: `ft workspace validate` passes on the Homebrew-based images
 
-### M5c-3 Install Claude Code in every container target
+### M5c-3 Offer Claude Code in every container target
 
 - [ ] Problem: Claude Code is installed by hand today
-- [ ] Scope: native installer during the image build, a persisted config mount, and a validation check
-- [ ] Acceptance: `claude --version` passes in every workspace and the CLI updates itself without a rebuild
+- [ ] Scope: the `claude-code` option for workspaces, installing through the native installer, a persisted config mount, and a validation check when selected
+- [ ] Acceptance: with the option selected, `claude --version` passes in every workspace and the CLI updates itself without a rebuild; without it, nothing is installed
 
 ### M5c-4 Choose how code gets into a devcontainer
 

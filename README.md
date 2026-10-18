@@ -27,9 +27,9 @@ Tooling policy follows the same split:
   host tooling, rather than becoming the primary tool source itself
 
 > [!IMPORTANT]
-> This project is still in active buildout.
-> The container and operator loops are already useful day to day, while the
-> direct workstation path is still maturing.
+> This project is still in active buildout. The container and operator loops
+> and the one-command Ubuntu and WSL2 workstation onramp are useful day to day;
+> other workstation platforms are still in progress.
 > [!NOTE]
 > `just` still exists, but it is now a thin compatibility shim.
 > Treat `ft` as the primary interface.
@@ -55,51 +55,23 @@ For active repository work, prefer the development path.
 
 ## Operator Install
 
-The fastest operator path is the one-liner installer.
-
-> [!IMPORTANT]
-> Baseline prerequisites:
-> `git` and `zsh`.
-> For the container validation loop below, you also need Docker with `buildx`.
-> `install.sh` checks the required baseline tools and warns if Docker or
-> `buildx` are not available yet.
-
-### One-liner
+On Ubuntu or WSL2 Ubuntu, one command takes a fresh machine to a Dev Fortress
+workstation. The only prerequisite is `curl`:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
-  DEV_CONTAINER_FORTRESS_DIR="$HOME/projects/dev-container-fortress" sh
+cd ~
+curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | sh
 ```
 
-This clones or refreshes the repo, ensures `uv` exists, and then hands off to
-the repo bootstrap, which provisions a uv-managed Python 3.14 runtime for the
-project environment and installs a live `ft` CLI from the local checkout plus
-a user-level Ansible for `ft host` commands.
+After one `sudo` prompt it installs the native prerequisites, `uv`, and `ft`,
+then converges the machine: Docker, `shell-config` with zsh as the login shell,
+and the Homebrew toolchain. Re-running it is safe, including on a machine you
+already set up by hand.
 
-On host bootstrap paths, Dev Fortress will also manage the installed
-`shell-config` checkout unless you deliberately point it somewhere else.
-
-> [!NOTE]
-> `install.sh` supports a few environment variables for common onboarding
-> overrides.
-
-| Variable | Purpose |
-| --- | --- |
-| `DEV_CONTAINER_FORTRESS_DIR` | Choose the local checkout destination |
-| `DEV_CONTAINER_FORTRESS_REF` | Pin a branch, tag, or commit |
-| `DEV_CONTAINER_FORTRESS_REPO` | Use an alternate Git repository URL |
-| `DEV_CONTAINER_FORTRESS_PYTHON_VERSION` | Override the uv-managed Python version used by `bootstrap.zsh` |
-
-Full example with all installer overrides:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
-  DEV_CONTAINER_FORTRESS_DIR="$HOME/projects/dev-container-fortress" \
-  DEV_CONTAINER_FORTRESS_REF="main" \
-  DEV_CONTAINER_FORTRESS_REPO="https://github.com/GrndZero101/dev-container-fortress.git" \
-  DEV_CONTAINER_FORTRESS_PYTHON_VERSION="3.14" \
-  sh
-```
+> [!TIP]
+> The [Zero to Hero Quickstart](docs/quickstart.md) is the whole onramp: extras
+> such as Claude Code and the tmux profiles, Git identity, existing machines,
+> the `cli` and `workspace` install modes, every override, and troubleshooting.
 
 ### Manual clone fallback
 
@@ -110,23 +82,8 @@ zsh ./bootstrap.zsh
 ```
 
 Use the manual path when you want to inspect or edit the checkout before
-running the bootstrap.
-
-### First validation loop
-
-```sh
-uv run ft doctor
-uv run ft container build ubuntu
-uv run ft container up ubuntu
-uv run ft container validate ubuntu
-```
-
-For the current host-target path, continue with:
-
-```sh
-uv run ft host bootstrap localhost --check
-uv run ft host bootstrap localhost
-```
+running the bootstrap. It sets up `uv`, `ft`, and Ansible only; converge the
+machine afterwards with `ft host bootstrap localhost -K`.
 
 ## Development Install
 
@@ -201,7 +158,7 @@ ft container build ubuntu \
 | Workspace daily-driver container | Working | `ft workspace ...` verified locally and on a disposable Ubuntu EC2 host in `M5a`, including amd64 and arm64 images |
 | Host target model | Working foundation | `ft host ...` inventory, key, probe, and bootstrap contract exists |
 | Real host provisioning roles | Working | Ubuntu roles converge WSL2 `localhost` and Ubuntu EC2 hosts; Arch and Alpine base roles exist |
-| Full workstation bootstrap | Partial | Works on Ubuntu and WSL2 with several manual steps; the one-command onramp is `M5b` |
+| Full workstation bootstrap | Working | One command on Ubuntu and WSL2 Ubuntu, safe on existing machines; see the [quickstart](docs/quickstart.md) |
 
 ## :wrench: Operator Surface
 
@@ -225,8 +182,8 @@ ft container build ubuntu \
 | Arch host bootstrap | New, x86_64 only, pacman instead of Homebrew | [Ansible README](ansible/README.md) |
 | Ubuntu disposable SSH host loop | Supported foundation | [Workstation Usage](docs/workstation-usage.md) |
 | macOS workstation | Planned / partial | [Workstation Usage](docs/workstation-usage.md) |
-| Ubuntu workstation | Planned / partial | [Workstation Usage](docs/workstation-usage.md) |
-| WSL workstation | Ubuntu-first active path | [WSL Bootstrap Runbook](docs/wsl-bootstrap.md) |
+| Ubuntu workstation | Supported, one-liner | [Quickstart](docs/quickstart.md) |
+| WSL workstation | Supported, one-liner on WSL2 Ubuntu | [Quickstart](docs/quickstart.md) |
 | VS Code devcontainers | Supported | [Devcontainer Usage](docs/devcontainer-usage.md) |
 
 ## :compass: Documentation Map
@@ -234,10 +191,11 @@ ft container build ubuntu \
 | Document | Audience | Purpose |
 | --- | --- | --- |
 | [README.md](README.md) | Everyone | Project overview plus operator-versus-development entry points |
+| [docs/quickstart.md](docs/quickstart.md) | Operators | Zero to Hero: the one-command workstation onramp |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Contributors | Clone layout, local bootstrap, checks, and iteration loops |
 | [docs/container-usage.md](docs/container-usage.md) | Operators | Docker-based usage and validation |
-| [docs/workstation-usage.md](docs/workstation-usage.md) | Operators | Host-target and workstation flow status |
-| [docs/wsl-bootstrap.md](docs/wsl-bootstrap.md) | Operators | Step-by-step bootstrap path for Ubuntu under WSL2 |
+| [docs/workstation-usage.md](docs/workstation-usage.md) | Operators | Host targets, remote bootstrap over SSH, and role coverage |
+| [docs/wsl-bootstrap.md](docs/wsl-bootstrap.md) | Operators | WSL2-specific notes: systemd, Docker, interop, and Windows SSH |
 | [docs/target-validation.md](docs/target-validation.md) | Operators | Current three-target validation runbook across Ubuntu, Alpine, and EC2 |
 | [docs/ec2-development-loop.md](docs/ec2-development-loop.md) | Operators | Git-backed EC2 development-host loop |
 | [docs/secrets-management.md](docs/secrets-management.md) | Operators | First-pass GPG and `pass` secrets baseline for workspace profiles |
@@ -305,7 +263,8 @@ In progress:
 ## :calendar: Current Milestone
 
 The current implementation focus is
-[M4 First Real Host Roles](docs/milestones/M4-first-real-host-roles.md).
+[M5b Zero to Hero: Workstation Composability](docs/milestones/M5b-zero-to-hero-workstation-composability.md),
+followed by [M7b Cloud Test Fleet](docs/milestones/M7b-cloud-test-fleet.md).
 
 Use these planning docs together:
 

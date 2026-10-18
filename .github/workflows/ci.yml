@@ -38,11 +38,9 @@ jobs:
       - name: Install zsh for repo-owned hooks
         run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
 
-      # Match bootstrap.zsh: ansible-core does not support Python 3.15 yet.
+      # uv reads the repo-root .python-version, the same pin bootstrap.zsh uses.
       - name: Set up uv
         uses: astral-sh/setup-uv@v10.2.0
-        with:
-          python-version: "3.14"
 
       - name: Sync workspace
         run: uv sync --locked
@@ -100,6 +98,19 @@ jobs:
               type=raw,value=ubuntu-full,enable={{is_default_branch}}
               type=match,pattern=v(.*),group=1,prefix=ubuntu-full-v
               type=sha,prefix=ubuntu-full-sha-
+          # ubuntu-full on the newest Ubuntu release, to catch breakage early.
+          - name: ubuntu-full-rolling
+            dockerfile: containers/ubuntu/Dockerfile
+            target: ubuntu
+            build-args: |
+              UBUNTU_RELEASE=rolling
+              WORKSPACE_TOOL_LAYER_GITFORGE=1
+              WORKSPACE_TOOL_LAYER_SECRETS=1
+              WORKSPACE_TOOL_LAYER_AWS=1
+            tags: |
+              type=raw,value=ubuntu-full-rolling,enable={{is_default_branch}}
+              type=match,pattern=v(.*),group=1,prefix=ubuntu-full-rolling-v
+              type=sha,prefix=ubuntu-full-rolling-sha-
           - name: alpine
             dockerfile: containers/alpine/Dockerfile
             target: alpine
@@ -171,7 +182,7 @@ jobs:
           '
 
       - name: Smoke test workspace layer commands
-        if: matrix.name == 'ubuntu-full'
+        if: startsWith(matrix.name, 'ubuntu-full')
         run: |
           docker run --rm dev-container-fortress:${{ matrix.name }}-smoke zsh -lc '
             setopt err_exit

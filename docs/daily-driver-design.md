@@ -82,6 +82,7 @@ Recommended new command group:
 Recommended first-pass commands:
 
 - `ft workspace build <profile>`
+- `ft workspace pull <profile>`, which tags the CI-published image as the local workspace image for profiles that set `published_image`
 - `ft workspace up <profile>`
 - `ft workspace enter <profile>`
 - `ft workspace exec <profile> -- <command...>`
@@ -142,6 +143,13 @@ Recommended first-pass profiles:
 - `ubuntu-cloud-aws`
 - `ubuntu-cloud-azure`
 - `ubuntu-full`
+- `ubuntu-full-rolling`: `ubuntu-full` on the newest Ubuntu release, for
+  trying a new release with the full toolchain
+
+The Ubuntu profiles build on the current LTS (26.04) unless a profile sets
+`os_release`, which selects the `ubuntu:<os_release>` base image. Each profile
+has its own image, container, and persisted state, so a release trial never
+touches the default workspace.
 
 Recommended default human path:
 

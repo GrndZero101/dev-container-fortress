@@ -21,9 +21,25 @@ from typing import Annotated
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from ft.container_targets import CONTAINER_TARGETS, KNOWN_CONTAINER_TARGETS
+from ft.identity import (
+    FORGE_LOGIN_ENV,
+    FORGE_LOGINS,
+    GIT_EMAIL_ENV,
+    GIT_NAME_ENV,
+    NOREPLY_HINT,
+    forge_cli_available,
+    forge_logged_in,
+    manual_identity_commands,
+    read_identity,
+    resolve_identity,
+    run_forge_login,
+    validate_email,
+    write_identity,
+)
 from ft.installer import InstallPlan, build_plan, install_tool
 from ft.manifest import load_manifest
 from ft.models import (
@@ -34,6 +50,15 @@ from ft.models import (
     WorkspaceProfileDefinition,
     WorkspaceProfileManifest,
     WorkspaceToolLayerDefinition,
+)
+from ft.options import (
+    CATALOG,
+    OptionSelection,
+    option_ansible_vars,
+    options_config_path,
+    parse_option_names,
+    resolve_options,
+    save_options,
 )
 from ft.platforms import detect_architecture, detect_system
 from ft.secrets import run_secret_readiness_checks
@@ -119,6 +144,14 @@ aws_disposable_ubuntu_capacity_app = typer.Typer(
     no_args_is_help=False,
     help=("Select EC2 capacity inputs for the disposable Ubuntu Terraform stack."),
 )
+options_app = typer.Typer(
+    no_args_is_help=False,
+    invoke_without_command=True,
+    help=(
+        "List and choose optional host bootstrap components, such as Claude Code. "
+        "Nothing optional is installed unless selected."
+    ),
+)
 completion_app = typer.Typer(
     no_args_is_help=False,
     help=(
@@ -137,10 +170,16 @@ app.add_typer(infra_app, name="infra")
 app.add_typer(deploy_app, name="deploy")
 infra_app.add_typer(aws_disposable_ubuntu_app, name="aws-disposable-ubuntu")
 aws_disposable_ubuntu_app.add_typer(aws_disposable_ubuntu_capacity_app, name="capacity")
+app.add_typer(options_app, name="options")
 app.add_typer(completion_app, name="completion")
 
 console = Console()
+# Identity output echoes user-supplied values, so it skips Rich's auto-highlighting.
+identity_console = Console(highlight=False)
 SUPPORTED_SHELL_CONFIG_SOURCES = ("github", "local")
+# `host` converges the full workstation; `workspace` stops at the bootstrap
+# floor plus Docker, for a thin host that runs a daily-driver workspace.
+HOST_BOOTSTRAP_MODES = ("host", "workspace")
 DEFAULT_DEPLOY_WORKSPACE_PARENT = "~/workspaces/tboss"
 DEFAULT_DEV_CONTAINER_FORTRESS_REPO_URL = (
     "https://github.com/GrndZero101/dev-container-fortress.git"
@@ -169,7 +208,7 @@ DEPLOY_RSYNC_EXCLUDES = (
 WORKSPACE_TOOLCHAIN_CHECKS = (
     ("ft", "ft --help >/dev/null && print -r -- ok"),
     ("uv", "uv --version"),
-    ("python", "python3.14 --version"),
+    ("python", f"python{sys.version_info.major}.{sys.version_info.minor} --version"),
     ("nvim", "setopt pipefail; nvim --version | head -n 1"),
 )
 ANSIBLE_PLAY_RECAP_PATTERN = re.compile(
@@ -978,6 +1017,7 @@ def _workspace_mount_plan_payload(
     return {
         "profile": profile_name,
         "target": profile.container_target,
+        "os_release": profile.os_release or "image default",
         "working_directory": profile.working_directory,
         "tool_layers": [
             {
@@ -2145,11 +2185,75 @@ def _resolve_host_targets(
     )
 
 
+def _interactive_terminal() -> bool:
+    """Return whether stdin and stdout are both attached to a terminal."""
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _resolve_bootstrap_options(explicit: list[str] | None) -> OptionSelection:
+    """Resolve optional bootstrap components, reporting bad input as a CLI error.
+
+    Args:
+        explicit: ``--options`` values, or ``None`` when not given.
+
+    Returns:
+        The resolved selection.
+
+    Raises:
+        typer.BadParameter: When any source names unknown options.
+    """
+    try:
+        return resolve_options(explicit)
+    except ValueError as error:
+        raise typer.BadParameter(str(error), param_hint="--options") from error
+
+
 def _interactive_select_host_targets(
     targets: list[HostTargetDefinition],
 ) -> list[HostTargetDefinition]:
     """Interactively select one or more host targets with prompt-toolkit."""
-    if not sys.stdin.isatty() or not sys.stdout.isatty():
+    if not targets:
+        return []
+    items = []
+    for target in targets:
+        detail = target.kind
+        if target.tags:
+            detail = f"{detail} | {', '.join(target.tags)}"
+        items.append((target.name, detail, " ".join([target.kind, *target.tags])))
+    selected = _interactive_multi_select(
+        items, title="Dev Fortress Target Selector", noun="targets"
+    )
+    if not selected:
+        raise typer.Exit(code=1)
+    selected_lookup = set(selected)
+    return [target for target in targets if target.name in selected_lookup]
+
+
+def _interactive_multi_select(
+    items: list[tuple[str, str, str]],
+    *,
+    title: str,
+    noun: str,
+    preselected: tuple[str, ...] = (),
+    allow_empty: bool = False,
+) -> list[str] | None:
+    """Run a filterable prompt-toolkit checkbox picker.
+
+    Args:
+        items: ``(key, detail, search_text)`` rows; the key is shown and returned.
+        title: Header text.
+        noun: Plural item name for the empty-filter message.
+        preselected: Keys checked when the picker opens.
+        allow_empty: Whether Enter with nothing checked returns no keys. When
+            false, Enter checks the row under the cursor instead.
+
+    Returns:
+        The checked keys in ``items`` order, or ``None`` when cancelled.
+
+    Raises:
+        typer.BadParameter: Without an interactive terminal or prompt-toolkit.
+    """
+    if not _interactive_terminal():
         raise typer.BadParameter(
             "--interactive requires an interactive terminal",
             param_hint="--interactive",
@@ -2167,12 +2271,8 @@ def _interactive_select_host_targets(
             param_hint="--interactive",
         ) from error
 
-    if not targets:
-        return []
-
-    selected_names: set[str] = set()
+    selected_names: set[str] = set(preselected)
     cursor_index = 0
-    result: list[HostTargetDefinition] = []
     query_field = TextArea(
         text="",
         multiline=False,
@@ -2191,65 +2291,57 @@ def _interactive_select_host_targets(
             "pointer": "bold #8be9fd",
             "checkbox.on": "bold #50fa7b",
             "checkbox.off": "#6272a4",
-            "target.name": "bold #f8f8f2",
-            "target.meta": "#a9b1d6",
-            "target.count": "#7aa2f7",
-            "target.empty": "#6272a4 italic",
-            "target.active.pointer": "bold #1f2335 bg:#7aa2f7",
-            "target.active.checkbox.on": "bold #1f2335 bg:#7aa2f7",
-            "target.active.checkbox.off": "bold #1f2335 bg:#7aa2f7",
-            "target.active.name": "bold #1f2335 bg:#7aa2f7",
-            "target.active.meta": "#1f2335 bg:#7aa2f7",
+            "item.name": "bold #f8f8f2",
+            "item.meta": "#a9b1d6",
+            "item.count": "#7aa2f7",
+            "item.empty": "#6272a4 italic",
+            "item.active.pointer": "bold #1f2335 bg:#7aa2f7",
+            "item.active.checkbox.on": "bold #1f2335 bg:#7aa2f7",
+            "item.active.checkbox.off": "bold #1f2335 bg:#7aa2f7",
+            "item.active.name": "bold #1f2335 bg:#7aa2f7",
+            "item.active.meta": "#1f2335 bg:#7aa2f7",
             "footer": "#6272a4",
             "footer.key": "bold #8be9fd",
         }
     )
 
-    def filtered_targets() -> list[HostTargetDefinition]:
+    def filtered_items() -> list[tuple[str, str, str]]:
         query = query_field.text.strip().lower()
         if not query:
-            return targets
+            return items
         return [
-            target
-            for target in targets
-            if query in target.name.lower()
-            or query in target.kind.lower()
-            or any(query in tag.lower() for tag in target.tags)
+            item
+            for item in items
+            if query in item[0].lower() or query in item[2].lower()
         ]
 
     def clamp_cursor() -> None:
         nonlocal cursor_index
-        matches = filtered_targets()
+        matches = filtered_items()
         if not matches:
             cursor_index = 0
             return
         cursor_index = max(0, min(cursor_index, len(matches) - 1))
 
-    def render_target_list() -> list[tuple[str, str]]:
-        matches = filtered_targets()
+    def render_items() -> list[tuple[str, str]]:
+        matches = filtered_items()
         if not matches:
             return [
-                ("class:target.empty", "  no targets match the current filter"),
+                ("class:item.empty", f"  no {noun} match the current filter"),
             ]
 
         fragments: list[tuple[str, str]] = []
-        for index, target in enumerate(matches):
+        for index, (key, detail, _) in enumerate(matches):
             is_active = index == cursor_index
             pointer = ">" if is_active else " "
-            checkbox = "[x]" if target.name in selected_names else "[ ]"
-            tags = ", ".join(target.tags)
-            detail = f"{target.kind}"
-            if tags:
-                detail = f"{detail} | {tags}"
-            prefix = "target.active" if is_active else "target"
-            checkbox_style = (
-                "checkbox.on" if target.name in selected_names else "checkbox.off"
-            )
+            checkbox = "[x]" if key in selected_names else "[ ]"
+            prefix = "item.active" if is_active else "item"
+            checkbox_style = "checkbox.on" if key in selected_names else "checkbox.off"
             fragments.extend(
                 [
                     (f"class:{prefix}.pointer", f"{pointer} "),
                     (f"class:{prefix}.{checkbox_style}", f"{checkbox} "),
-                    (f"class:{prefix}.name", target.name),
+                    (f"class:{prefix}.name", key),
                     (f"class:{prefix}.meta", f"  {detail}\n"),
                 ]
             )
@@ -2257,10 +2349,10 @@ def _interactive_select_host_targets(
 
     def render_header() -> list[tuple[str, str]]:
         return [
-            ("class:frame.title", "Dev Fortress Target Selector"),
+            ("class:frame.title", title),
             (
                 "class:frame.subtitle",
-                f"  {len(filtered_targets())}/{len(targets)} visible",
+                f"  {len(filtered_items())}/{len(items)} visible",
             ),
         ]
 
@@ -2281,7 +2373,7 @@ def _interactive_select_host_targets(
         height=1,
     )
     result_window = Window(
-        FormattedTextControl(render_target_list),
+        FormattedTextControl(render_items),
         always_hide_cursor=True,
     )
     footer = Window(
@@ -2295,43 +2387,41 @@ def _interactive_select_host_targets(
     @kb.add("k")
     def _move_up(event: object) -> None:
         nonlocal cursor_index
-        if filtered_targets():
+        if filtered_items():
             cursor_index = max(0, cursor_index - 1)
 
     @kb.add("down")
     @kb.add("j")
     def _move_down(event: object) -> None:
         nonlocal cursor_index
-        matches = filtered_targets()
+        matches = filtered_items()
         if matches:
             cursor_index = min(len(matches) - 1, cursor_index + 1)
 
     @kb.add("space")
     def _toggle_current(event: object) -> None:
-        matches = filtered_targets()
+        matches = filtered_items()
         if not matches:
             return
-        target = matches[cursor_index]
-        if target.name in selected_names:
-            selected_names.remove(target.name)
+        key = matches[cursor_index][0]
+        if key in selected_names:
+            selected_names.remove(key)
         else:
-            selected_names.add(target.name)
+            selected_names.add(key)
 
     @kb.add("enter")
     def _accept(event: object) -> None:
-        matches = filtered_targets()
-        if not matches:
-            return
-        if not selected_names:
-            selected_names.add(matches[cursor_index].name)
-        selected_lookup = set(selected_names)
-        result.extend([target for target in targets if target.name in selected_lookup])
-        event.app.exit(result=result)
+        matches = filtered_items()
+        if not selected_names and not allow_empty:
+            if not matches:
+                return
+            selected_names.add(matches[cursor_index][0])
+        event.app.exit(result=[key for key, _, _ in items if key in selected_names])
 
     @kb.add("escape")
     @kb.add("c-c")
     def _cancel(event: object) -> None:
-        event.app.exit(result=[])
+        event.app.exit(result=None)
 
     @query_field.buffer.on_text_changed.add_handler
     def _on_text_changed(_: object) -> None:
@@ -2358,10 +2448,7 @@ def _interactive_select_host_targets(
         mouse_support=False,
         refresh_interval=0.1,
     )
-    selected = app.run()
-    if not selected:
-        raise typer.Exit(code=1)
-    return selected
+    return app.run()
 
 
 def _resolve_single_host_target(
@@ -3229,6 +3316,8 @@ def _bootstrap_host_targets(
     ensure_ssh_keys: bool,
     check: bool,
     ask_become_pass: bool,
+    options: OptionSelection | None = None,
+    mode: str = "host",
 ) -> int:
     """Run the host bootstrap playbook for one or more configured targets.
 
@@ -3237,6 +3326,10 @@ def _bootstrap_host_targets(
         ensure_ssh_keys: Whether to create managed SSH keys instead of running Ansible.
         check: Whether to run Ansible in check mode.
         ask_become_pass: Whether to pass ``-K`` to ``ansible-playbook``.
+        options: Optional components to enable; resolved from the environment
+            and saved config when omitted.
+        mode: ``host`` for the full workstation, or ``workspace`` for the
+            bootstrap floor plus Docker.
 
     Returns:
         Process exit code from the underlying bootstrap action.
@@ -3248,6 +3341,8 @@ def _bootstrap_host_targets(
             check=check,
             ask_become_pass=ask_become_pass,
             capture_recap=False,
+            options=options,
+            mode=mode,
         )["returncode"]
     )
 
@@ -3259,6 +3354,8 @@ def _bootstrap_host_targets_with_result(
     check: bool,
     ask_become_pass: bool,
     capture_recap: bool,
+    options: OptionSelection | None = None,
+    mode: str = "host",
 ) -> dict[str, object]:
     """Run the host bootstrap playbook and return execution metadata.
 
@@ -3268,6 +3365,10 @@ def _bootstrap_host_targets_with_result(
         check: Whether to run Ansible in check mode.
         ask_become_pass: Whether to pass ``-K`` to ``ansible-playbook``.
         capture_recap: Whether to parse ``PLAY RECAP`` counters from the Ansible log.
+        options: Optional components to enable; resolved from the environment
+            and saved config when omitted.
+        mode: ``host`` for the full workstation, or ``workspace`` for the
+            bootstrap floor plus Docker.
 
     Returns:
         Execution metadata containing the bootstrap exit code and any parsed recap.
@@ -3300,7 +3401,25 @@ def _bootstrap_host_targets_with_result(
             )
             return {"returncode": 1, "target_recaps": {}}
 
-    inventory = _build_host_inventory(targets)
+    selection = options if options is not None else _resolve_bootstrap_options(None)
+    option_names = selection.names
+    if mode == "workspace" and option_names:
+        # The optional components are workstation extras, which a thin host
+        # does not install.
+        console.print(
+            f"options: skipping {', '.join(option_names)} in workspace mode",
+            highlight=False,
+        )
+        option_names = ()
+    else:
+        console.print(
+            f"options: {', '.join(option_names) or 'none'} ({selection.source})",
+            highlight=False,
+        )
+    inventory = _build_host_inventory(
+        targets,
+        {"dev_container_fortress_host_mode": mode, **option_ansible_vars(option_names)},
+    )
     with tempfile.NamedTemporaryFile(
         mode="w", encoding="utf-8", suffix=".yml", delete=False
     ) as handle:
@@ -3808,8 +3927,20 @@ def _render_host_target_details(target: HostTargetDefinition) -> None:
     console.print(table)
 
 
-def _build_host_inventory(targets: list[HostTargetDefinition]) -> dict[str, object]:
-    """Return an Ansible inventory payload for one or more host targets."""
+def _build_host_inventory(
+    targets: list[HostTargetDefinition],
+    group_vars: dict[str, bool | str] | None = None,
+) -> dict[str, object]:
+    """Return an Ansible inventory payload for one or more host targets.
+
+    Args:
+        targets: Host targets to render.
+        group_vars: Variables applied to every target, such as the host mode
+            and the optional-component selection.
+
+    Returns:
+        The inventory as nested dictionaries.
+    """
     hosts: dict[str, dict[str, object]] = {}
 
     for target in targets:
@@ -3817,8 +3948,22 @@ def _build_host_inventory(targets: list[HostTargetDefinition]) -> dict[str, obje
             "dev_fortress_target_kind": target.kind,
             "dev_fortress_target_tags": target.tags,
         }
+        # Pinning the interpreter skips Ansible's discovery, which warns on
+        # every run. Local targets default to the controller's uv-managed
+        # Python; modules that need distro bindings, such as apt, respawn under
+        # the system Python on their own.
+        interpreter = target.ansible_python_interpreter
+        if interpreter is None and target.connection == "local":
+            interpreter = "{{ ansible_playbook_python }}"
+        if interpreter is not None:
+            host_record["ansible_python_interpreter"] = interpreter
         if target.connection == "local":
             host_record["ansible_connection"] = "local"
+            # ansible-core 2.19+ starts each worker in a new session, which
+            # hides the operator's cached sudo timestamp (tied to the terminal)
+            # from local become. Keeping workers on the terminal lets
+            # install.sh run the host bootstrap after one sudo prompt.
+            host_record["ansible_worker_session_isolation"] = False
         else:
             host_record.update(
                 {
@@ -3828,10 +3973,6 @@ def _build_host_inventory(targets: list[HostTargetDefinition]) -> dict[str, obje
                     "ansible_user": target.user,
                 }
             )
-            if target.ansible_python_interpreter is not None:
-                host_record["ansible_python_interpreter"] = (
-                    target.ansible_python_interpreter
-                )
             private_path = _host_ssh_private_key_path(target)
             if private_path is not None:
                 host_record["ansible_ssh_private_key_file"] = str(private_path)
@@ -3840,15 +3981,10 @@ def _build_host_inventory(targets: list[HostTargetDefinition]) -> dict[str, obje
                 host_record["ansible_ssh_common_args"] = ssh_common_args
         hosts[target.name] = host_record
 
-    return {
-        "all": {
-            "children": {
-                "dev_fortress": {
-                    "hosts": hosts,
-                }
-            }
-        }
-    }
+    group: dict[str, object] = {"hosts": hosts}
+    if group_vars:
+        group["vars"] = group_vars
+    return {"all": {"children": {"dev_fortress": group}}}
 
 
 def _yaml_scalar(value: object) -> str:
@@ -4374,6 +4510,10 @@ def _build_workspace_profile(
         for _, layer_definition in image_build_layers
         if layer_definition.build_arg is not None
     ]
+    release_build_arg = CONTAINER_TARGETS[profile.container_target].release_build_arg
+    if profile.os_release is not None and release_build_arg is not None:
+        console.print(f"workspace OS release: {profile.os_release}")
+        extra_build_args.append(f"{release_build_arg}={profile.os_release}")
 
     return _build_single_container_target(
         profile.container_target,
@@ -4386,6 +4526,58 @@ def _build_workspace_profile(
         shell_config_stage_from=shell_config_stage_from,
         no_cache=no_cache,
     )
+
+
+def _pull_workspace_profile(
+    profile_name: str, profile: WorkspaceProfileDefinition
+) -> bool:
+    """Pull a profile's published image and tag it as the local workspace image.
+
+    Args:
+        profile_name: Workspace profile name.
+        profile: Workspace profile definition.
+
+    Returns:
+        True when the local workspace image tag now points at the published
+        image, otherwise False after printing an actionable error.
+    """
+    if profile.published_image is None:
+        console.print(
+            f"[red]workspace profile {profile_name} has no published image;[/red] "
+            f"build it with `ft workspace build {profile_name}`"
+        )
+        return False
+
+    # An explicit platform makes a missing architecture fail at pull time
+    # instead of when the workspace starts under emulation.
+    pull_result = _run_streaming_command(
+        [
+            "docker",
+            "pull",
+            "--platform",
+            f"linux/{detect_architecture()}",
+            profile.published_image,
+        ]
+    )
+    if pull_result.returncode != 0:
+        console.print(
+            f"[red]failed to pull {profile.published_image}.[/red] CI publishes "
+            f"amd64 images only today; build locally with `ft workspace build "
+            f"{profile_name}`"
+        )
+        return False
+
+    image_tag = _workspace_image_tag(profile_name)
+    tag_result = _run_command(["docker", "tag", profile.published_image, image_tag])
+    if tag_result.returncode != 0:
+        console.print(
+            (
+                tag_result.stderr or tag_result.stdout or f"failed to tag {image_tag}"
+            ).strip()
+        )
+        return False
+    console.print(f"tagged {profile.published_image} as {image_tag}")
+    return True
 
 
 def _container_status_value(target: str) -> str:
@@ -5690,6 +5882,24 @@ def workspace_build(
         raise typer.Exit(code=1)
 
 
+@workspace_app.command("pull")
+def workspace_pull(
+    profile: Annotated[
+        str,
+        typer.Argument(
+            help=(
+                "One named workspace profile with a published image, such as "
+                "ubuntu-full."
+            )
+        ),
+    ],
+) -> None:
+    """Use the published image for one workspace profile instead of a local build."""
+    resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
+    if not _pull_workspace_profile(resolved_profile_name, resolved_profile):
+        raise typer.Exit(code=1)
+
+
 @workspace_app.command("status")
 def workspace_status(
     profile: Annotated[
@@ -6271,7 +6481,10 @@ def host_inventory(
     resolved_targets = (
         manifest.targets if target is None else _resolve_host_targets(target, manifest)
     )
-    inventory = _build_host_inventory(resolved_targets)
+    inventory = _build_host_inventory(
+        resolved_targets,
+        option_ansible_vars(_resolve_bootstrap_options(None).names),
+    )
     if json_output:
         _json_dump(inventory)
         return
@@ -7760,8 +7973,35 @@ def host_bootstrap(
             help="Pass --ask-become-pass through to ansible-playbook.",
         ),
     ] = False,
+    options: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--options",
+            help=(
+                "Optional components for this run, comma-separated or repeated, "
+                "or 'none'. Overrides DEV_CONTAINER_FORTRESS_OPTIONS and the saved "
+                "selection; see `ft options`."
+            ),
+        ),
+    ] = None,
+    mode: Annotated[
+        str,
+        typer.Option(
+            "--mode",
+            help=(
+                "host converges the full workstation; workspace stops at the "
+                "bootstrap floor plus Docker, for a thin host that runs a "
+                "daily-driver workspace, and skips the optional components."
+            ),
+        ),
+    ] = "host",
 ) -> None:
     """Run the thin inventory-driven host bootstrap playbook for one or more targets."""
+    if mode not in HOST_BOOTSTRAP_MODES:
+        raise typer.BadParameter(
+            f"unknown mode: {mode!r} (expected {' or '.join(HOST_BOOTSTRAP_MODES)})",
+            param_hint="--mode",
+        )
     _, manifest = _load_host_target_manifest(config)
     resolved_targets = (
         manifest.targets if target is None else _resolve_host_targets(target, manifest)
@@ -7772,7 +8012,67 @@ def host_bootstrap(
             ensure_ssh_keys=ensure_ssh_keys,
             check=check,
             ask_become_pass=ask_become_pass,
+            options=_resolve_bootstrap_options(options),
+            mode=mode,
         )
+    )
+
+
+@options_app.callback()
+def options_list(ctx: typer.Context) -> None:
+    """Show the optional components and which ones the next bootstrap enables."""
+    if ctx.invoked_subcommand is not None:
+        return
+    selection = _resolve_bootstrap_options(None)
+    table = Table(title=f"Bootstrap options ({selection.source})")
+    table.add_column("enabled", justify="center")
+    table.add_column("option", style="cyan")
+    table.add_column("summary")
+    for option in CATALOG:
+        enabled = "[green]yes[/green]" if option.name in selection.names else "-"
+        table.add_row(enabled, option.name, option.summary)
+    console.print(table)
+    console.print(
+        f"Saved selection: {options_config_path()}. Change it with `ft options pick`, "
+        "or pass --options to `ft host bootstrap` for one run.",
+        highlight=False,
+    )
+
+
+@options_app.command("pick")
+def options_pick() -> None:
+    """Choose optional components in a checkbox picker and save the selection."""
+    if not _interactive_terminal():
+        console.print(
+            "ft options pick needs a terminal; edit "
+            f"{options_config_path()} or pass --options instead",
+            highlight=False,
+        )
+        raise typer.Exit(code=1)
+    preselected = _resolve_bootstrap_options(None).names
+    # The checkbox picker cannot enforce pick-one choices such as the tmux
+    # profiles, so an invalid pick reopens it with the checks kept.
+    while True:
+        selected = _interactive_multi_select(
+            [(option.name, option.summary, option.summary) for option in CATALOG],
+            title="Dev Fortress Bootstrap Options",
+            noun="options",
+            preselected=preselected,
+            allow_empty=True,
+        )
+        if selected is None:
+            console.print("cancelled; the saved selection is unchanged")
+            raise typer.Exit(code=1)
+        try:
+            names = parse_option_names(selected)
+        except ValueError as error:
+            console.print(f"[yellow]{error}[/yellow]; pick again", highlight=False)
+            preselected = tuple(selected)
+            continue
+        break
+    path = save_options(names)
+    console.print(
+        f"saved options: {', '.join(names) or 'none'} -> {path}", highlight=False
     )
 
 
@@ -7893,6 +8193,147 @@ def doctor(
     )
     if not _run_doctor(resolved_targets, json_output=json_output):
         raise typer.Exit(code=1)
+
+
+def _stdin_is_interactive() -> bool:
+    """Return whether stdin is a terminal that can answer prompts."""
+    return sys.stdin.isatty()
+
+
+def _prompt_identity_field(label: str, default: str) -> str:
+    """Prompt for one Git identity field, allowing an empty answer to skip.
+
+    Args:
+        label: The Git config key shown in the prompt.
+        default: The value used when the operator presses Enter.
+
+    Returns:
+        The answer, or an empty string when skipped.
+    """
+    is_email = label.endswith("email")
+    if is_email:
+        identity_console.print(f"[dim]{NOREPLY_HINT}[/dim]")
+    while True:
+        answer: str = typer.prompt(
+            f"{label} (Enter to skip)", default=default, show_default=bool(default)
+        )
+        if not is_email or not answer.strip() or validate_email(answer.strip()):
+            return answer
+        identity_console.print(f"[red]not an email address:[/red] {escape(answer)}")
+
+
+@app.command("identity")
+def identity(
+    name: Annotated[
+        str | None,
+        typer.Option(envvar=GIT_NAME_ENV, help="Git user.name to set."),
+    ] = None,
+    email: Annotated[
+        str | None,
+        typer.Option(envvar=GIT_EMAIL_ENV, help="Git user.email to set."),
+    ] = None,
+    local: Annotated[
+        bool,
+        typer.Option(
+            "--local",
+            help=(
+                "Set the identity for the current checkout instead of globally. "
+                "Use inside workspaces, where ~/.gitconfig is not persisted."
+            ),
+        ),
+    ] = False,
+    prompt: Annotated[
+        bool,
+        typer.Option(
+            "--prompt/--no-prompt",
+            help="Prompt on a terminal for any field that is still missing.",
+        ),
+    ] = True,
+    login: Annotated[
+        str | None,
+        typer.Option(
+            envvar=FORGE_LOGIN_ENV,
+            help="Also start a forge login: github (gh) or gitlab (glab).",
+        ),
+    ] = None,
+) -> None:
+    """Set the Git identity, and optionally start a forge login.
+
+    Explicit values replace the current identity. Otherwise an existing
+    identity is kept, a terminal is prompted for missing fields, and a
+    non-interactive run skips with the manual commands instead of blocking.
+    """
+    if shutil.which("git") is None:
+        identity_console.print("[red]git is not installed[/red]")
+        raise typer.Exit(code=1)
+    if login is not None and login not in FORGE_LOGINS:
+        identity_console.print(
+            f"[red]unknown forge:[/red] {escape(str(login))} (expected github or gitlab)"
+        )
+        raise typer.Exit(code=2)
+    if email and not validate_email(email.strip()):
+        identity_console.print(f"[red]not an email address:[/red] {escape(email)}")
+        raise typer.Exit(code=2)
+    if local:
+        inside = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            check=False,
+        )
+        if inside.returncode != 0:
+            identity_console.print(
+                "[red]--local needs to run inside a Git checkout[/red]"
+            )
+            raise typer.Exit(code=1)
+
+    scope = "this checkout" if local else "global"
+    current = read_identity(local=local)
+    interactive = prompt and _stdin_is_interactive()
+    resolved = resolve_identity(
+        current,
+        name=name,
+        email=email,
+        prompt=_prompt_identity_field if interactive else None,
+    )
+
+    if not resolved.complete:
+        identity_console.print(
+            f"[yellow]Git identity not set ({scope}); skipping.[/yellow] Set it with:"
+        )
+        for command in manual_identity_commands(local=local):
+            identity_console.print(f"  {escape(command)}")
+        identity_console.print(f"[dim]{NOREPLY_HINT}[/dim]")
+    elif resolved == current:
+        identity_console.print(f"Git identity ({scope}): {escape(str(current))}")
+    else:
+        write_identity(resolved, local=local)
+        previous = (
+            f" (was {escape(str(current))})" if current.name or current.email else ""
+        )
+        identity_console.print(
+            f"[green]Set Git identity ({scope}):[/green] {escape(str(resolved))}{previous}"
+        )
+
+    if login is None:
+        return
+    cli_name = FORGE_LOGINS[login][0]
+    if not forge_cli_available(login):
+        identity_console.print(
+            f"[yellow]{cli_name} is not installed; skipping the {login} login.[/yellow]"
+        )
+        return
+    if forge_logged_in(login):
+        identity_console.print(f"Already logged in to {login} with {cli_name}.")
+        return
+    if not _stdin_is_interactive():
+        identity_console.print(
+            f"[yellow]The {login} login needs a terminal; run `{cli_name} auth login` later.[/yellow]"
+        )
+        return
+    if not run_forge_login(login):
+        identity_console.print(
+            f"[yellow]The {login} login did not finish; run `{cli_name} auth login` later.[/yellow]"
+        )
 
 
 @app.command("install", hidden=False)

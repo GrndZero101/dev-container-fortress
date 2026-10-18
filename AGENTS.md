@@ -10,6 +10,7 @@
 
 * This repository is for provisioning and packaging developer environments.
 * Keep shell UX and shell behavior in the external `shell-config` repository rather than reimplementing them here.
+  * Exception: Dev Fortress ships the opt-in tmux profiles (`minimal`, `full`, `raidboss`). tmux setup is workstation terminal UX rather than shell behavior, and it should work out of the box without the separate `dotfiles` repo.
 * Prefer the thinnest layer that fits the job:
   * Ansible for host orchestration
   * Homebrew for host package bundles
@@ -21,6 +22,7 @@
 # Python Guidance
 
 * Use Python 3.14+.
+* Dev Fortress's own code (bootstrap, `ft`, and the Ansible it drives) runs on the uv-managed Python that the repo-root `.python-version` pins, never on distro or Homebrew Python. System Python may stay installed for the OS and for distro bindings such as `python3-apt`. Bump the version by editing `.python-version` alone, after confirming the locked `ansible-core` runs on it.
 * Prefer the standard library unless a dependency clearly reduces maintenance or improves correctness.
 * Use `uv` for Python environment and dependency management.
 * Keep Python utilities small, explicit, and oriented around provisioning tasks rather than general application architecture.

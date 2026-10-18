@@ -48,6 +48,34 @@
     or ' moved existing ' in dev_fortress_shell_config_bootstrap_run.stdout
   when: dev_fortress_shell_config_bootstrap_csm_stat.stat.exists
 
+# csm moves conflicting dotfiles to timestamped backups; tell the user where.
+- name: Note the dotfiles shell-config moved aside
+  ansible.builtin.set_fact:
+    dev_fortress_shell_config_bootstrap_notices: >-
+      {{
+        dev_fortress_shell_config_bootstrap_run.stdout_lines | default([])
+        | select('search', ' moved existing ') | list
+      }}
+
+- name: Check for a user ~/.zshrc
+  ansible.builtin.stat:
+    path: "{{ ansible_facts['env']['HOME'] }}/.zshrc"
+  register: dev_fortress_shell_config_bootstrap_home_zshrc
+
+# The managed zsh reads its rc files from ZDOTDIR, so a brownfield ~/.zshrc
+# silently stops loading. Point at the profile's user-owned overrides instead
+# of migrating anything automatically.
+- name: Note that the managed zsh no longer reads ~/.zshrc
+  vars:
+    notice: >-
+      The managed zsh loads its profile from ZDOTDIR, so ~/.zshrc is no longer
+      read. Move anything you still need into env.zsh or aliases.zsh under
+      {{ dev_container_fortress_xdg_config_home_effective }}/shell-config.local/{{ dev_container_fortress_shell_config_profile_effective }}/,
+      then remove ~/.zshrc.
+  ansible.builtin.set_fact:
+    dev_fortress_shell_config_bootstrap_notices: "{{ dev_fortress_shell_config_bootstrap_notices + [notice | trim] }}"
+  when: dev_fortress_shell_config_bootstrap_home_zshrc.stat.exists
+
 - name: Ensure shell-config active-profile state directory exists
   ansible.builtin.file:
     path: "{{ dev_container_fortress_shell_config_state_file_effective | dirname }}"

@@ -2,13 +2,11 @@
 
 This document describes how to use `dev-container-fortress` directly on a workstation.
 
-> [!IMPORTANT]
-> The direct workstation path is still maturing, but it is no longer only scaffold.
-> The current first-class local host path is Ubuntu under WSL2 using the shared
-> `ft host ...` and Ansible bootstrap flow against `localhost`.
-
-For the current WSL2-first local bootstrap path, use
-[WSL Bootstrap Runbook](wsl-bootstrap.md).
+> [!TIP]
+> To set up the machine you are on, follow the
+> [Zero to Hero Quickstart](quickstart.md): one command on Ubuntu or WSL2
+> Ubuntu. This page covers what sits underneath it: the host-target model,
+> bootstrapping other machines over SSH, and what the roles converge.
 
 ## Current Status
 
@@ -22,6 +20,9 @@ Works today:
 - fortress profile-local `zinit` installation during host provisioning
 - Ubuntu Linuxbrew uplift after the native bootstrap substrate is in place
 - Ubuntu Docker CE bootstrap for `workstation` and `cloud` targets
+- a thin-host `workspace` mode (`install.sh --mode workspace`, or
+  `ft host bootstrap localhost --mode workspace`) that stops after the native
+  packages and Docker and prepares the `ubuntu-full` workspace image
 - first-pass workspace secrets baseline through GPG plus `pass`
 
 Current host-tooling policy:
@@ -35,7 +36,6 @@ Current host-tooling policy:
 Scaffolded but not complete yet:
 
 - cross-platform workstation parity beyond the Ubuntu-first path
-- tmux integration
 - host-side corporate CA support
 - richer secrets backup automation, including a formal `rustic` restore loop
 - full host-side validation coverage outside the currently documented Ubuntu and disposable-target loops
@@ -197,9 +197,9 @@ base directories exist, converges baseline packages on Ubuntu, Alpine, and Arch,
 converges the native bootstrap substrate, installs Docker CE on Ubuntu
 `workstation` and `cloud` targets, clones and bootstraps `shell-config`,
 installs the fortress profile-local `zinit` checkout, applies Ubuntu Linuxbrew
-uplift where enabled, and reports current readiness state for handoff. Full
-workstation-style roles such as tmux and editor automation are still follow-up
-work.
+uplift where enabled, installs the selected optional components such as Claude
+Code and a tmux profile, and reports current readiness state for handoff.
+Editor automation beyond the kickstart Neovim launcher is still follow-up work.
 
 See [Ansible README](../ansible/README.md) for the current host-automation layer status.
 
@@ -259,9 +259,10 @@ Today the real host loop converges:
 - baseline package prerequisites on supported Linux families: Ubuntu, Alpine, and Arch (x86_64, pacman instead of Homebrew)
 - shell-config clone and bootstrap
 - fortress profile-local `zinit` installation
-- login-shell convergence to `zsh` for remote SSH targets
+- login-shell convergence to `zsh` for remote SSH targets, and for `localhost` when the installer runs in host mode
 - Docker CE plus the `buildx` and Compose plugins on Ubuntu workstation/cloud targets
 - Ubuntu Linuxbrew bootstrap and the current fortress-facing formula set
+- optional components when selected (`ft options`): Claude Code through its native installer, after which it updates itself, and at most one tmux profile (`tmux-minimal`, `tmux-full`, or `tmux-raidboss`), switchable later with `csm tmux-profile`
 
 The current Ubuntu/WSL Linuxbrew tool pool now includes a broader operator
 baseline such as `tmux`, `helix`, `neovim`, `yazi`, `lazygit`,
@@ -274,14 +275,14 @@ and installs an `nvim-kickstart` launcher in `${HOME}/.local/bin`. That keeps
 the IDE-style starter config available without overwriting an existing
 `~/.config/nvim`.
 
-It does not yet converge the full workstation stack such as tmux
-configuration/integration, editor configuration, corporate CA handling, or
-broader non-Ubuntu workstation parity. Those remain follow-up milestones.
+It does not yet converge the full workstation stack such as editor
+configuration, corporate CA handling, or broader non-Ubuntu workstation
+parity. Those remain follow-up milestones.
 
 > [!NOTE]
-> Docker access without `sudo` still depends on refreshed group membership after
-> the bootstrap run. On a fresh host, use `newgrp docker` or log in again after
-> the Docker role has added your user to the `docker` group.
+> Docker access without `sudo` depends on refreshed group membership after the
+> bootstrap run. Open a new terminal or log in again after the Docker role has
+> added your user to the `docker` group; Ubuntu 26.04 ships no `newgrp` or `sg`.
 
 ## Corporate CA Status
 

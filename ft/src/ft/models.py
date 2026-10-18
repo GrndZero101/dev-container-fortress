@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from ft.container_targets import KNOWN_CONTAINER_TARGETS
+from ft.container_targets import CONTAINER_TARGETS, KNOWN_CONTAINER_TARGETS
 
 
 class IntegrityConfig(BaseModel):
@@ -338,6 +338,10 @@ class WorkspaceProfileDefinition(BaseModel):
     working_directory: str = "/workspace/dev-container-fortress"
     persisted_mounts: list[str] = Field(default_factory=list)
     tool_layers: list[str] = Field(default_factory=list)
+    os_release: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9.]*$")
+    # The CI-published image built with the same layers, which `ft workspace
+    # pull` can use instead of a local build; None when CI publishes none.
+    published_image: str | None = None
 
     @model_validator(mode="after")
     def validate_lists(self) -> WorkspaceProfileDefinition:
@@ -346,6 +350,17 @@ class WorkspaceProfileDefinition(BaseModel):
             raise ValueError("workspace persisted_mounts must be unique")
         if len(self.tool_layers) != len(set(self.tool_layers)):
             raise ValueError("workspace tool_layers must be unique")
+        return self
+
+    @model_validator(mode="after")
+    def validate_os_release(self) -> WorkspaceProfileDefinition:
+        """Allow an OS release only on targets that can select one."""
+        target = CONTAINER_TARGETS[self.container_target]
+        if self.os_release is not None and target.release_build_arg is None:
+            raise ValueError(
+                f"container target {self.container_target!r} does not support "
+                "os_release"
+            )
         return self
 
 

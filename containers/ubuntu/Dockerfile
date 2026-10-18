@@ -1,4 +1,7 @@
 ARG UV_DISTROLESS_IMAGE=ghcr.io/astral-sh/uv:latest
+# Ubuntu image tag for the base layer: the current LTS by default. Workspace
+# profiles can set os_release to trial another release, such as rolling.
+ARG UBUNTU_RELEASE=26.04
 ARG CORPORATE_CA_CERT_DIR=""
 ARG SHELL_CONFIG_SOURCE="github"
 ARG SHELL_CONFIG_REPO_URL="https://github.com/GrndZero101/shell-config.git"
@@ -12,7 +15,7 @@ ARG WORKSPACE_TOOL_LAYER_AWS="0"
 
 FROM ${UV_DISTROLESS_IMAGE} AS uv-distroless
 
-FROM ubuntu:24.04 AS ubuntu-base
+FROM ubuntu:${UBUNTU_RELEASE} AS ubuntu-base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -112,14 +115,17 @@ ENV SHELL_CONFIG_PROFILE=${SHELL_CONFIG_PROFILE_DEFAULT}
 WORKDIR ${HOME}
 
 COPY --chown=${USER_UID}:${USER_GID} ft ${XDG_DATA_HOME}/dev-container-fortress/ft
+COPY --chown=${USER_UID}:${USER_GID} .python-version ${XDG_DATA_HOME}/dev-container-fortress/.python-version
 
 USER ${USERNAME}
 
 RUN --mount=type=bind,source=.,target=/tmp/build-context,readonly \
     /usr/local/bin/install-shell-config /tmp/build-context
 RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh
-RUN uv python install 3.14
-RUN uv tool install --python 3.14 ${XDG_DATA_HOME}/dev-container-fortress/ft
+# The repo-root .python-version is the one Python pin for Dev Fortress code.
+RUN uv python install "$(cat ${XDG_DATA_HOME}/dev-container-fortress/.python-version)"
+RUN uv tool install --python "$(cat ${XDG_DATA_HOME}/dev-container-fortress/.python-version)" \
+    ${XDG_DATA_HOME}/dev-container-fortress/ft
 RUN ft completion install zsh
 RUN --mount=type=cache,target=/home/vscode/.cache/dev-container-fortress/tools,uid=1000,gid=1000 \
     ft install \

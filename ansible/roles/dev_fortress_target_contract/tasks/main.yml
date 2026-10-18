@@ -13,11 +13,12 @@
       - dev_container_fortress_shell_config_zinit_home_effective | length > 0
       - dev_container_fortress_native_bootstrap_required_commands is defined
       - dev_container_fortress_native_bootstrap_required_commands | length > 0
+      - dev_container_fortress_host_mode_effective in ['host', 'workspace']
     fail_msg: >-
       Dev Fortress bootstrap expects the generated inventory contract plus
       gathered facts for the target user, home directory, and shell-config
-      integration settings and the declared native bootstrap prerequisite
-      command contract.
+      integration settings, the declared native bootstrap prerequisite
+      command contract, and a host mode of host or workspace.
     success_msg: Target contract and gathered facts look usable.
 
 - name: Record normalized target contract details
@@ -25,6 +26,7 @@
     dev_fortress_target_contract_host:
       target: "{{ inventory_hostname }}"
       kind: "{{ dev_fortress_target_kind }}"
+      mode: "{{ dev_container_fortress_host_mode_effective }}"
       tags: "{{ dev_fortress_target_tags }}"
       connection: "{{ ansible_connection | default('ssh') }}"
       user: "{{ ansible_facts['user_id'] }}"

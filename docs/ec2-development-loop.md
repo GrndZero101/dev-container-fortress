@@ -199,9 +199,11 @@ bind-mounted checkout and the forge login lives in the persisted `config-gh` or
 Set the identity on each checkout, inside the workspace:
 
 ```zsh
-git config user.name "Your Name"
-git config user.email "<id>+<user>@users.noreply.github.com"
+uv run ft identity --local --name "Your Name" --email "<id>+<user>@users.noreply.github.com"
 ```
+
+On a terminal, `uv run ft identity --local` prompts for whatever is missing
+instead. Plain `git config user.name` and `git config user.email` work too.
 
 > [!IMPORTANT]
 > If your GitHub account keeps its email private, GitHub declines pushes whose
@@ -227,6 +229,8 @@ gh auth status
 machine and enter it within about 15 minutes; after that the code expires and
 `gh` fails with `context deadline exceeded`. `gh auth setup-git` makes `gh` the
 Git credential helper, so `git push` over HTTPS works.
+`uv run ft identity --login github` runs the same login and `setup-git`, and
+skips when `gh` is already logged in.
 
 > [!NOTE]
 > The container has no keyring, so `gh` stores the token in plain text in the

@@ -14,6 +14,15 @@ It should not become the place where shell behavior is defined.
 
 That responsibility belongs to the external `shell-config` repository.
 
+> [!NOTE]
+> tmux profiles are the one terminal-UX exception. Dev Fortress installs stock
+> tmux and offers opt-in `minimal`, `full`, and `raidboss` profiles, because a
+> working multiplexer setup belongs to the provisioned workstation and should
+> not depend on the separate `dotfiles` repo. They are pick-one bootstrap
+> options (`tmux-*`), installed by the `dev_fortress_tmux` role. Switching
+> afterwards belongs to `csm tmux-profile` in `shell-config`; the two repos
+> share only the profiles directory and the one `tmux.conf` link. See `M5b`.
+
 ## Tooling Split
 
 ### Host targets
@@ -34,6 +43,25 @@ Host-side policy should stay explicit:
   prerequisites such as Docker Engine or basic transport dependencies
 - host-oriented tool decisions should not drift into per-tool ad hoc installer
   logic when a Homebrew-backed steady state exists
+
+> [!NOTE]
+> Claude Code is a deliberate exception. Its native installer is the supported
+> path that keeps it updating itself between bootstrap runs, so the host role
+> runs that installer once and then leaves updates to Claude Code. Containers
+> follow the same rule in `M5c`.
+
+Large extras such as agentic coding tools are optional components rather than
+baseline. `ft` owns the selection (`--options`, `DEV_CONTAINER_FORTRESS_OPTIONS`,
+the XDG `options.toml`, or the `ft options pick` checkbox list) and renders one
+boolean inventory variable per option; each role only reads its variable. The
+default selection is empty.
+
+A host converges in one of two modes, which `ft host bootstrap --mode` renders
+as one inventory variable. `host`, the default, is the full workstation.
+`workspace` stops at the bootstrap floor plus Docker and puts the toolchain in
+a daily-driver workspace container instead, so it skips `shell-config`,
+Homebrew, and the optional components. Both modes run the same playbook, so a
+thin host becomes a full one with a re-run in `host` mode.
 
 > [!NOTE]
 > Arch Linux hosts are a deliberate exception. The official Arch repositories

@@ -17,6 +17,11 @@ dev = [
   "ruff>=0.11.4",
 ]
 
+[tool.uv]
+# Only ever run on the uv-managed Python that .python-version pins, never a
+# distro or Homebrew Python, so every host runs the same interpreter.
+python-preference = "only-managed"
+
 [tool.uv.sources]
 ft = { workspace = true }
 

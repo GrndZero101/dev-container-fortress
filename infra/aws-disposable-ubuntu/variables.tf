@@ -57,9 +57,9 @@ variable "architecture" {
 }
 
 variable "ubuntu_release" {
-  description = "Ubuntu release codename used for the SSM-published AMI path."
+  description = "Ubuntu release for the SSM-published AMI path, as a version such as 26.04 or 26.10, or a codename. Defaults to the current LTS."
   type        = string
-  default     = "noble"
+  default     = "26.04"
 }
 
 variable "root_volume_size_gib" {

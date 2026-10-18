@@ -4,6 +4,11 @@
   gather_facts: true
 
   vars:
+    # `host` converges the full workstation. `workspace` stops after the
+    # bootstrap floor and Docker, for a thin host that runs a daily-driver
+    # workspace container; `ft host bootstrap --mode workspace` sets it.
+    dev_container_fortress_host_mode_effective: >-
+      {{ dev_container_fortress_host_mode | default('host') }}
     dev_container_fortress_xdg_config_home_effective: >-
       {{ ansible_facts['env']['XDG_CONFIG_HOME'] | default(ansible_facts['env']['HOME'] ~ '/.config', true) }}
     dev_container_fortress_xdg_cache_home_effective: >-
@@ -62,6 +67,35 @@
         dev_container_fortress_neovim_kickstart_wrapper
         | default(ansible_facts['env']['HOME'] ~ '/.local/bin/nvim-kickstart')
       }}
+    # Optional components are off unless selected; `ft` renders one boolean per
+    # option from `--options`, DEV_CONTAINER_FORTRESS_OPTIONS, or options.toml.
+    dev_container_fortress_claude_code_manage_effective: >-
+      {{ dev_container_fortress_claude_code_manage | default(false) }}
+    dev_container_fortress_claude_code_installer_url_effective: >-
+      {{ dev_container_fortress_claude_code_installer_url | default('https://claude.ai/install.sh') }}
+    dev_container_fortress_claude_code_launcher_effective: >-
+      {{ ansible_facts['env']['HOME'] ~ '/.local/bin/claude' }}
+    # The tmux profile is a pick-one option (`tmux-minimal`, `tmux-full`,
+    # `tmux-raidboss`); `none` leaves stock tmux with no Dev Fortress config.
+    dev_container_fortress_tmux_profile_effective: >-
+      {{ dev_container_fortress_tmux_profile | default('none') }}
+    # Each profile with the oldest tmux it runs on.
+    dev_container_fortress_tmux_profiles:
+      minimal: "3.2"
+      full: "3.8"
+      raidboss: "3.8"
+    # Shared with `csm tmux-profile` in shell-config: the profiles directory,
+    # and the one link that selects the active profile.
+    dev_container_fortress_tmux_profiles_dir_effective: >-
+      {{ dev_container_fortress_xdg_data_home_effective ~ '/dev-container-fortress/tmux-profiles' }}
+    dev_container_fortress_tmux_conf_effective: >-
+      {{ dev_container_fortress_xdg_config_home_effective ~ '/tmux/tmux.conf' }}
+    dev_container_fortress_tmux_local_conf_effective: >-
+      {{ dev_container_fortress_xdg_config_home_effective ~ '/tmux/local.conf' }}
+    dev_container_fortress_tmux_plugins_dir_effective: >-
+      {{ dev_container_fortress_xdg_config_home_effective ~ '/tmux/plugins' }}
+    dev_container_fortress_tmux_state_file_effective: >-
+      {{ dev_container_fortress_xdg_state_home_effective ~ '/dev-container-fortress/tmux-profile' }}
     dev_container_fortress_required_xdg_dirs:
       - "{{ dev_container_fortress_xdg_config_home_effective }}"
       - "{{ ansible_facts['env']['HOME'] }}/.local"
@@ -198,8 +232,10 @@
       {{ dev_container_fortress_homebrew_prefix | default('/home/linuxbrew/.linuxbrew') }}
     dev_container_fortress_homebrew_repo_effective: >-
       {{ dev_container_fortress_homebrew_repo | default('https://github.com/Homebrew/brew') }}
-    dev_container_fortress_homebrew_branch_effective: >-
-      {{ dev_container_fortress_homebrew_branch | default('main') }}
+    # `latest` resolves to the newest stable `X.Y.Z` tag, as Homebrew's own
+    # installer and `brew update` do; any other value is a tag, branch, or commit.
+    dev_container_fortress_homebrew_version_effective: >-
+      {{ dev_container_fortress_homebrew_version | default('latest') }}
     dev_container_fortress_homebrew_profile_snippet_effective: >-
       {{
         dev_container_fortress_xdg_config_home_effective
@@ -247,6 +283,12 @@
       - yq
       - zoxide
       - direnv
+      - gh
+      - glab
+      # Companions for the tmux-full and tmux-raidboss profiles: the session
+      # picker and the git status segment. Small, and harmless without them.
+      - gitmux
+      - sesh
 
   pre_tasks:
     - name: Prove Ansible reachability
@@ -269,15 +311,45 @@
     - role: dev_fortress_docker
       when:
         - dev_container_fortress_docker_manage_effective | bool
+    # Everything below is the workstation layer, which workspace mode skips.
     - role: dev_fortress_shell_config_bootstrap
+      when: dev_container_fortress_host_mode_effective == 'host'
     - role: dev_fortress_shell_config_zinit
+      when: dev_container_fortress_host_mode_effective == 'host'
     - role: dev_fortress_login_shell
+      when: dev_container_fortress_host_mode_effective == 'host'
     - role: dev_fortress_linuxbrew
       when:
+        - dev_container_fortress_host_mode_effective == 'host'
         - dev_container_fortress_homebrew_manage_effective | bool
         - ansible_facts['os_family'] == 'Debian'
         - ansible_facts['distribution'] == 'Ubuntu'
     - role: dev_fortress_neovim_kickstart
       when:
+        - dev_container_fortress_host_mode_effective == 'host'
         - dev_container_fortress_neovim_kickstart_manage_effective | bool
+    - role: dev_fortress_tmux
+      when:
+        - dev_container_fortress_host_mode_effective == 'host'
+        - dev_container_fortress_tmux_profile_effective != 'none'
+    - role: dev_fortress_claude_code
+      when:
+        - dev_container_fortress_host_mode_effective == 'host'
+        - dev_container_fortress_claude_code_manage_effective | bool
     - role: dev_fortress_shell_config_ready
+      when: dev_container_fortress_host_mode_effective == 'host'
+
+  # Roles queue anything the operator should act on in a `<role>_notices`
+  # list, such as a dotfile moved aside or a config link left alone. Printing
+  # them last keeps them out of the task noise.
+  post_tasks:
+    - name: Report what this run left for you to review
+      vars:
+        dev_fortress_notices: >-
+          {{
+            (dev_fortress_shell_config_bootstrap_notices | default([]))
+            + (dev_fortress_tmux_notices | default([]))
+          }}
+      ansible.builtin.debug:
+        msg: "{{ dev_fortress_notices }}"
+      when: dev_fortress_notices | length > 0

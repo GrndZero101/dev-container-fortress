@@ -2,8 +2,8 @@
 
 ## Status
 
-- [ ] Milestone complete
-- [x] Next candidate milestone
+- [x] Milestone complete
+- [ ] Next candidate milestone
 
 ## Objective
 
@@ -330,5 +330,5 @@ Open:
 
 - [x] Branch from `main` as `feat/m0005a-disposable-daily-driver-container`
 - [x] Commit freely at verified checkpoints
-- [ ] Open one PR for the milestone once the proposed operator contract is stable
-- [ ] Squash merge into `main`
+- [x] Open one PR for the milestone once the proposed operator contract is stable
+- [x] Squash merge into `main` (#4, `e23be1b`, 2026-10-18)

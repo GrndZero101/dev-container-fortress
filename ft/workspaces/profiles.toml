@@ -1,3 +1,6 @@
+# Profiles with `published_image` match an image that CI publishes from main,
+# so `ft workspace pull` can fetch it instead of building it locally.
+
 [tool_layers.gitforge]
 description = "Persists GitHub CLI and GitLab CLI state for forge-driven workflows."
 mode = "image_build"
@@ -23,6 +26,7 @@ container_target = "ubuntu"
 working_directory = "/workspace/dev-container-fortress"
 persisted_mounts = ["cache", "state", "zoxide", "atuin", "gh", "glab", "aws", "azure"]
 tool_layers = []
+published_image = "ghcr.io/grndzero101/dev-container-fortress:ubuntu"
 
 [profiles.ubuntu-gitforge]
 description = "Ubuntu workspace with forge-oriented persisted state for GitHub and GitLab CLI use."
@@ -58,3 +62,13 @@ container_target = "ubuntu"
 working_directory = "/workspace/dev-container-fortress"
 persisted_mounts = ["cache", "state", "zoxide", "atuin", "gh", "glab", "aws", "azure", "gnupg", "password-store"]
 tool_layers = ["gitforge", "secrets", "aws", "azure"]
+published_image = "ghcr.io/grndzero101/dev-container-fortress:ubuntu-full"
+
+[profiles.ubuntu-full-rolling]
+description = "ubuntu-full on the newest Ubuntu release (Docker's ubuntu:rolling, currently 26.10) for trying a new release with the full toolchain."
+container_target = "ubuntu"
+working_directory = "/workspace/dev-container-fortress"
+persisted_mounts = ["cache", "state", "zoxide", "atuin", "gh", "glab", "aws", "azure", "gnupg", "password-store"]
+tool_layers = ["gitforge", "secrets", "aws", "azure"]
+os_release = "rolling"
+published_image = "ghcr.io/grndzero101/dev-container-fortress:ubuntu-full-rolling"
