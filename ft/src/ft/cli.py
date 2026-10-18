@@ -21,6 +21,7 @@ from typing import Annotated
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from ft.container_targets import CONTAINER_TARGETS, KNOWN_CONTAINER_TARGETS
@@ -155,6 +156,8 @@ aws_disposable_ubuntu_app.add_typer(aws_disposable_ubuntu_capacity_app, name="ca
 app.add_typer(completion_app, name="completion")
 
 console = Console()
+# Identity output echoes user-supplied values, so it skips Rich's auto-highlighting.
+identity_console = Console(highlight=False)
 SUPPORTED_SHELL_CONFIG_SOURCES = ("github", "local")
 DEFAULT_DEPLOY_WORKSPACE_PARENT = "~/workspaces/tboss"
 DEFAULT_DEV_CONTAINER_FORTRESS_REPO_URL = (
@@ -7937,14 +7940,14 @@ def _prompt_identity_field(label: str, default: str) -> str:
     """
     is_email = label.endswith("email")
     if is_email:
-        console.print(f"[dim]{NOREPLY_HINT}[/dim]")
+        identity_console.print(f"[dim]{NOREPLY_HINT}[/dim]")
     while True:
         answer: str = typer.prompt(
             f"{label} (Enter to skip)", default=default, show_default=bool(default)
         )
         if not is_email or not answer.strip() or validate_email(answer.strip()):
             return answer
-        console.print(f"[red]not an email address:[/red] {answer}")
+        identity_console.print(f"[red]not an email address:[/red] {escape(answer)}")
 
 
 @app.command("identity")
@@ -7989,13 +7992,15 @@ def identity(
     non-interactive run skips with the manual commands instead of blocking.
     """
     if shutil.which("git") is None:
-        console.print("[red]git is not installed[/red]")
+        identity_console.print("[red]git is not installed[/red]")
         raise typer.Exit(code=1)
     if login is not None and login not in FORGE_LOGINS:
-        console.print(f"[red]unknown forge:[/red] {login} (expected github or gitlab)")
+        identity_console.print(
+            f"[red]unknown forge:[/red] {escape(str(login))} (expected github or gitlab)"
+        )
         raise typer.Exit(code=2)
     if email and not validate_email(email.strip()):
-        console.print(f"[red]not an email address:[/red] {email}")
+        identity_console.print(f"[red]not an email address:[/red] {escape(email)}")
         raise typer.Exit(code=2)
     if local:
         inside = subprocess.run(
@@ -8004,7 +8009,9 @@ def identity(
             check=False,
         )
         if inside.returncode != 0:
-            console.print("[red]--local needs to run inside a Git checkout[/red]")
+            identity_console.print(
+                "[red]--local needs to run inside a Git checkout[/red]"
+            )
             raise typer.Exit(code=1)
 
     scope = "this checkout" if local else "global"
@@ -8018,39 +8025,41 @@ def identity(
     )
 
     if not resolved.complete:
-        console.print(
+        identity_console.print(
             f"[yellow]Git identity not set ({scope}); skipping.[/yellow] Set it with:"
         )
         for command in manual_identity_commands(local=local):
-            console.print(f"  {command}")
-        console.print(f"[dim]{NOREPLY_HINT}[/dim]")
+            identity_console.print(f"  {escape(command)}")
+        identity_console.print(f"[dim]{NOREPLY_HINT}[/dim]")
     elif resolved == current:
-        console.print(f"Git identity ({scope}): {current}")
+        identity_console.print(f"Git identity ({scope}): {escape(str(current))}")
     else:
         write_identity(resolved, local=local)
-        previous = f" (was {current})" if current.name or current.email else ""
-        console.print(
-            f"[green]Set Git identity ({scope}):[/green] {resolved}{previous}"
+        previous = (
+            f" (was {escape(str(current))})" if current.name or current.email else ""
+        )
+        identity_console.print(
+            f"[green]Set Git identity ({scope}):[/green] {escape(str(resolved))}{previous}"
         )
 
     if login is None:
         return
     cli_name = FORGE_LOGINS[login][0]
     if not forge_cli_available(login):
-        console.print(
+        identity_console.print(
             f"[yellow]{cli_name} is not installed; skipping the {login} login.[/yellow]"
         )
         return
     if forge_logged_in(login):
-        console.print(f"Already logged in to {login} with {cli_name}.")
+        identity_console.print(f"Already logged in to {login} with {cli_name}.")
         return
     if not _stdin_is_interactive():
-        console.print(
+        identity_console.print(
             f"[yellow]The {login} login needs a terminal; run `{cli_name} auth login` later.[/yellow]"
         )
         return
     if not run_forge_login(login):
-        console.print(
+        identity_console.print(
             f"[yellow]The {login} login did not finish; run `{cli_name} auth login` later.[/yellow]"
         )
 

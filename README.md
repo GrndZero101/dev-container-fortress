@@ -80,6 +80,20 @@ the Homebrew toolchain. Re-running the command is safe.
 alive in the background so the Ansible run can reuse it, which means the
 whole install must run in one terminal.
 
+The installer finishes with `ft identity`, which sets the global Git
+`user.name` and `user.email`. It keeps an existing identity, uses the
+`DEV_CONTAINER_FORTRESS_GIT_*` variables when they are set, and otherwise
+prompts on a terminal for whatever is missing. Without a terminal it skips and
+prints the `git config` commands, so it never blocks an unattended run. Run
+`uv run ft identity --help` later to change it or to start a `gh` or `glab`
+login.
+
+> [!IMPORTANT]
+> If your GitHub account keeps its email private, GitHub declines pushes from
+> that address. Use the noreply address from GitHub → Settings → Emails. For a
+> corporate forge or GitLab, use the address that forge expects, and fall back
+> to plain `git config` and the forge's token flow when its login is blocked.
+
 | Mode | What it does |
 | --- | --- |
 | `host` (default) | Prerequisites, `ft`, and the full `localhost` host bootstrap |
@@ -107,6 +121,9 @@ On host bootstrap paths, Dev Fortress will also manage the installed
 | `DEV_CONTAINER_FORTRESS_REPO` | `--repo` | Use an alternate Git repository URL |
 | `DEV_CONTAINER_FORTRESS_PYTHON_VERSION` | | Override the uv-managed Python version used by `bootstrap.zsh` |
 | `DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL` | | Host mode makes zsh the login shell; set `0` to keep the current one |
+| `DEV_CONTAINER_FORTRESS_GIT_NAME` | | Git `user.name` to set without a prompt |
+| `DEV_CONTAINER_FORTRESS_GIT_EMAIL` | | Git `user.email` to set without a prompt |
+| `DEV_CONTAINER_FORTRESS_FORGE_LOGIN` | | `github` or `gitlab`: also start a forge login on a terminal |
 
 Full example with all installer overrides:
 

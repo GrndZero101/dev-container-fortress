@@ -49,7 +49,7 @@ EC2 over SSH (`M5a`), but the onramp around them is manual and spread across
 - [ ] `host` is the default mode; a `workspace` mode gives a thin host with Docker and `ft`, plus a ready daily-driver workspace
 - [ ] The Linuxbrew role tracks the latest stable Homebrew tag, and a fresh host converges in one pass, with the idempotency pass reporting `changed=0`
 - [ ] Re-running the command on an already converged or hand-built host is safe and reports what it changed
-- [ ] A Git identity step works non-interactively from environment variables, prompts only on a TTY, and documents a manual fallback for corporate and GitLab identities
+- [x] A Git identity step works non-interactively from environment variables, prompts only on a TTY, and documents a manual fallback for corporate and GitLab identities (`ft identity`, 2026-10-18)
 - [ ] Dev Fortress installs stock tmux with no config by default, and offers `minimal`, `full`, and `raidboss` profiles ported from the `dotfiles` repo, each selectable with one setting
 - [ ] Claude Code is installed by default on host targets through its native installer, so it updates itself between bootstrap runs
 - [ ] The flow is verified on fresh WSL2 Ubuntu, fresh Ubuntu EC2 running the one-liner on the box, and one brownfield host
@@ -211,9 +211,9 @@ otherwise). The two repos share a small contract:
 
 ### M5b-6 Add the Git identity step
 
-- [ ] Problem: fresh hosts and workspaces have no identity, and GitHub declines pushes that use a private email
-- [ ] Scope: env-driven identity, TTY prompt, manual fallback, and an optional forge login start
-- [ ] Acceptance: a non-interactive run never blocks, and a corporate or GitLab user can follow the documented manual path
+- [x] Problem: fresh hosts and workspaces have no identity, and GitHub declines pushes that use a private email
+- [x] Scope: env-driven identity, TTY prompt, manual fallback, and an optional forge login start. `ft identity`, run by the installer in every mode, with `--local` for workspace checkouts and `--login github|gitlab`
+- [x] Acceptance: a non-interactive run never blocks, and a corporate or GitLab user can follow the documented manual path
 
 ### M5b-7 Port the tmux profiles
 
@@ -285,10 +285,12 @@ State at the end of 2026-10-18, on `feat/m0005b-zero-to-hero` (pushed, no PR
 yet):
 
 - done: `M5b-1` (one `sudo` prompt), `M5b-2` (installer prerequisites),
-  `M5b-3` (chained `localhost` bootstrap), `M5b-10` (Ubuntu 26.04 default and
-  `ubuntu-full-rolling`), the host-mode login shell, and a fresh WSL2 26.04
-  run that converged in one pass and re-ran with `changed=0`, and the
-  `M5b-5` role change that pins Homebrew's newest stable tag
+  `M5b-3` (chained `localhost` bootstrap), `M5b-6` (`ft identity`), `M5b-10`
+  (Ubuntu 26.04 default and `ubuntu-full-rolling`), and the host-mode login
+  shell. A fresh WSL2 26.04 run converged in one pass and re-ran with
+  `changed=0`
+- `M5b-5`: the role change that pins Homebrew's newest stable tag is done;
+  only its fresh-host acceptance run is left
 - decided: stock tmux by default with `csm` switching, local workspace builds
   by default, and Homebrew in containers in `M5c`
 
@@ -296,17 +298,15 @@ Next, in suggested order:
 
 1. `M5b-5` acceptance: confirm one-pass convergence on the stable tag during
    the fresh EC2 one-liner run (the role change is done)
-2. `M5b-6`: the Git identity step (env vars, TTY prompt, noreply hint, manual
-   fallback)
-3. `M5b-9`: Claude Code on host targets through its native installer
-4. `M5b-7`: port the tmux profiles from `dotfiles`, plus the `csm` switch in
+2. `M5b-9`: Claude Code on host targets through its native installer
+3. `M5b-7`: port the tmux profiles from `dotfiles`, plus the `csm` switch in
    `shell-config`
-5. `M5b-4`: `workspace` mode, with a local build by default
-6. pin `ansible_python_interpreter: /usr/bin/python3` for local targets, which
+4. `M5b-4`: `workspace` mode, with a local build by default
+5. pin `ansible_python_interpreter: /usr/bin/python3` for local targets, which
    the WSL2 run warned about
-7. verification still open: the one-liner on a fresh EC2 box, a hand-built
+6. verification still open: the one-liner on a fresh EC2 box, a hand-built
    brownfield host with existing dotfiles, and `workspace` mode
-8. `M5b-8`: the consolidated quickstart, then open the PR
+7. `M5b-8`: the consolidated quickstart, then open the PR
 
 Working notes for the next session:
 
@@ -484,3 +484,30 @@ WSL2 workstation, which had last been bootstrapped before this branch. The first
 pass reported `changed=12`, including the managed `/etc/docker/daemon.json` and a
 Docker restart. The second reported `changed=0`, with the Homebrew checkout
 still at `7.0.9`.
+
+### `M5b-6` Git identity, 2026-10-18
+
+`ft identity` sets the global `user.name` and `user.email`, or the current
+checkout's with `--local` for workspaces, where `~/.gitconfig` is not
+persisted. Flags and the `DEV_CONTAINER_FORTRESS_GIT_NAME` and `..._GIT_EMAIL`
+variables replace the current values and name the old ones. Without them, an
+existing identity is kept, a terminal is prompted only for missing fields with
+the noreply hint, and anything else skips with the manual commands.
+`--login github|gitlab`, or `DEV_CONTAINER_FORTRESS_FORGE_LOGIN`, starts the
+forge login only on a terminal and only when not already logged in. `gh` and
+`glab` joined the host Homebrew set for it.
+
+The installer runs the step in every mode and never fails on it. Under
+`curl | sh` stdin is the script, so prompts read `/dev/tty`, and stdin is
+`/dev/null` when there is no terminal.
+
+Piped installer runs (`--mode cli`) in stock `ubuntu:26.04` containers:
+
+| Run | Result |
+| --- | --- |
+| no terminal, no variables | skipped with the `git config` commands; install completed |
+| variables set, no terminal | set the global identity without a prompt |
+| pseudo-terminal, answers fed in | prompted for both fields and set them |
+
+The forge login itself was not exercised beyond the unit tests; the `gh`
+device flow was proven by hand in `M5a`.
