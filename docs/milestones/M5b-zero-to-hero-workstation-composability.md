@@ -233,7 +233,7 @@ otherwise). The two repos share a small contract:
 
 - [x] Problem: tmux setup lives only in the separate `dotfiles` repo
 - [x] Scope: port the `minimal`, `full`, and `raidboss` profiles into a role with one profile variable, a no-config default, and brownfield-safe linking. `dev_fortress_tmux`, selected by the pick-one `tmux-*` options; `gitmux` and `sesh` joined the Homebrew pool
-- [x] Scope (`shell-config`): add a `csm` tmux profile command with an `fzf` picker and a native fallback, reading the Dev Fortress profile directory. `csm tmux-profile [-i] [name|none]` on `shell-config` branch `feat/csm-tmux-profile`
+- [x] Scope (`shell-config`): add a `csm` tmux profile command with an `fzf` picker and a native fallback, reading the Dev Fortress profile directory. `csm tmux-profile [-i] [name|none]`, merged to `shell-config` `main` (PR #1, 2026-10-18)
 - [x] Acceptance: the default leaves stock tmux untouched, each profile installs and starts cleanly on Ubuntu, `csm` switches profiles, including back to none, and a bootstrap re-run keeps the `csm` choice (the role run on the WSL2 Ubuntu 26.04 workstation against an isolated `HOME`, each profile started on its own tmux server, 2026-10-18; a fresh-host one-liner with `--options tmux-full` is in the verification list)
 
 ### M5b-8 Consolidate the onramp docs
@@ -331,21 +331,18 @@ yet):
   on a fresh arm64 EC2 one-liner run
 - also done: `M5b-7` (tmux profiles as the pick-one `tmux-*` options, plus
   `csm tmux-profile`), verified with an isolated `HOME` on the WSL2
-  workstation. The `shell-config` half is on its branch
-  `feat/csm-tmux-profile`, not yet pushed or merged
+  workstation. The `shell-config` half is merged to its `main` (PR #1)
 - decided: stock tmux by default with `csm` switching, local workspace builds
   by default, and Homebrew in containers in `M5c`
 
 Next, in suggested order:
 
-1. land `shell-config` `feat/csm-tmux-profile`, so fresh hosts get
-   `csm tmux-profile` from `main`
-2. `M5b-4`: `workspace` mode, with a local build by default
-3. pin `ansible_python_interpreter: /usr/bin/python3` for local targets, which
+1. `M5b-4`: `workspace` mode, with a local build by default
+2. pin `ansible_python_interpreter: /usr/bin/python3` for local targets, which
    the WSL2 run warned about
-4. verification still open: a hand-built brownfield host with existing
+3. verification still open: a hand-built brownfield host with existing
    dotfiles, `workspace` mode, and a fresh-host `--options tmux-full` run
-5. `M5b-8`: the consolidated quickstart, then open the PR
+4. `M5b-8`: the consolidated quickstart, then open the PR
 
 Working notes for the next session:
 
