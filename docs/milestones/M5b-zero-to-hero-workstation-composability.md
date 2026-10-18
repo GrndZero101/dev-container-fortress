@@ -267,7 +267,7 @@ otherwise). The two repos share a small contract:
 - [ ] Ubuntu desktop or server, if one is available
 - [ ] Brownfield: re-run on an already converged host (operator's `dev-fortress` WSL2 workstation, 2026-10-18: `changed=12`, then `changed=0`), then on a hand-built host with existing dotfiles
 - [x] `workspace` mode on a fresh host (fresh WSL2 Ubuntu 26.04 store image, 2026-10-18; a fresh EC2 run is still open)
-- [ ] A fresh-host one-liner with `--options tmux-full`, then `csm tmux-profile raidboss` and a re-run that keeps it
+- [x] A fresh-host one-liner with `--options tmux-full`, then `csm tmux-profile raidboss` and a re-run that keeps it (fresh WSL2 Ubuntu 26.04 store image, 2026-10-19)
 - [ ] A stock `ubuntu:26.04` container as a fast CI check of the installer prerequisites
 
 ## Branch and Merge Plan
@@ -401,6 +401,23 @@ Findings from the `M5a` rerun to fold into the issues above:
   Windows reads the Windows one. It should detect WSL and point to `--windows`,
   and fall back to the single `/mnt/c/Users/*` profile with a `.ssh` directory
   when interop is off (relevant to `M5b-8`)
+
+### Fresh WSL2 `--options tmux-full` run, 2026-10-19
+
+A throwaway `m5b-test` distro (Ubuntu 26.04.1 LTS store image, `sudo-rs`
+0.2.13, `zsh` absent) with a password-`sudo` user, the one-liner piped into
+`sh` under `script`, and the branch shared as a bundle:
+
+| Run | Result |
+| --- | --- |
+| 1, fresh, `--options tmux-full` | ✅ one `sudo` prompt, 4 min 43 s: `ok=93 changed=33 failed=0`, and no interpreter-discovery warning |
+| new login | ✅ zsh login shell; `~/.config/tmux/tmux.conf` links the `full` profile; tmux 3.8 starts with prefix `C-Space`, the catppuccin status line, and the tpm plugins already installed |
+| `csm tmux-profile raidboss` | ✅ `full -> raidboss`; tmux starts cleanly on it |
+| 2, same one-liner again | ✅ 32 s, `ok=88 changed=0`; the link still points at `raidboss` |
+
+The only tmux message is tpm's first-load `unknown variable:
+TMUX_PLUGIN_MANAGER_PATH`, which is harmless. The root (`become`) tasks ran on
+the uv-managed interpreter without trouble.
 
 ### `M5b-4` workspace mode on fresh WSL2, 2026-10-18
 

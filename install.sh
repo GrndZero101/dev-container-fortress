@@ -380,10 +380,17 @@ ensure_uv() {
   log_step "uv not found; installing via the Astral standalone installer"
   UV_WAS_INSTALLED=1
 
+  # In host mode shell-config owns PATH, so keep uv's installer out of the
+  # user's existing ~/.profile, ~/.bashrc, and ~/.zshrc.
+  uv_modify_path=
+  if [ "$INSTALL_MODE" = "host" ]; then
+    uv_modify_path=1
+  fi
+
   if command -v curl >/dev/null 2>&1; then
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    curl -LsSf https://astral.sh/uv/install.sh | UV_NO_MODIFY_PATH=$uv_modify_path sh
   elif command -v wget >/dev/null 2>&1; then
-    wget -qO- https://astral.sh/uv/install.sh | sh
+    wget -qO- https://astral.sh/uv/install.sh | UV_NO_MODIFY_PATH=$uv_modify_path sh
   else
     die "uv is required but neither curl nor wget is available"
   fi
