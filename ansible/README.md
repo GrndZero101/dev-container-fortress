@@ -123,6 +123,16 @@ The inventory is intentionally thin for the first foundation pass:
 - `ansible_ssh_common_args` for disposable Docker SSH targets using a Dev Fortress-managed known-hosts file
 - `dev_fortress_target_kind`
 - `dev_fortress_target_tags`
+- `ansible_python_interpreter`, from the target or, for local targets, the
+  controller's own Python
+
+> [!NOTE]
+> Local targets run modules on `{{ ansible_playbook_python }}`, the uv-managed
+> Python in the repo `.venv`, so every workstation uses the interpreter that
+> `.python-version` pins rather than whatever the distro ships. Modules that
+> need distro bindings, such as `apt`, respawn under the system `python3` on
+> their own, which is why `install.sh` still installs `python3-apt`. SSH targets
+> keep an explicit `ansible_python_interpreter` because uv is not on them yet.
 
 This is meant to stabilize the target and transport contract before the repo
 grows broader workstation or Terraform-driven host provisioning.

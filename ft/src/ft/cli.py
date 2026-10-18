@@ -3949,11 +3949,14 @@ def _build_host_inventory(
             "dev_fortress_target_tags": target.tags,
         }
         # Pinning the interpreter skips Ansible's discovery, which warns on
-        # every run and can pick a non-system Python on a workstation.
-        if target.ansible_python_interpreter is not None:
-            host_record["ansible_python_interpreter"] = (
-                target.ansible_python_interpreter
-            )
+        # every run. Local targets default to the controller's uv-managed
+        # Python; modules that need distro bindings, such as apt, respawn under
+        # the system Python on their own.
+        interpreter = target.ansible_python_interpreter
+        if interpreter is None and target.connection == "local":
+            interpreter = "{{ ansible_playbook_python }}"
+        if interpreter is not None:
+            host_record["ansible_python_interpreter"] = interpreter
         if target.connection == "local":
             host_record["ansible_connection"] = "local"
             # ansible-core 2.19+ starts each worker in a new session, which

@@ -354,9 +354,11 @@ yet):
 Next, in suggested order:
 
 1. confirm on the next fresh-host run that the interpreter-discovery warning
-   is gone: the example `localhost` target now pins
-   `ansible_python_interpreter = "/usr/bin/python3"`, and the inventory
-   renderer honors the pin for local targets as well as SSH ones
+   is gone: local targets now run modules on the uv-managed Python
+   (`{{ ansible_playbook_python }}`), and `python-preference = "only-managed"`
+   in `pyproject.toml` stops `uv run` from picking a distro or Homebrew Python.
+   Checked on the WSL2 workstation with ad hoc `setup`, `apt --check`, and
+   `package_facts`; a `become` run is still unverified
 2. verification still open: a hand-built brownfield host with existing
    dotfiles, a fresh-host `--options tmux-full` run, and optionally
    `workspace` mode on a fresh arm64 EC2 host (local build only; the published
@@ -385,7 +387,8 @@ Findings from the `M5a` rerun to fold into the issues above:
 
 - `ft deploy init` does not run `bootstrap.zsh`, and nothing pins the Python
   version, so the host `.venv` picked up Homebrew's Python 3.15 instead of the
-  uv-managed 3.14 (relevant to `M5b-3`)
+  uv-managed 3.14 (relevant to `M5b-3`). Fixed: `pyproject.toml` now sets
+  `python-preference = "only-managed"`
 - WSL interop can be disabled, which breaks `wslview` browser opening and the
   Windows profile lookup in `ft host ssh-config --windows`. The onramp must not
   assume interop on WSL2. On the operator's machine the cause was a sibling

@@ -107,7 +107,6 @@ name = "localhost"
 kind = "workstation"
 connection = "local"
 auth_method = "local"
-ansible_python_interpreter = "/usr/bin/python3"
 tags = ["local", "bootstrap"]
 
 [[targets]]
@@ -380,8 +379,10 @@ def test_host_inventory_keeps_local_workers_on_the_terminal(tmp_path: Path) -> N
     assert "ansible_worker_session_isolation" not in hosts["dev-fortress-ubuntu"]
 
 
-def test_host_inventory_pins_the_local_interpreter(tmp_path: Path) -> None:
-    """Local targets should carry their pinned Python interpreter."""
+def test_host_inventory_runs_local_modules_on_the_controller_python(
+    tmp_path: Path,
+) -> None:
+    """Local targets should default to the controller's uv-managed Python."""
     config_path = _write_host_config(tmp_path)
 
     result = runner.invoke(
@@ -390,7 +391,13 @@ def test_host_inventory_pins_the_local_interpreter(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     hosts = json.loads(result.stdout)["all"]["children"]["dev_fortress"]["hosts"]
-    assert hosts["localhost"]["ansible_python_interpreter"] == "/usr/bin/python3"
+    assert (
+        hosts["localhost"]["ansible_python_interpreter"]
+        == "{{ ansible_playbook_python }}"
+    )
+    assert hosts["dev-fortress-ubuntu"]["ansible_python_interpreter"] == (
+        "/usr/bin/python3"
+    )
 
 
 def test_host_target_manifest_toml_round_trips() -> None:
