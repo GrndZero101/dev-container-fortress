@@ -248,6 +248,8 @@ its broader operator workflow baseline, including tools such as:
 - `yq`
 - `zoxide`
 - `direnv`
+- `gh`
+- `glab`
 
 Homebrew is expected to pull the necessary transitive dependencies for those
 formulae. Notable examples include `pass` and `gopass` bringing in the required

@@ -249,6 +249,8 @@
       - yq
       - zoxide
       - direnv
+      - gh
+      - glab
 
   pre_tasks:
     - name: Prove Ansible reachability

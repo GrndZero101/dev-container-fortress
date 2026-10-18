@@ -24,6 +24,21 @@ from rich.console import Console
 from rich.table import Table
 
 from ft.container_targets import CONTAINER_TARGETS, KNOWN_CONTAINER_TARGETS
+from ft.identity import (
+    FORGE_LOGIN_ENV,
+    FORGE_LOGINS,
+    GIT_EMAIL_ENV,
+    GIT_NAME_ENV,
+    NOREPLY_HINT,
+    forge_cli_available,
+    forge_logged_in,
+    manual_identity_commands,
+    read_identity,
+    resolve_identity,
+    run_forge_login,
+    validate_email,
+    write_identity,
+)
 from ft.installer import InstallPlan, build_plan, install_tool
 from ft.manifest import load_manifest
 from ft.models import (
@@ -7903,6 +7918,141 @@ def doctor(
     )
     if not _run_doctor(resolved_targets, json_output=json_output):
         raise typer.Exit(code=1)
+
+
+def _stdin_is_interactive() -> bool:
+    """Return whether stdin is a terminal that can answer prompts."""
+    return sys.stdin.isatty()
+
+
+def _prompt_identity_field(label: str, default: str) -> str:
+    """Prompt for one Git identity field, allowing an empty answer to skip.
+
+    Args:
+        label: The Git config key shown in the prompt.
+        default: The value used when the operator presses Enter.
+
+    Returns:
+        The answer, or an empty string when skipped.
+    """
+    is_email = label.endswith("email")
+    if is_email:
+        console.print(f"[dim]{NOREPLY_HINT}[/dim]")
+    while True:
+        answer: str = typer.prompt(
+            f"{label} (Enter to skip)", default=default, show_default=bool(default)
+        )
+        if not is_email or not answer.strip() or validate_email(answer.strip()):
+            return answer
+        console.print(f"[red]not an email address:[/red] {answer}")
+
+
+@app.command("identity")
+def identity(
+    name: Annotated[
+        str | None,
+        typer.Option(envvar=GIT_NAME_ENV, help="Git user.name to set."),
+    ] = None,
+    email: Annotated[
+        str | None,
+        typer.Option(envvar=GIT_EMAIL_ENV, help="Git user.email to set."),
+    ] = None,
+    local: Annotated[
+        bool,
+        typer.Option(
+            "--local",
+            help=(
+                "Set the identity for the current checkout instead of globally. "
+                "Use inside workspaces, where ~/.gitconfig is not persisted."
+            ),
+        ),
+    ] = False,
+    prompt: Annotated[
+        bool,
+        typer.Option(
+            "--prompt/--no-prompt",
+            help="Prompt on a terminal for any field that is still missing.",
+        ),
+    ] = True,
+    login: Annotated[
+        str | None,
+        typer.Option(
+            envvar=FORGE_LOGIN_ENV,
+            help="Also start a forge login: github (gh) or gitlab (glab).",
+        ),
+    ] = None,
+) -> None:
+    """Set the Git identity, and optionally start a forge login.
+
+    Explicit values replace the current identity. Otherwise an existing
+    identity is kept, a terminal is prompted for missing fields, and a
+    non-interactive run skips with the manual commands instead of blocking.
+    """
+    if shutil.which("git") is None:
+        console.print("[red]git is not installed[/red]")
+        raise typer.Exit(code=1)
+    if login is not None and login not in FORGE_LOGINS:
+        console.print(f"[red]unknown forge:[/red] {login} (expected github or gitlab)")
+        raise typer.Exit(code=2)
+    if email and not validate_email(email.strip()):
+        console.print(f"[red]not an email address:[/red] {email}")
+        raise typer.Exit(code=2)
+    if local:
+        inside = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            check=False,
+        )
+        if inside.returncode != 0:
+            console.print("[red]--local needs to run inside a Git checkout[/red]")
+            raise typer.Exit(code=1)
+
+    scope = "this checkout" if local else "global"
+    current = read_identity(local=local)
+    interactive = prompt and _stdin_is_interactive()
+    resolved = resolve_identity(
+        current,
+        name=name,
+        email=email,
+        prompt=_prompt_identity_field if interactive else None,
+    )
+
+    if not resolved.complete:
+        console.print(
+            f"[yellow]Git identity not set ({scope}); skipping.[/yellow] Set it with:"
+        )
+        for command in manual_identity_commands(local=local):
+            console.print(f"  {command}")
+        console.print(f"[dim]{NOREPLY_HINT}[/dim]")
+    elif resolved == current:
+        console.print(f"Git identity ({scope}): {current}")
+    else:
+        write_identity(resolved, local=local)
+        previous = f" (was {current})" if current.name or current.email else ""
+        console.print(
+            f"[green]Set Git identity ({scope}):[/green] {resolved}{previous}"
+        )
+
+    if login is None:
+        return
+    cli_name = FORGE_LOGINS[login][0]
+    if not forge_cli_available(login):
+        console.print(
+            f"[yellow]{cli_name} is not installed; skipping the {login} login.[/yellow]"
+        )
+        return
+    if forge_logged_in(login):
+        console.print(f"Already logged in to {login} with {cli_name}.")
+        return
+    if not _stdin_is_interactive():
+        console.print(
+            f"[yellow]The {login} login needs a terminal; run `{cli_name} auth login` later.[/yellow]"
+        )
+        return
+    if not run_forge_login(login):
+        console.print(
+            f"[yellow]The {login} login did not finish; run `{cli_name} auth login` later.[/yellow]"
+        )
 
 
 @app.command("install", hidden=False)

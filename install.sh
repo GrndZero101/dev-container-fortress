@@ -77,6 +77,10 @@ Every flag has an environment variable: DEV_CONTAINER_FORTRESS_MODE,
 DEV_CONTAINER_FORTRESS_DIR, DEV_CONTAINER_FORTRESS_REF, and
 DEV_CONTAINER_FORTRESS_REPO. Host mode makes zsh the login shell; set
 DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL=0 to keep the current shell.
+
+Git identity: DEV_CONTAINER_FORTRESS_GIT_NAME and DEV_CONTAINER_FORTRESS_GIT_EMAIL
+set it without a prompt; otherwise a terminal is asked for a missing identity.
+DEV_CONTAINER_FORTRESS_FORGE_LOGIN=github or gitlab also starts a forge login.
 USAGE
 }
 
@@ -445,6 +449,30 @@ run_host_bootstrap() {
   fi
 }
 
+# Purpose: Set the Git identity without ever failing the install.
+# Arguments:
+#   $1: Repository directory.
+# Returns:
+#   None.
+# Side effects:
+#   Runs `ft identity`, which reads DEV_CONTAINER_FORTRESS_GIT_NAME,
+#   DEV_CONTAINER_FORTRESS_GIT_EMAIL, and DEV_CONTAINER_FORTRESS_FORGE_LOGIN,
+#   keeps an existing identity, and may write the global Git config.
+run_identity_step() {
+  destination=$1
+  log_step "Checking the Git identity"
+  # Under curl | sh, stdin is this script, so prompts must read the terminal.
+  # Without a usable terminal, stdin is /dev/null and ft skips with a hint.
+  if (: </dev/tty) 2>/dev/null; then
+    identity_input=/dev/tty
+  else
+    identity_input=/dev/null
+  fi
+  if ! (cd "$destination" && uv run ft identity <"$identity_input"); then
+    warn_step "the Git identity step failed; run 'uv run ft identity' in $destination later"
+  fi
+}
+
 main() {
   parse_args "$@"
   detect_platform
@@ -483,6 +511,7 @@ main() {
   if [ "$INSTALL_MODE" = "host" ]; then
     run_host_bootstrap "$install_dir"
   fi
+  run_identity_step "$install_dir"
 
   log_step "Install complete"
   printf '%s\n' "Repo location: $install_dir"
