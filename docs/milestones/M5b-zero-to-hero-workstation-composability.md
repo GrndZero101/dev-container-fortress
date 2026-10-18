@@ -42,16 +42,16 @@ EC2 over SSH (`M5a`), but the onramp around them is manual and spread across
 
 ## Exit Criteria
 
-- [x] One documented command takes a fresh Ubuntu 26.04 LTS machine to a converged host workstation: `curl -fsSL …/install.sh | sh` (fresh WSL2, 2026-10-18; EC2 still to run)
+- [x] One documented command takes a fresh Ubuntu 26.04 LTS machine to a converged host workstation: `curl -fsSL …/install.sh | sh` (fresh WSL2 and fresh arm64 EC2, 2026-10-18)
 - [ ] Ubuntu 26.04 LTS is the default release for container images and EC2 hosts, and the newest release (26.10 today) is one setting away on each, so a new release can be tried with the full toolchain
 - [ ] The installer detects the platform, installs its own native prerequisites with one `sudo` step, and fails clearly on unsupported platforms such as macOS
 - [ ] The installer registers `localhost` in `hosts.toml` when it is missing and runs the host bootstrap without a separate operator step
 - [ ] `host` is the default mode; a `workspace` mode gives a thin host with Docker and `ft`, plus a ready daily-driver workspace
-- [ ] The Linuxbrew role tracks the latest stable Homebrew tag, and a fresh host converges in one pass, with the idempotency pass reporting `changed=0`
+- [x] The Linuxbrew role tracks the latest stable Homebrew tag, and a fresh host converges in one pass, with the idempotency pass reporting `changed=0` (arm64 EC2 on `7.0.9`, 2026-10-18)
 - [ ] Re-running the command on an already converged or hand-built host is safe and reports what it changed
 - [x] A Git identity step works non-interactively from environment variables, prompts only on a TTY, and documents a manual fallback for corporate and GitLab identities (`ft identity`, 2026-10-18)
 - [ ] Dev Fortress installs stock tmux with no config by default, and offers `minimal`, `full`, and `raidboss` profiles ported from the `dotfiles` repo, each selectable with one setting
-- [ ] Large extras are optional components, off by default and selectable by flag, environment variable, config file, or a checkbox picker; Claude Code (`claude-code`) is the first, installed through its native installer so it updates itself between bootstrap runs
+- [x] Large extras are optional components, off by default and selectable by flag, environment variable, config file, or a checkbox picker; Claude Code (`claude-code`) is the first, installed through its native installer so it updates itself between bootstrap runs
 - [ ] The flow is verified on fresh WSL2 Ubuntu, fresh Ubuntu EC2 running the one-liner on the box, and one brownfield host
 - [ ] One "Zero to Hero" quickstart replaces the scattered onramp docs, and `README.md` points to it
 
@@ -209,7 +209,7 @@ otherwise). The two repos share a small contract:
 
 - [x] Problem: the role tracks Homebrew's development branch, the first `M5a` EC2 converge hit a duplicate-pour race, and the Linuxbrew and `neovim_kickstart` tasks still changed on a second pass
 - [x] Scope: check out the latest stable tag, and fix whatever keeps the second pass changing. The role now resolves the newest `X.Y.Z` tag, the same one `brew update` picks, and `dev_container_fortress_homebrew_version` overrides it
-- [ ] Acceptance: a fresh host converges in one pass, then reports `changed=0` (the fresh WSL2 run already did on `main`; re-check on the stable tag with the EC2 one-liner run)
+- [x] Acceptance: a fresh host converges in one pass, then reports `changed=0` (fresh arm64 EC2 one-liner on `7.0.9`, 2026-10-18)
 
 ### M5b-6 Add the Git identity step
 
@@ -234,7 +234,7 @@ otherwise). The two repos share a small contract:
 
 - [x] Problem: Claude Code is installed by hand on every new host
 - [x] Scope: a host role that runs the native installer as the operator user, skips hosts where it already exists, and leaves updates to Claude Code itself. `dev_fortress_claude_code`, enabled by the `claude-code` option (`M5b-11`)
-- [ ] Acceptance: with `claude-code` selected, `claude --version` works after a fresh bootstrap, and a re-run reports no change (the role alone passed both under a fresh `HOME`; confirm in the fresh EC2 one-liner run)
+- [x] Acceptance: with `claude-code` selected, `claude --version` works after a fresh bootstrap, and a re-run reports no change (arm64 EC2, 2026-10-18)
 
 ### M5b-10 Default to Ubuntu 26.04 and make release trials easy
 
@@ -246,12 +246,12 @@ otherwise). The two repos share a small contract:
 
 - [x] Problem: agentic coding tools are large and not wanted on every machine, so they should not be in the default bootstrap
 - [x] Scope: an option catalog in `ft`, a non-interactive selection (`--options` on `ft host bootstrap` and `install.sh`, `DEV_CONTAINER_FORTRESS_OPTIONS`, or `options.toml`), and a checkbox picker (`ft options pick`, `install.sh --interactive`); `claude-code` is the first option
-- [ ] Acceptance: the default one-liner installs no optional component, `--options claude-code` installs Claude Code, and `--interactive` under `curl | sh` shows the picker and saves the choice (unit tests and the piped `--interactive` installer runs pass; the host-mode runs with and without `claude-code` are still to do)
+- [x] Acceptance: the default one-liner installs no optional component, `--options claude-code` installs Claude Code, and `--interactive` under `curl | sh` shows the picker and saves the choice (arm64 EC2 for the default and `--interactive` runs; `--options` by unit tests and the container runs)
 
 ## Verification Notes
 
 - [x] Fresh WSL2 Ubuntu instance, default command (Ubuntu 26.04.1 LTS store image, 2026-10-18)
-- [ ] Fresh Ubuntu EC2 instance, the one-liner run on the box itself (the `localhost` path, which `M5a` did not exercise)
+- [x] Fresh Ubuntu EC2 instance, the one-liner run on the box itself (the `localhost` path, which `M5a` did not exercise; `m8g.large` arm64, 2026-10-18)
 - [ ] Ubuntu desktop or server, if one is available
 - [ ] Brownfield: re-run on an already converged host (operator's `dev-fortress` WSL2 workstation, 2026-10-18: `changed=12`, then `changed=0`), then on a hand-built host with existing dotfiles
 - [ ] `workspace` mode on a fresh host
@@ -299,29 +299,22 @@ yet):
   (Ubuntu 26.04 default and `ubuntu-full-rolling`), and the host-mode login
   shell. A fresh WSL2 26.04 run converged in one pass and re-ran with
   `changed=0`
-- `M5b-5` and `M5b-9`: the role changes (Homebrew's newest stable tag, and
-  the `dev_fortress_claude_code` role) are done; only their fresh-host
-  acceptance runs are left
-- `M5b-11`: optional components, with `claude-code` off by default, are done
-  in `ft` and `install.sh`; the full installer runs are left
+- also done: `M5b-5` (stable Homebrew tag), `M5b-9` (Claude Code role), and
+  `M5b-11` (optional components, `claude-code` off by default), all accepted
+  on a fresh arm64 EC2 one-liner run
 - decided: stock tmux by default with `csm` switching, local workspace builds
   by default, and Homebrew in containers in `M5c`
 
 Next, in suggested order:
 
-1. `M5b-5`, `M5b-9`, and `M5b-11` acceptance: during the fresh EC2 one-liner
-   run, confirm one-pass convergence on the stable tag and that no option is
-   installed by default; then re-run with `--options claude-code` for
-   `claude --version`, and once more for `changed=0`. Try `--interactive`
-   under `curl | sh` on a terminal
-2. `M5b-7`: port the tmux profiles from `dotfiles`, plus the `csm` switch in
+1. `M5b-7`: port the tmux profiles from `dotfiles`, plus the `csm` switch in
    `shell-config`
-3. `M5b-4`: `workspace` mode, with a local build by default
-4. pin `ansible_python_interpreter: /usr/bin/python3` for local targets, which
+2. `M5b-4`: `workspace` mode, with a local build by default
+3. pin `ansible_python_interpreter: /usr/bin/python3` for local targets, which
    the WSL2 run warned about
-5. verification still open: the one-liner on a fresh EC2 box, a hand-built
-   brownfield host with existing dotfiles, and `workspace` mode
-6. `M5b-8`: the consolidated quickstart, then open the PR
+4. verification still open: a hand-built brownfield host with existing
+   dotfiles, and `workspace` mode
+5. `M5b-8`: the consolidated quickstart, then open the PR
 
 Working notes for the next session:
 
@@ -461,7 +454,8 @@ Found and fixed:
 Observed, not fixed yet:
 
 - Ubuntu 26.04 ships `sudo-rs`; its timestamp and `-n -v` keepalive behave like
-  `sudo` for this flow
+  `sudo` for this flow (but see the EC2 run below for `-v` and mixed
+  sudoers rules)
 - stopping `m5b-test`, a pristine store image, also wiped `WSLInterop` in
   `dev-fortress`. The wipe is a general sibling-distro problem, not one
   misconfigured distro, and it now reproduces on demand
@@ -590,3 +584,30 @@ Then `ft host bootstrap localhost -K --options claude-code` on the operator's
 `dev-fortress` WSL2 workstation, which already had Claude Code, reported
 `changed=0`: the role's `creates` guard left the existing self-updating install
 alone.
+
+### Fresh arm64 EC2 one-liner, 2026-10-18
+
+A disposable `m8g.large` (Graviton, arm64) spot instance in `ap-southeast-1`
+from `ft infra aws-disposable-ubuntu`, on Ubuntu 26.04.1 LTS with `sudo-rs`,
+no `zsh`, and the stock `ubuntu` user. The one-liner ran on the box itself
+from the branch on GitHub, with the Git identity variables set.
+
+The first attempt stopped at once with "sudo needs a password, but there is no
+terminal". The `ubuntu` user has cloud-init's `NOPASSWD: ALL` and also the
+password-only `%sudo` group rule, and `sudo -v` checks every entry the user
+has (the default `verifypw=all`), so `sudo -n -v` failed even though
+`sudo -n true` worked. `M5a` never hit this because it bootstrapped EC2 over
+SSH, and the `M5b-1` spike used password-only users. The installer now probes
+with `sudo -n true`; the `-n -v` keepalive simply exits on such hosts, where it
+is not needed.
+
+| Run | Result |
+| --- | --- |
+| 1, default | installed `zsh`, `options: none (default)`, converged in 6 min 9 s: `ok=79 changed=26 failed=0`; Claude Code role skipped, no `options.toml`, Homebrew at `7.0.9`, login shell `zsh` |
+| 2, `--interactive` over `ssh -tt` | picker shown; Space and Enter saved `claude-code`; `options: claude-code (config)`, `changed=1` in 51 s; `claude` 2.1.302 is an aarch64 ELF on the login `PATH` |
+| 3, plain re-run | `options: claude-code (config)`, `changed=0` in 33 s |
+
+Fetching the installer from a `raw.githubusercontent.com` branch URL served a
+copy cached from before the fix for a few minutes; pinning the URL to the
+commit SHA avoided it. Worth a note in the quickstart for anyone testing a
+branch (`M5b-8`).
