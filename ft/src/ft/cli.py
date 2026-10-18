@@ -3948,6 +3948,12 @@ def _build_host_inventory(
             "dev_fortress_target_kind": target.kind,
             "dev_fortress_target_tags": target.tags,
         }
+        # Pinning the interpreter skips Ansible's discovery, which warns on
+        # every run and can pick a non-system Python on a workstation.
+        if target.ansible_python_interpreter is not None:
+            host_record["ansible_python_interpreter"] = (
+                target.ansible_python_interpreter
+            )
         if target.connection == "local":
             host_record["ansible_connection"] = "local"
             # ansible-core 2.19+ starts each worker in a new session, which
@@ -3964,10 +3970,6 @@ def _build_host_inventory(
                     "ansible_user": target.user,
                 }
             )
-            if target.ansible_python_interpreter is not None:
-                host_record["ansible_python_interpreter"] = (
-                    target.ansible_python_interpreter
-                )
             private_path = _host_ssh_private_key_path(target)
             if private_path is not None:
                 host_record["ansible_ssh_private_key_file"] = str(private_path)

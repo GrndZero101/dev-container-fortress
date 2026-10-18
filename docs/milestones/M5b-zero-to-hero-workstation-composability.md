@@ -353,8 +353,10 @@ yet):
 
 Next, in suggested order:
 
-1. pin `ansible_python_interpreter: /usr/bin/python3` for local targets, which
-   the WSL2 run warned about
+1. confirm on the next fresh-host run that the interpreter-discovery warning
+   is gone: the example `localhost` target now pins
+   `ansible_python_interpreter = "/usr/bin/python3"`, and the inventory
+   renderer honors the pin for local targets as well as SSH ones
 2. verification still open: a hand-built brownfield host with existing
    dotfiles, a fresh-host `--options tmux-full` run, and optionally
    `workspace` mode on a fresh arm64 EC2 host (local build only; the published

@@ -10,8 +10,8 @@ records the result.
 
 1. **`M5b`:** pick up from the "Resume Here" section of the
    [M5b file](docs/milestones/M5b-zero-to-hero-workstation-composability.md);
-   next is pinning the local Ansible Python interpreter, the open
-   verification runs, then the quickstart (`M5b-8`).
+   next is the open verification runs (they also confirm the local
+   interpreter pin), then the quickstart (`M5b-8`).
 2. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
    the devcontainer and CLI terminal-mode flows; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
