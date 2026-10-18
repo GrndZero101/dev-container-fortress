@@ -351,6 +351,33 @@ Current state:
 Details:
 [M5a draft](milestones/M5a-disposable-daily-driver-container.md)
 
+### `M5b` Zero to Hero: Workstation Composability
+
+Status: `next`
+
+Objective:
+Take a brand-new or existing Ubuntu machine to a working Dev Fortress
+workstation from one `curl | sh` command with sane defaults, while keeping
+host or workspace mode, tmux profiles, and the identity step composable.
+
+Exit criteria:
+
+- one command converges a fresh Ubuntu 24.04 host, WSL2 Ubuntu, or Ubuntu EC2
+  instance, with `host` mode as the default and a thin `workspace` mode
+- the installer installs its own prerequisites, registers `localhost`, and runs
+  the host bootstrap, with at most one `sudo` prompt
+- stable Homebrew and one-pass convergence; re-runs on brownfield hosts are safe
+- a Git identity step with a manual corporate and GitLab fallback
+- tmux profiles (`minimal`, `full`, `raidboss`) ported from `dotfiles`
+- one consolidated "Zero to Hero" quickstart
+
+Non-goals:
+
+- macOS hosts, which come next, and integrating the separate `dotfiles` repo
+
+Details:
+[M5b draft](milestones/M5b-zero-to-hero-workstation-composability.md)
+
 ### `M6` Operator CLI Maturity
 
 Status: `next`

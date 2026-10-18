@@ -161,6 +161,7 @@
 
 * Treat `docs/ROADMAP.md` as the strategic roadmap and milestone ordering document.
 * Treat `docs/milestones/` as the working planning surface for milestone drafts, issue slices, and checkbox progress.
+* Treat the root `TODO.md` as the short "up next" queue: a few one-line items that link into milestone files. Update it when the next action changes, and keep detail in the milestone file rather than duplicating it.
 * Keep one markdown file per milestone under `docs/milestones/`, and update it as work advances.
 * Use milestone files as the copy/paste source for later GitHub milestones and issues.
 * Name milestone branches after a zero-padded sortable milestone ID and outcome, for example `feat/m0003a-installer-onramp` or `feat/m0004-first-real-host-roles`.
