@@ -2,13 +2,11 @@
 
 This document describes how to use `dev-container-fortress` directly on a workstation.
 
-> [!IMPORTANT]
-> The direct workstation path is still maturing, but it is no longer only scaffold.
-> The current first-class local host path is Ubuntu under WSL2 using the shared
-> `ft host ...` and Ansible bootstrap flow against `localhost`.
-
-For the current WSL2-first local bootstrap path, use
-[WSL Bootstrap Runbook](wsl-bootstrap.md).
+> [!TIP]
+> To set up the machine you are on, follow the
+> [Zero to Hero Quickstart](quickstart.md): one command on Ubuntu or WSL2
+> Ubuntu. This page covers what sits underneath it: the host-target model,
+> bootstrapping other machines over SSH, and what the roles converge.
 
 ## Current Status
 
@@ -261,7 +259,7 @@ Today the real host loop converges:
 - baseline package prerequisites on supported Linux families: Ubuntu, Alpine, and Arch (x86_64, pacman instead of Homebrew)
 - shell-config clone and bootstrap
 - fortress profile-local `zinit` installation
-- login-shell convergence to `zsh` for remote SSH targets
+- login-shell convergence to `zsh` for remote SSH targets, and for `localhost` when the installer runs in host mode
 - Docker CE plus the `buildx` and Compose plugins on Ubuntu workstation/cloud targets
 - Ubuntu Linuxbrew bootstrap and the current fortress-facing formula set
 - optional components when selected (`ft options`): Claude Code through its native installer, after which it updates itself, and at most one tmux profile (`tmux-minimal`, `tmux-full`, or `tmux-raidboss`), switchable later with `csm tmux-profile`
@@ -282,9 +280,9 @@ configuration, corporate CA handling, or broader non-Ubuntu workstation
 parity. Those remain follow-up milestones.
 
 > [!NOTE]
-> Docker access without `sudo` still depends on refreshed group membership after
-> the bootstrap run. On a fresh host, use `newgrp docker` or log in again after
-> the Docker role has added your user to the `docker` group.
+> Docker access without `sudo` depends on refreshed group membership after the
+> bootstrap run. Open a new terminal or log in again after the Docker role has
+> added your user to the `docker` group; Ubuntu 26.04 ships no `newgrp` or `sg`.
 
 ## Corporate CA Status
 

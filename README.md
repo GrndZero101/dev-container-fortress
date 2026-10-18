@@ -27,9 +27,9 @@ Tooling policy follows the same split:
   host tooling, rather than becoming the primary tool source itself
 
 > [!IMPORTANT]
-> This project is still in active buildout.
-> The container and operator loops are already useful day to day, while the
-> direct workstation path is still maturing.
+> This project is still in active buildout. The container and operator loops
+> and the one-command Ubuntu and WSL2 workstation onramp are useful day to day;
+> other workstation platforms are still in progress.
 > [!NOTE]
 > `just` still exists, but it is now a thin compatibility shim.
 > Treat `ft` as the primary interface.
@@ -55,158 +55,23 @@ For active repository work, prefer the development path.
 
 ## Operator Install
 
-The fastest operator path is the one-liner installer.
-
-> [!IMPORTANT]
-> On Ubuntu and WSL2 Ubuntu the only prerequisite is `curl`: the installer
-> installs `git`, `zsh`, `python3`, and its other native prerequisites itself,
-> behind one `sudo` password prompt. On other platforms only `--mode cli`
-> works, and it needs `git` and `zsh` already installed.
-
-### One-liner
+On Ubuntu or WSL2 Ubuntu, one command takes a fresh machine to a Dev Fortress
+workstation. The only prerequisite is `curl`:
 
 ```sh
+cd ~
 curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | sh
 ```
 
-In the default `host` mode this installs the native prerequisites, clones or
-refreshes the repo, ensures `uv` exists, and hands off to the repo bootstrap,
-which provisions the uv-managed Python that `.python-version` pins and installs a live `ft` CLI
-plus a user-level Ansible. It then converges this machine with
-`ft host bootstrap localhost`: Docker, `shell-config`, the zsh login shell, and
-the Homebrew toolchain. Re-running the command is safe.
-
-`sudo` asks for your password once. The installer keeps the `sudo` session
-alive in the background so the Ansible run can reuse it, which means the
-whole install must run in one terminal.
-
-### Optional components
-
-Large extras, starting with Claude Code (`claude-code`, about 270 MB), are not
-installed unless you select them, and only `host` mode installs them. Choose them in one of three ways:
-
-| Way | Example | Lasts |
-| --- | --- | --- |
-| Flag or variable | `sh -s -- --options claude-code` | this run; overrides the saved choice |
-| Checkbox picker | `sh -s -- --interactive`, or `uv run ft options pick` later | saved to `options.toml` |
-| Config file | `enabled = ["claude-code"]` in `${XDG_CONFIG_HOME:-~/.config}/dev-container-fortress/options.toml` | every later bootstrap |
-
-`uv run ft options` lists the choices and shows which ones the next
-`ft host bootstrap` will install. Removing an option later stops managing it but
-does not uninstall it.
-
-The tmux profiles are options too, and you pick at most one. Without one, tmux
-keeps its stock settings and Dev Fortress writes no tmux config.
-
-| Option | Profile |
-| --- | --- |
-| `tmux-minimal` | plain tmux settings: no plugins, no downloads, tmux 3.2+ |
-| `tmux-full` | catppuccin theme, tpm plugins, a `sesh` session picker, and `gitmux` status; tmux 3.8+ |
-| `tmux-raidboss` | `tmux-full` plus a second status line of system modules; tmux 3.8+ |
-
-Selecting any of them installs all three, so `csm tmux-profile` in
-`shell-config` can switch between them later, or back to stock tmux with
-`csm tmux-profile none`. A bootstrap re-run keeps that choice unless you
-select a different profile. Put personal settings in
-`${XDG_CONFIG_HOME:-~/.config}/tmux/local.conf`, which every profile loads
-last.
-
-> [!NOTE]
-> Dev Fortress never replaces a `~/.config/tmux/tmux.conf` it did not link,
-> and links no profile while `~/.tmux.conf` exists, because tmux would load
-> both. The bootstrap reports the conflict; move the file aside and re-run.
-
-On a host with existing dotfiles, `shell-config` moves a conflicting
-`~/.zshenv` aside, and the managed zsh stops reading `~/.zshrc`. The run ends
-by listing those changes, with where to carry your own zsh settings: `env.zsh`
-or `aliases.zsh` under
-`${XDG_CONFIG_HOME:-~/.config}/shell-config.local/zsh-tll-citadel-dev-fortress/`.
-
-The installer finishes with `ft identity`, which sets the global Git
-`user.name` and `user.email`. It keeps an existing identity, uses the
-`DEV_CONTAINER_FORTRESS_GIT_*` variables when they are set, and otherwise
-prompts on a terminal for whatever is missing. Without a terminal it skips and
-prints the `git config` commands, so it never blocks an unattended run. Run
-`uv run ft identity --help` later to change it or to start a `gh` or `glab`
-login.
-
-> [!IMPORTANT]
-> If your GitHub account keeps its email private, GitHub declines pushes from
-> that address. Use the noreply address from GitHub → Settings → Emails. For a
-> corporate forge or GitLab, use the address that forge expects, and fall back
-> to plain `git config` and the forge's token flow when its login is blocked.
-
-| Mode | What it does |
-| --- | --- |
-| `host` (default) | Prerequisites, `ft`, and the full `localhost` host bootstrap |
-| `cli` | Prerequisites (Ubuntu only), the checkout, `uv`, `ft`, and Ansible; no host changes beyond packages |
-| `workspace` | Thin host: prerequisites, `ft`, and Docker, plus the `ubuntu-full` workspace image, built locally |
-
-Pass flags through the pipe with `sh -s --`:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
-  sh -s -- --mode cli --dir "$HOME/projects/dev-container-fortress"
-```
-
-On host bootstrap paths, Dev Fortress will also manage the installed
-`shell-config` checkout unless you deliberately point it somewhere else.
-
-> [!NOTE]
-> Every flag also has an environment variable.
-
-| Variable | Flag | Purpose |
-| --- | --- | --- |
-| `DEV_CONTAINER_FORTRESS_MODE` | `--mode` | Choose `host`, `cli`, or `workspace` |
-| `DEV_CONTAINER_FORTRESS_DIR` | `--dir` | Choose the local checkout destination |
-| `DEV_CONTAINER_FORTRESS_REF` | `--ref` | Pin a branch, tag, or commit |
-| `DEV_CONTAINER_FORTRESS_REPO` | `--repo` | Use an alternate Git repository URL |
-| `DEV_CONTAINER_FORTRESS_PYTHON_VERSION` | | Override the repo-root `.python-version` pin for `bootstrap.zsh` |
-| `DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL` | | Host mode makes zsh the login shell; set `0` to keep the current one |
-| `DEV_CONTAINER_FORTRESS_OPTIONS` | `--options` | Optional components for this run, such as `claude-code,tmux-full`, or `none` |
-| `DEV_CONTAINER_FORTRESS_WORKSPACE_IMAGE` | `--workspace-image` | Workspace mode: `local` (default) builds the image, `published` pulls it |
-| `DEV_CONTAINER_FORTRESS_INTERACTIVE` | `--interactive` | Set `1` to pick optional components in a checkbox list |
-| `DEV_CONTAINER_FORTRESS_GIT_NAME` | | Git `user.name` to set without a prompt |
-| `DEV_CONTAINER_FORTRESS_GIT_EMAIL` | | Git `user.email` to set without a prompt |
-| `DEV_CONTAINER_FORTRESS_FORGE_LOGIN` | | `github` or `gitlab`: also start a forge login on a terminal |
-
-Full example with all installer overrides:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
-  DEV_CONTAINER_FORTRESS_MODE="host" \
-  DEV_CONTAINER_FORTRESS_DIR="$HOME/projects/dev-container-fortress" \
-  DEV_CONTAINER_FORTRESS_REF="main" \
-  DEV_CONTAINER_FORTRESS_REPO="https://github.com/GrndZero101/dev-container-fortress.git" \
-  DEV_CONTAINER_FORTRESS_PYTHON_VERSION="3.14" \
-  sh
-```
-
-### Workspace mode
-
-`workspace` mode keeps the host thin and puts the daily-driver toolchain in a
-container. It runs the same `localhost` bootstrap with
-`ft host bootstrap localhost --mode workspace`, which stops after the native
-packages and Docker: no `shell-config`, login shell, Homebrew, or optional
-components. It then builds the `ubuntu-full` workspace image on the machine.
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
-  sh -s -- --mode workspace
-```
-
-When it finishes, open a new terminal so your user picks up the `docker`
-group, then run `ft workspace enter ubuntu-full`.
-
-The image is built locally by default, because corporate networks may block or
-distrust public registries. Add `--workspace-image published` to pull
-`ghcr.io/grndzero101/dev-container-fortress:ubuntu-full` instead, which is
-faster but amd64 only today. `ft workspace pull ubuntu-full` does the same
-later.
+After one `sudo` prompt it installs the native prerequisites, `uv`, and `ft`,
+then converges the machine: Docker, `shell-config` with zsh as the login shell,
+and the Homebrew toolchain. Re-running it is safe, including on a machine you
+already set up by hand.
 
 > [!TIP]
-> A thin host becomes a full workstation when you re-run the installer without
-> `--mode workspace`. Going the other way removes nothing.
+> The [Zero to Hero Quickstart](docs/quickstart.md) is the whole onramp: extras
+> such as Claude Code and the tmux profiles, Git identity, existing machines,
+> the `cli` and `workspace` install modes, every override, and troubleshooting.
 
 ### Manual clone fallback
 
@@ -217,23 +82,8 @@ zsh ./bootstrap.zsh
 ```
 
 Use the manual path when you want to inspect or edit the checkout before
-running the bootstrap.
-
-### First validation loop
-
-```sh
-uv run ft doctor
-uv run ft container build ubuntu
-uv run ft container up ubuntu
-uv run ft container validate ubuntu
-```
-
-For the current host-target path, continue with:
-
-```sh
-uv run ft host bootstrap localhost --check
-uv run ft host bootstrap localhost
-```
+running the bootstrap. It sets up `uv`, `ft`, and Ansible only; converge the
+machine afterwards with `ft host bootstrap localhost -K`.
 
 ## Development Install
 
@@ -308,7 +158,7 @@ ft container build ubuntu \
 | Workspace daily-driver container | Working | `ft workspace ...` verified locally and on a disposable Ubuntu EC2 host in `M5a`, including amd64 and arm64 images |
 | Host target model | Working foundation | `ft host ...` inventory, key, probe, and bootstrap contract exists |
 | Real host provisioning roles | Working | Ubuntu roles converge WSL2 `localhost` and Ubuntu EC2 hosts; Arch and Alpine base roles exist |
-| Full workstation bootstrap | Partial | Works on Ubuntu and WSL2 with several manual steps; the one-command onramp is `M5b` |
+| Full workstation bootstrap | Working | One command on Ubuntu and WSL2 Ubuntu, safe on existing machines; see the [quickstart](docs/quickstart.md) |
 
 ## :wrench: Operator Surface
 
@@ -332,8 +182,8 @@ ft container build ubuntu \
 | Arch host bootstrap | New, x86_64 only, pacman instead of Homebrew | [Ansible README](ansible/README.md) |
 | Ubuntu disposable SSH host loop | Supported foundation | [Workstation Usage](docs/workstation-usage.md) |
 | macOS workstation | Planned / partial | [Workstation Usage](docs/workstation-usage.md) |
-| Ubuntu workstation | Planned / partial | [Workstation Usage](docs/workstation-usage.md) |
-| WSL workstation | Ubuntu-first active path | [WSL Bootstrap Runbook](docs/wsl-bootstrap.md) |
+| Ubuntu workstation | Supported, one-liner | [Quickstart](docs/quickstart.md) |
+| WSL workstation | Supported, one-liner on WSL2 Ubuntu | [Quickstart](docs/quickstart.md) |
 | VS Code devcontainers | Supported | [Devcontainer Usage](docs/devcontainer-usage.md) |
 
 ## :compass: Documentation Map
@@ -341,10 +191,11 @@ ft container build ubuntu \
 | Document | Audience | Purpose |
 | --- | --- | --- |
 | [README.md](README.md) | Everyone | Project overview plus operator-versus-development entry points |
+| [docs/quickstart.md](docs/quickstart.md) | Operators | Zero to Hero: the one-command workstation onramp |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Contributors | Clone layout, local bootstrap, checks, and iteration loops |
 | [docs/container-usage.md](docs/container-usage.md) | Operators | Docker-based usage and validation |
-| [docs/workstation-usage.md](docs/workstation-usage.md) | Operators | Host-target and workstation flow status |
-| [docs/wsl-bootstrap.md](docs/wsl-bootstrap.md) | Operators | Step-by-step bootstrap path for Ubuntu under WSL2 |
+| [docs/workstation-usage.md](docs/workstation-usage.md) | Operators | Host targets, remote bootstrap over SSH, and role coverage |
+| [docs/wsl-bootstrap.md](docs/wsl-bootstrap.md) | Operators | WSL2-specific notes: systemd, Docker, interop, and Windows SSH |
 | [docs/target-validation.md](docs/target-validation.md) | Operators | Current three-target validation runbook across Ubuntu, Alpine, and EC2 |
 | [docs/ec2-development-loop.md](docs/ec2-development-loop.md) | Operators | Git-backed EC2 development-host loop |
 | [docs/secrets-management.md](docs/secrets-management.md) | Operators | First-pass GPG and `pass` secrets baseline for workspace profiles |
@@ -412,7 +263,8 @@ In progress:
 ## :calendar: Current Milestone
 
 The current implementation focus is
-[M4 First Real Host Roles](docs/milestones/M4-first-real-host-roles.md).
+[M5b Zero to Hero: Workstation Composability](docs/milestones/M5b-zero-to-hero-workstation-composability.md),
+followed by [M7b Cloud Test Fleet](docs/milestones/M7b-cloud-test-fleet.md).
 
 Use these planning docs together:
 

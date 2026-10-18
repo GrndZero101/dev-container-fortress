@@ -43,17 +43,17 @@ EC2 over SSH (`M5a`), but the onramp around them is manual and spread across
 ## Exit Criteria
 
 - [x] One documented command takes a fresh Ubuntu 26.04 LTS machine to a converged host workstation: `curl -fsSL …/install.sh | sh` (fresh WSL2 and fresh arm64 EC2, 2026-10-18)
-- [ ] Ubuntu 26.04 LTS is the default release for container images and EC2 hosts, and the newest release (26.10 today) is one setting away on each, so a new release can be tried with the full toolchain
-- [ ] The installer detects the platform, installs its own native prerequisites with one `sudo` step, and fails clearly on unsupported platforms such as macOS
-- [ ] The installer registers `localhost` in `hosts.toml` when it is missing and runs the host bootstrap without a separate operator step
+- [x] Ubuntu 26.04 LTS is the default release for container images and EC2 hosts, and the newest release (26.10 today) is one setting away on each, so a new release can be tried with the full toolchain (`M5b-10`: `UBUNTU_RELEASE`, the `ubuntu-full-rolling` profile, and `TF_VAR_ubuntu_release`)
+- [x] The installer detects the platform, installs its own native prerequisites with one `sudo` step, and fails clearly on unsupported platforms such as macOS (`M5b-1`, `M5b-2`; one `sudo-rs` prompt on every fresh run)
+- [x] The installer registers `localhost` in `hosts.toml` when it is missing and runs the host bootstrap without a separate operator step (`M5b-3`; `ft` falls back to the repo example manifest's `localhost`, so no `hosts.toml` is written or needed)
 - [x] `host` is the default mode; a `workspace` mode gives a thin host with Docker and `ft`, plus a ready daily-driver workspace (fresh WSL2 Ubuntu 26.04, 2026-10-18)
 - [x] The Linuxbrew role tracks the latest stable Homebrew tag, and a fresh host converges in one pass, with the idempotency pass reporting `changed=0` (arm64 EC2 on `7.0.9`, 2026-10-18)
-- [ ] Re-running the command on an already converged or hand-built host is safe and reports what it changed
+- [x] Re-running the command on an already converged or hand-built host is safe and reports what it changed (the operator's WSL2 host, 2026-10-18; a seeded hand-built host with end-of-run notices, 2026-10-19)
 - [x] A Git identity step works non-interactively from environment variables, prompts only on a TTY, and documents a manual fallback for corporate and GitLab identities (`ft identity`, 2026-10-18)
 - [x] Dev Fortress installs stock tmux with no config by default, and offers `minimal`, `full`, and `raidboss` profiles ported from the `dotfiles` repo, each selectable with one setting (the `tmux-*` options, 2026-10-18)
 - [x] Large extras are optional components, off by default and selectable by flag, environment variable, config file, or a checkbox picker; Claude Code (`claude-code`) is the first, installed through its native installer so it updates itself between bootstrap runs
-- [ ] The flow is verified on fresh WSL2 Ubuntu, fresh Ubuntu EC2 running the one-liner on the box, and one brownfield host
-- [ ] One "Zero to Hero" quickstart replaces the scattered onramp docs, and `README.md` points to it
+- [x] The flow is verified on fresh WSL2 Ubuntu, fresh Ubuntu EC2 running the one-liner on the box, and one brownfield host (fresh WSL2 and arm64 EC2, 2026-10-18; brownfield, 2026-10-19)
+- [x] One "Zero to Hero" quickstart replaces the scattered onramp docs, and `README.md` points to it (`docs/quickstart.md`, 2026-10-19)
 
 ## Non-Goals
 
@@ -238,9 +238,9 @@ otherwise). The two repos share a small contract:
 
 ### M5b-8 Consolidate the onramp docs
 
-- [ ] Problem: the onramp is spread across four documents
-- [ ] Scope: one "Zero to Hero" quickstart covering modes, overrides, identity, and tmux, linked from `README.md`
-- [ ] Acceptance: a new user needs only that page to reach a working workstation
+- [x] Problem: the onramp is spread across four documents
+- [x] Scope: one "Zero to Hero" quickstart covering modes, overrides, identity, and tmux, linked from `README.md`. `docs/quickstart.md`, 2026-10-19; it also covers existing machines, re-runs, testing a branch, WSL2, and troubleshooting. `README.md` keeps only the one-liner, `docs/wsl-bootstrap.md` became WSL-specific notes, and `docs/workstation-usage.md` points to it
+- [x] Acceptance: a new user needs only that page to reach a working workstation
 
 ### M5b-9 Install Claude Code on host targets
 
@@ -361,7 +361,7 @@ the 2026-10-19 commits are not pushed):
 
 Next, in suggested order:
 
-1. `M5b-8`: the consolidated quickstart, then open the PR
+1. open the `M5b` PR: `M5b-8` (the quickstart) is done
 2. optional: `workspace` mode on a fresh arm64 EC2 host (local build only; the
    published images are amd64), now a natural first `M7b` fleet check
 
@@ -411,7 +411,9 @@ Findings from the `M5a` rerun to fold into the issues above:
 - `ft host ssh-config` on WSL2 writes only the WSL config, but VS Code on
   Windows reads the Windows one. It should detect WSL and point to `--windows`,
   and fall back to the single `/mnt/c/Users/*` profile with a `.ssh` directory
-  when interop is off (relevant to `M5b-8`)
+  when interop is off (relevant to `M5b-8`). The quickstart and WSL notes
+  document `--install --windows` and the `--windows-ssh-dir` workaround; the
+  automatic WSL detection and `/mnt/c/Users/*` fallback are not built yet
 
 ### Brownfield hand-built host, 2026-10-19
 
