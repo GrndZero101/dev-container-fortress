@@ -4,6 +4,11 @@
   gather_facts: true
 
   vars:
+    # `host` converges the full workstation. `workspace` stops after the
+    # bootstrap floor and Docker, for a thin host that runs a daily-driver
+    # workspace container; `ft host bootstrap --mode workspace` sets it.
+    dev_container_fortress_host_mode_effective: >-
+      {{ dev_container_fortress_host_mode | default('host') }}
     dev_container_fortress_xdg_config_home_effective: >-
       {{ ansible_facts['env']['XDG_CONFIG_HOME'] | default(ansible_facts['env']['HOME'] ~ '/.config', true) }}
     dev_container_fortress_xdg_cache_home_effective: >-
@@ -306,21 +311,30 @@
     - role: dev_fortress_docker
       when:
         - dev_container_fortress_docker_manage_effective | bool
+    # Everything below is the workstation layer, which workspace mode skips.
     - role: dev_fortress_shell_config_bootstrap
+      when: dev_container_fortress_host_mode_effective == 'host'
     - role: dev_fortress_shell_config_zinit
+      when: dev_container_fortress_host_mode_effective == 'host'
     - role: dev_fortress_login_shell
+      when: dev_container_fortress_host_mode_effective == 'host'
     - role: dev_fortress_linuxbrew
       when:
+        - dev_container_fortress_host_mode_effective == 'host'
         - dev_container_fortress_homebrew_manage_effective | bool
         - ansible_facts['os_family'] == 'Debian'
         - ansible_facts['distribution'] == 'Ubuntu'
     - role: dev_fortress_neovim_kickstart
       when:
+        - dev_container_fortress_host_mode_effective == 'host'
         - dev_container_fortress_neovim_kickstart_manage_effective | bool
     - role: dev_fortress_tmux
       when:
+        - dev_container_fortress_host_mode_effective == 'host'
         - dev_container_fortress_tmux_profile_effective != 'none'
     - role: dev_fortress_claude_code
       when:
+        - dev_container_fortress_host_mode_effective == 'host'
         - dev_container_fortress_claude_code_manage_effective | bool
     - role: dev_fortress_shell_config_ready
+      when: dev_container_fortress_host_mode_effective == 'host'

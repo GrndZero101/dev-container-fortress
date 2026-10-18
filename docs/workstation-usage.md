@@ -22,6 +22,9 @@ Works today:
 - fortress profile-local `zinit` installation during host provisioning
 - Ubuntu Linuxbrew uplift after the native bootstrap substrate is in place
 - Ubuntu Docker CE bootstrap for `workstation` and `cloud` targets
+- a thin-host `workspace` mode (`install.sh --mode workspace`, or
+  `ft host bootstrap localhost --mode workspace`) that stops after the native
+  packages and Docker and prepares the `ubuntu-full` workspace image
 - first-pass workspace secrets baseline through GPG plus `pass`
 
 Current host-tooling policy:

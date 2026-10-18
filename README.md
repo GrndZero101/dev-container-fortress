@@ -83,7 +83,7 @@ whole install must run in one terminal.
 ### Optional components
 
 Large extras, starting with Claude Code (`claude-code`, about 270 MB), are not
-installed unless you select them. Choose them in one of three ways:
+installed unless you select them, and only `host` mode installs them. Choose them in one of three ways:
 
 | Way | Example | Lasts |
 | --- | --- | --- |
@@ -134,7 +134,7 @@ login.
 | --- | --- |
 | `host` (default) | Prerequisites, `ft`, and the full `localhost` host bootstrap |
 | `cli` | Prerequisites (Ubuntu only), the checkout, `uv`, `ft`, and Ansible; no host changes beyond packages |
-| `workspace` | Thin host plus a daily-driver workspace; planned in `M5b` |
+| `workspace` | Thin host: prerequisites, `ft`, and Docker, plus the `ubuntu-full` workspace image, built locally |
 
 Pass flags through the pipe with `sh -s --`:
 
@@ -158,6 +158,7 @@ On host bootstrap paths, Dev Fortress will also manage the installed
 | `DEV_CONTAINER_FORTRESS_PYTHON_VERSION` | | Override the uv-managed Python version used by `bootstrap.zsh` |
 | `DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL` | | Host mode makes zsh the login shell; set `0` to keep the current one |
 | `DEV_CONTAINER_FORTRESS_OPTIONS` | `--options` | Optional components for this run, such as `claude-code,tmux-full`, or `none` |
+| `DEV_CONTAINER_FORTRESS_WORKSPACE_IMAGE` | `--workspace-image` | Workspace mode: `local` (default) builds the image, `published` pulls it |
 | `DEV_CONTAINER_FORTRESS_INTERACTIVE` | `--interactive` | Set `1` to pick optional components in a checkbox list |
 | `DEV_CONTAINER_FORTRESS_GIT_NAME` | | Git `user.name` to set without a prompt |
 | `DEV_CONTAINER_FORTRESS_GIT_EMAIL` | | Git `user.email` to set without a prompt |
@@ -174,6 +175,32 @@ curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/
   DEV_CONTAINER_FORTRESS_PYTHON_VERSION="3.14" \
   sh
 ```
+
+### Workspace mode
+
+`workspace` mode keeps the host thin and puts the daily-driver toolchain in a
+container. It runs the same `localhost` bootstrap with
+`ft host bootstrap localhost --mode workspace`, which stops after the native
+packages and Docker: no `shell-config`, login shell, Homebrew, or optional
+components. It then builds the `ubuntu-full` workspace image on the machine.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
+  sh -s -- --mode workspace
+```
+
+When it finishes, open a new terminal so your user picks up the `docker`
+group, then run `ft workspace enter ubuntu-full`.
+
+The image is built locally by default, because corporate networks may block or
+distrust public registries. Add `--workspace-image published` to pull
+`ghcr.io/grndzero101/dev-container-fortress:ubuntu-full` instead, which is
+faster but amd64 only today. `ft workspace pull ubuntu-full` does the same
+later.
+
+> [!TIP]
+> A thin host becomes a full workstation when you re-run the installer without
+> `--mode workspace`. Going the other way removes nothing.
 
 ### Manual clone fallback
 

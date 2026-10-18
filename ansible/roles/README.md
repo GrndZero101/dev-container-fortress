@@ -11,6 +11,16 @@ Current state:
   readiness reporting
 - more host setup should continue to land incrementally as milestone-backed slices
 
+Host modes:
+
+`dev_container_fortress_host_mode` picks how much of the playbook runs, and
+`ft host bootstrap --mode` renders it. `host`, the default, runs every role.
+`workspace` stops after the bootstrap floor (target contract, XDG layout,
+native packages, bootstrap prerequisites) and Docker, for a thin host that runs
+a daily-driver workspace container. It skips `shell-config`, zinit, the login
+shell, Linuxbrew, Neovim kickstart, the optional tmux and Claude Code
+components, and the readiness report. `install.sh --mode workspace` uses it.
+
 Role guidance:
 
 - keep roles small and composable

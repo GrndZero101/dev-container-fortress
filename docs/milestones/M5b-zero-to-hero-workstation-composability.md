@@ -46,7 +46,7 @@ EC2 over SSH (`M5a`), but the onramp around them is manual and spread across
 - [ ] Ubuntu 26.04 LTS is the default release for container images and EC2 hosts, and the newest release (26.10 today) is one setting away on each, so a new release can be tried with the full toolchain
 - [ ] The installer detects the platform, installs its own native prerequisites with one `sudo` step, and fails clearly on unsupported platforms such as macOS
 - [ ] The installer registers `localhost` in `hosts.toml` when it is missing and runs the host bootstrap without a separate operator step
-- [ ] `host` is the default mode; a `workspace` mode gives a thin host with Docker and `ft`, plus a ready daily-driver workspace
+- [x] `host` is the default mode; a `workspace` mode gives a thin host with Docker and `ft`, plus a ready daily-driver workspace (fresh WSL2 Ubuntu 26.04, 2026-10-18)
 - [x] The Linuxbrew role tracks the latest stable Homebrew tag, and a fresh host converges in one pass, with the idempotency pass reporting `changed=0` (arm64 EC2 on `7.0.9`, 2026-10-18)
 - [ ] Re-running the command on an already converged or hand-built host is safe and reports what it changed
 - [x] A Git identity step works non-interactively from environment variables, prompts only on a TTY, and documents a manual fallback for corporate and GitLab identities (`ft identity`, 2026-10-18)
@@ -213,9 +213,9 @@ otherwise). The two repos share a small contract:
 
 ### M5b-4 Add the workspace mode
 
-- [ ] Problem: there is no thin-host path from the one-liner
-- [ ] Scope: `DEV_CONTAINER_FORTRESS_MODE=workspace` installs the bootstrap floor and Docker, then builds the daily-driver workspace locally, with an opt-in to pull the published image
-- [ ] Acceptance: `ft workspace enter ubuntu-full` works straight after the installer finishes
+- [x] Problem: there is no thin-host path from the one-liner
+- [x] Scope: `DEV_CONTAINER_FORTRESS_MODE=workspace` installs the bootstrap floor and Docker, then builds the daily-driver workspace locally, with an opt-in to pull the published image. `ft host bootstrap --mode workspace` renders `dev_container_fortress_host_mode`, which skips the workstation roles and the optional components; the installer then runs `ft workspace build ubuntu-full`, or `ft workspace pull ubuntu-full` with `--workspace-image published`, through a root `su` login for the user while the new `docker` group is not yet active in the installer's process
+- [x] Acceptance: `ft workspace enter ubuntu-full` works straight after the installer finishes (fresh WSL2 Ubuntu 26.04, 2026-10-18: the installer exited 0, and a new login entered the workspace as `vscode` with `ft`, `gh`, and the AWS CLI working; `ft workspace pull ubuntu-full` also tagged the published image)
 
 ### M5b-5 Pin stable Homebrew and converge in one pass
 
@@ -266,7 +266,7 @@ otherwise). The two repos share a small contract:
 - [x] Fresh Ubuntu EC2 instance, the one-liner run on the box itself (the `localhost` path, which `M5a` did not exercise; `m8g.large` arm64, 2026-10-18)
 - [ ] Ubuntu desktop or server, if one is available
 - [ ] Brownfield: re-run on an already converged host (operator's `dev-fortress` WSL2 workstation, 2026-10-18: `changed=12`, then `changed=0`), then on a hand-built host with existing dotfiles
-- [ ] `workspace` mode on a fresh host
+- [x] `workspace` mode on a fresh host (fresh WSL2 Ubuntu 26.04 store image, 2026-10-18; a fresh EC2 run is still open)
 - [ ] A fresh-host one-liner with `--options tmux-full`, then `csm tmux-profile raidboss` and a re-run that keeps it
 - [ ] A stock `ubuntu:26.04` container as a fast CI check of the installer prerequisites
 
@@ -302,6 +302,20 @@ Settled when starting the milestone:
 - `workspace` mode builds the image locally by default and pulls the published
   image only on request
 
+Recorded while building `M5b-4` (2026-10-18):
+
+- `workspace` mode is the same playbook with one `dev_container_fortress_host_mode`
+  variable rather than a second playbook, so a thin host becomes a full one by
+  re-running in `host` mode
+- the optional components are skipped in `workspace` mode; they are
+  workstation extras, and Claude Code in containers belongs to `M5c`
+- workspace mode prepares `ubuntu-full` only; other profiles stay one
+  `ft workspace build` away
+- `ft workspace pull` uses a per-profile `published_image` from
+  `profiles.toml`, pulls with an explicit `--platform` so a missing
+  architecture fails at pull time (CI publishes amd64 only), and tags the
+  result as the local workspace image so `ft workspace enter` skips the build
+
 Recorded while building `M5b-7` (2026-10-18):
 
 - the tmux profiles are pick-one bootstrap options instead of a separate
@@ -332,17 +346,20 @@ yet):
 - also done: `M5b-7` (tmux profiles as the pick-one `tmux-*` options, plus
   `csm tmux-profile`), verified with an isolated `HOME` on the WSL2
   workstation. The `shell-config` half is merged to its `main` (PR #1)
+- also done: `M5b-4` (`workspace` mode, local build by default, opt-in
+  `--workspace-image published`), accepted on a fresh WSL2 Ubuntu 26.04 distro
 - decided: stock tmux by default with `csm` switching, local workspace builds
   by default, and Homebrew in containers in `M5c`
 
 Next, in suggested order:
 
-1. `M5b-4`: `workspace` mode, with a local build by default
-2. pin `ansible_python_interpreter: /usr/bin/python3` for local targets, which
+1. pin `ansible_python_interpreter: /usr/bin/python3` for local targets, which
    the WSL2 run warned about
-3. verification still open: a hand-built brownfield host with existing
-   dotfiles, `workspace` mode, and a fresh-host `--options tmux-full` run
-4. `M5b-8`: the consolidated quickstart, then open the PR
+2. verification still open: a hand-built brownfield host with existing
+   dotfiles, a fresh-host `--options tmux-full` run, and optionally
+   `workspace` mode on a fresh arm64 EC2 host (local build only; the published
+   images are amd64)
+3. `M5b-8`: the consolidated quickstart, then open the PR
 
 Working notes for the next session:
 
@@ -379,6 +396,23 @@ Findings from the `M5a` rerun to fold into the issues above:
   Windows reads the Windows one. It should detect WSL and point to `--windows`,
   and fall back to the single `/mnt/c/Users/*` profile with a `.ssh` directory
   when interop is off (relevant to `M5b-8`)
+
+### `M5b-4` workspace mode on fresh WSL2, 2026-10-18
+
+Run on a throwaway `m5b-test` distro (Ubuntu 26.04.1 LTS store image,
+password-`sudo` user) with the branch shared as a bundle:
+
+| Run | Result |
+| --- | --- |
+| first one-liner, `--mode workspace` | ❌ converge `changed=8`, then `sg: not found`: Ubuntu 26.04's util-linux `login` ships no `sg` or `newgrp` |
+| re-run after switching to root `su` | ✅ converge `changed=0`, image built through `su`, exit 0 |
+| new login: `ft workspace enter ubuntu-full` | ✅ `vscode@dev-fortress-workspace-ubuntu-full`, `ft`, `gh`, `aws` |
+| re-run with the user removed from `docker` | ✅ converge `changed=1`, build through `su`, summary asks for a new terminal |
+| `ft workspace pull ubuntu-full` | ✅ local tag points at the published image |
+
+The installer cannot use the new `docker` group in its own process, so it runs
+the build as `su <user>` from root, through the `sudo` session it already
+holds; a fresh `su` login picks up the group.
 
 ### `M5b-1` privilege spike, 2026-10-18
 

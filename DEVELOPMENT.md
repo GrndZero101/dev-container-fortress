@@ -182,7 +182,8 @@ But that is the weaker development path when you are also editing
 
 Pass `--mode cli` (`curl … | sh -s -- --mode cli`) to stop after the `ft`
 install; the default `host` mode also converges the machine with
-`ft host bootstrap localhost`.
+`ft host bootstrap localhost`. `--mode workspace` converges only the bootstrap
+floor and Docker, then builds the `ubuntu-full` workspace image.
 
 The Dev Fortress bootstrap will:
 

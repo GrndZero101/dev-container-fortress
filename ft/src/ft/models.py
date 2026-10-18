@@ -339,6 +339,9 @@ class WorkspaceProfileDefinition(BaseModel):
     persisted_mounts: list[str] = Field(default_factory=list)
     tool_layers: list[str] = Field(default_factory=list)
     os_release: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9.]*$")
+    # The CI-published image built with the same layers, which `ft workspace
+    # pull` can use instead of a local build; None when CI publishes none.
+    published_image: str | None = None
 
     @model_validator(mode="after")
     def validate_lists(self) -> WorkspaceProfileDefinition:

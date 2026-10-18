@@ -2855,6 +2855,74 @@ def test_workspace_build_uses_resolved_profile(monkeypatch: object) -> None:
     assert calls == [("ubuntu-base", "local", True)]
 
 
+def test_workspace_pull_tags_published_image_for_host_architecture(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pull fetches the published image for this architecture and tags it locally."""
+    streamed: list[list[str]] = []
+    captured: list[list[str]] = []
+
+    def fake_stream(command: list[str]) -> subprocess.CompletedProcess[str]:
+        streamed.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    def fake_run(command: list[str]) -> subprocess.CompletedProcess[str]:
+        captured.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("ft.cli._run_streaming_command", fake_stream)
+    monkeypatch.setattr("ft.cli._run_command", fake_run)
+
+    result = runner.invoke(app, ["workspace", "pull", "ubuntu-full"])
+
+    published = "ghcr.io/grndzero101/dev-container-fortress:ubuntu-full"
+    assert result.exit_code == 0
+    assert streamed == [["docker", "pull", "--platform", "linux/amd64", published]]
+    assert captured == [
+        [
+            "docker",
+            "tag",
+            published,
+            "dev-container-fortress:workspace-ubuntu-full",
+        ]
+    ]
+
+
+def test_workspace_pull_fails_without_published_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A profile CI does not publish points to a local build instead."""
+    monkeypatch.setattr(
+        "ft.cli._run_streaming_command",
+        lambda command: pytest.fail("docker should not run"),
+    )
+
+    result = runner.invoke(app, ["workspace", "pull", "ubuntu-secrets"])
+
+    assert result.exit_code == 1
+    # Rich wraps long lines, so compare with the whitespace collapsed.
+    assert "ft workspace build ubuntu-secrets" in " ".join(result.output.split())
+
+
+def test_workspace_pull_hints_local_build_when_pull_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed pull, such as a missing architecture, suggests the local build."""
+    monkeypatch.setattr(
+        "ft.cli._run_streaming_command",
+        lambda command: subprocess.CompletedProcess(command, 1, stdout="", stderr=""),
+    )
+    monkeypatch.setattr(
+        "ft.cli._run_command", lambda command: pytest.fail("tag should not run")
+    )
+
+    result = runner.invoke(app, ["workspace", "pull", "ubuntu-full"])
+
+    assert result.exit_code == 1
+    # Rich wraps long lines, so compare with the whitespace collapsed.
+    assert "ft workspace build ubuntu-full" in " ".join(result.output.split())
+
+
 def test_build_workspace_profile_forwards_image_build_layer_args(
     monkeypatch: object,
 ) -> None:
@@ -4392,6 +4460,69 @@ def test_host_bootstrap_passes_ask_become_pass_to_ansible(
     assert result.exit_code == 0
     assert calls
     assert "-K" in calls[0][0]
+
+
+@pytest.mark.parametrize(
+    ("args", "mode", "claude_code"),
+    [
+        (["--options", "claude-code"], "host", "true"),
+        (["--options", "claude-code", "--mode", "workspace"], "workspace", "false"),
+    ],
+)
+def test_host_bootstrap_renders_mode_and_skips_options_for_workspace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    args: list[str],
+    mode: str,
+    claude_code: str,
+) -> None:
+    """Workspace mode reaches Ansible and turns the optional components off."""
+    config_path = _write_host_config(tmp_path)
+    inventories: list[str] = []
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.delenv("DEV_CONTAINER_FORTRESS_OPTIONS", raising=False)
+
+    def fake_stream(
+        command: list[str], *, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        inventories.append(Path(command[2]).read_text(encoding="utf-8"))
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("ft.cli._run_streaming_command", fake_stream)
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: "/usr/bin/ansible-playbook")
+
+    result = runner.invoke(
+        app,
+        ["host", "bootstrap", "localhost", "--config", str(config_path), *args],
+    )
+
+    assert result.exit_code == 0
+    assert f'dev_container_fortress_host_mode: "{mode}"' in inventories[0]
+    assert f"dev_container_fortress_claude_code_manage: {claude_code}" in inventories[0]
+    assert ("skipping claude-code in workspace mode" in result.output) == (
+        mode == "workspace"
+    )
+
+
+def test_host_bootstrap_rejects_unknown_mode(tmp_path: Path) -> None:
+    """An unknown mode fails before Ansible runs."""
+    config_path = _write_host_config(tmp_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "host",
+            "bootstrap",
+            "localhost",
+            "--config",
+            str(config_path),
+            "--mode",
+            "thin",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "unknown mode" in result.output
 
 
 def test_host_bootstrap_fails_when_ssh_key_is_missing(

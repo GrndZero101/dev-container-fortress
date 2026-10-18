@@ -82,6 +82,7 @@ Recommended new command group:
 Recommended first-pass commands:
 
 - `ft workspace build <profile>`
+- `ft workspace pull <profile>`, which tags the CI-published image as the local workspace image for profiles that set `published_image`
 - `ft workspace up <profile>`
 - `ft workspace enter <profile>`
 - `ft workspace exec <profile> -- <command...>`

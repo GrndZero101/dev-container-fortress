@@ -56,6 +56,13 @@ the XDG `options.toml`, or the `ft options pick` checkbox list) and renders one
 boolean inventory variable per option; each role only reads its variable. The
 default selection is empty.
 
+A host converges in one of two modes, which `ft host bootstrap --mode` renders
+as one inventory variable. `host`, the default, is the full workstation.
+`workspace` stops at the bootstrap floor plus Docker and puts the toolchain in
+a daily-driver workspace container instead, so it skips `shell-config`,
+Homebrew, and the optional components. Both modes run the same playbook, so a
+thin host becomes a full one with a re-run in `host` mode.
+
 > [!NOTE]
 > Arch Linux hosts are a deliberate exception. The official Arch repositories
 > already ship the steady-state toolchain, so Arch hosts use pacman and skip

@@ -177,6 +177,9 @@ console = Console()
 # Identity output echoes user-supplied values, so it skips Rich's auto-highlighting.
 identity_console = Console(highlight=False)
 SUPPORTED_SHELL_CONFIG_SOURCES = ("github", "local")
+# `host` converges the full workstation; `workspace` stops at the bootstrap
+# floor plus Docker, for a thin host that runs a daily-driver workspace.
+HOST_BOOTSTRAP_MODES = ("host", "workspace")
 DEFAULT_DEPLOY_WORKSPACE_PARENT = "~/workspaces/tboss"
 DEFAULT_DEV_CONTAINER_FORTRESS_REPO_URL = (
     "https://github.com/GrndZero101/dev-container-fortress.git"
@@ -3314,6 +3317,7 @@ def _bootstrap_host_targets(
     check: bool,
     ask_become_pass: bool,
     options: OptionSelection | None = None,
+    mode: str = "host",
 ) -> int:
     """Run the host bootstrap playbook for one or more configured targets.
 
@@ -3324,6 +3328,8 @@ def _bootstrap_host_targets(
         ask_become_pass: Whether to pass ``-K`` to ``ansible-playbook``.
         options: Optional components to enable; resolved from the environment
             and saved config when omitted.
+        mode: ``host`` for the full workstation, or ``workspace`` for the
+            bootstrap floor plus Docker.
 
     Returns:
         Process exit code from the underlying bootstrap action.
@@ -3336,6 +3342,7 @@ def _bootstrap_host_targets(
             ask_become_pass=ask_become_pass,
             capture_recap=False,
             options=options,
+            mode=mode,
         )["returncode"]
     )
 
@@ -3348,6 +3355,7 @@ def _bootstrap_host_targets_with_result(
     ask_become_pass: bool,
     capture_recap: bool,
     options: OptionSelection | None = None,
+    mode: str = "host",
 ) -> dict[str, object]:
     """Run the host bootstrap playbook and return execution metadata.
 
@@ -3359,6 +3367,8 @@ def _bootstrap_host_targets_with_result(
         capture_recap: Whether to parse ``PLAY RECAP`` counters from the Ansible log.
         options: Optional components to enable; resolved from the environment
             and saved config when omitted.
+        mode: ``host`` for the full workstation, or ``workspace`` for the
+            bootstrap floor plus Docker.
 
     Returns:
         Execution metadata containing the bootstrap exit code and any parsed recap.
@@ -3392,11 +3402,24 @@ def _bootstrap_host_targets_with_result(
             return {"returncode": 1, "target_recaps": {}}
 
     selection = options if options is not None else _resolve_bootstrap_options(None)
-    console.print(
-        f"options: {', '.join(selection.names) or 'none'} ({selection.source})",
-        highlight=False,
+    option_names = selection.names
+    if mode == "workspace" and option_names:
+        # The optional components are workstation extras, which a thin host
+        # does not install.
+        console.print(
+            f"options: skipping {', '.join(option_names)} in workspace mode",
+            highlight=False,
+        )
+        option_names = ()
+    else:
+        console.print(
+            f"options: {', '.join(option_names) or 'none'} ({selection.source})",
+            highlight=False,
+        )
+    inventory = _build_host_inventory(
+        targets,
+        {"dev_container_fortress_host_mode": mode, **option_ansible_vars(option_names)},
     )
-    inventory = _build_host_inventory(targets, option_ansible_vars(selection.names))
     with tempfile.NamedTemporaryFile(
         mode="w", encoding="utf-8", suffix=".yml", delete=False
     ) as handle:
@@ -3906,13 +3929,14 @@ def _render_host_target_details(target: HostTargetDefinition) -> None:
 
 def _build_host_inventory(
     targets: list[HostTargetDefinition],
-    option_vars: dict[str, bool | str] | None = None,
+    group_vars: dict[str, bool | str] | None = None,
 ) -> dict[str, object]:
     """Return an Ansible inventory payload for one or more host targets.
 
     Args:
         targets: Host targets to render.
-        option_vars: Optional-component variables applied to every target.
+        group_vars: Variables applied to every target, such as the host mode
+            and the optional-component selection.
 
     Returns:
         The inventory as nested dictionaries.
@@ -3953,8 +3977,8 @@ def _build_host_inventory(
         hosts[target.name] = host_record
 
     group: dict[str, object] = {"hosts": hosts}
-    if option_vars:
-        group["vars"] = option_vars
+    if group_vars:
+        group["vars"] = group_vars
     return {"all": {"children": {"dev_fortress": group}}}
 
 
@@ -4497,6 +4521,58 @@ def _build_workspace_profile(
         shell_config_stage_from=shell_config_stage_from,
         no_cache=no_cache,
     )
+
+
+def _pull_workspace_profile(
+    profile_name: str, profile: WorkspaceProfileDefinition
+) -> bool:
+    """Pull a profile's published image and tag it as the local workspace image.
+
+    Args:
+        profile_name: Workspace profile name.
+        profile: Workspace profile definition.
+
+    Returns:
+        True when the local workspace image tag now points at the published
+        image, otherwise False after printing an actionable error.
+    """
+    if profile.published_image is None:
+        console.print(
+            f"[red]workspace profile {profile_name} has no published image;[/red] "
+            f"build it with `ft workspace build {profile_name}`"
+        )
+        return False
+
+    # An explicit platform makes a missing architecture fail at pull time
+    # instead of when the workspace starts under emulation.
+    pull_result = _run_streaming_command(
+        [
+            "docker",
+            "pull",
+            "--platform",
+            f"linux/{detect_architecture()}",
+            profile.published_image,
+        ]
+    )
+    if pull_result.returncode != 0:
+        console.print(
+            f"[red]failed to pull {profile.published_image}.[/red] CI publishes "
+            f"amd64 images only today; build locally with `ft workspace build "
+            f"{profile_name}`"
+        )
+        return False
+
+    image_tag = _workspace_image_tag(profile_name)
+    tag_result = _run_command(["docker", "tag", profile.published_image, image_tag])
+    if tag_result.returncode != 0:
+        console.print(
+            (
+                tag_result.stderr or tag_result.stdout or f"failed to tag {image_tag}"
+            ).strip()
+        )
+        return False
+    console.print(f"tagged {profile.published_image} as {image_tag}")
+    return True
 
 
 def _container_status_value(target: str) -> str:
@@ -5798,6 +5874,24 @@ def workspace_build(
         shell_config_stage_from=shell_config_stage_from,
         no_cache=no_cache,
     ):
+        raise typer.Exit(code=1)
+
+
+@workspace_app.command("pull")
+def workspace_pull(
+    profile: Annotated[
+        str,
+        typer.Argument(
+            help=(
+                "One named workspace profile with a published image, such as "
+                "ubuntu-full."
+            )
+        ),
+    ],
+) -> None:
+    """Use the published image for one workspace profile instead of a local build."""
+    resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
+    if not _pull_workspace_profile(resolved_profile_name, resolved_profile):
         raise typer.Exit(code=1)
 
 
@@ -7885,8 +7979,24 @@ def host_bootstrap(
             ),
         ),
     ] = None,
+    mode: Annotated[
+        str,
+        typer.Option(
+            "--mode",
+            help=(
+                "host converges the full workstation; workspace stops at the "
+                "bootstrap floor plus Docker, for a thin host that runs a "
+                "daily-driver workspace, and skips the optional components."
+            ),
+        ),
+    ] = "host",
 ) -> None:
     """Run the thin inventory-driven host bootstrap playbook for one or more targets."""
+    if mode not in HOST_BOOTSTRAP_MODES:
+        raise typer.BadParameter(
+            f"unknown mode: {mode!r} (expected {' or '.join(HOST_BOOTSTRAP_MODES)})",
+            param_hint="--mode",
+        )
     _, manifest = _load_host_target_manifest(config)
     resolved_targets = (
         manifest.targets if target is None else _resolve_host_targets(target, manifest)
@@ -7898,6 +8008,7 @@ def host_bootstrap(
             check=check,
             ask_become_pass=ask_become_pass,
             options=_resolve_bootstrap_options(options),
+            mode=mode,
         )
     )
 

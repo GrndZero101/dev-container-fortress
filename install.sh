@@ -15,7 +15,11 @@ INSTALL_MODE="${DEV_CONTAINER_FORTRESS_MODE:-host}"
 INSTALL_DIR_OVERRIDE="${DEV_CONTAINER_FORTRESS_DIR:-}"
 INSTALL_OPTIONS="${DEV_CONTAINER_FORTRESS_OPTIONS:-}"
 INSTALL_INTERACTIVE="${DEV_CONTAINER_FORTRESS_INTERACTIVE:-0}"
+WORKSPACE_IMAGE="${DEV_CONTAINER_FORTRESS_WORKSPACE_IMAGE:-local}"
 UV_WAS_INSTALLED=0
+
+# The daily-driver workspace profile that workspace mode prepares.
+WORKSPACE_PROFILE="ubuntu-full"
 
 # Ubuntu releases the one-liner supports: the current LTS, the newest interim
 # release, and the previous LTS. Other Ubuntu releases continue with a warning.
@@ -29,6 +33,7 @@ PLATFORM_IS_WSL=0
 PLATFORM_LABEL=""
 SUDO_KEEPALIVE_PID=""
 USE_SUDO=0
+DOCKER_GROUP_PENDING=0
 
 # Purpose: Print a consistently formatted installer log line.
 # Arguments:
@@ -66,6 +71,7 @@ die() {
 print_usage() {
   cat <<'USAGE'
 Usage: install.sh [--mode host|cli|workspace] [--options LIST] [--interactive]
+                  [--workspace-image local|published]
                   [--dir PATH] [--ref REF] [--repo URL]
 
 Pass flags through curl with: curl -fsSL .../install.sh | sh -s -- --mode cli
@@ -74,20 +80,27 @@ Modes:
   host       Default. Install prerequisites, ft, and converge this machine
              with the localhost host bootstrap (Ubuntu and WSL2 Ubuntu).
   cli        Install only the checkout, uv, ft, and Ansible.
-  workspace  Thin host plus a daily-driver workspace (not available yet).
+  workspace  Thin host: prerequisites, Docker, and ft, plus the ubuntu-full
+             daily-driver workspace image. Enter it with
+             `ft workspace enter ubuntu-full`.
 
-Optional components are installed only when selected: claude-code, and at
-most one tmux profile (tmux-minimal, tmux-full, or tmux-raidboss; without one,
-tmux keeps its stock settings):
+Workspace image (workspace mode only):
+  --workspace-image local      Default. Build the image on this machine.
+  --workspace-image published  Pull the CI-published image (amd64 only) instead.
+
+Optional components are installed only when selected, and only in host mode:
+claude-code, and at most one tmux profile (tmux-minimal, tmux-full, or
+tmux-raidboss; without one, tmux keeps its stock settings):
   --options LIST   Comma-separated options for this run, or none.
   --interactive    Pick options in a checkbox list and save the choice
                    (needs a terminal; run `ft options` later to review).
 
 Every flag has an environment variable: DEV_CONTAINER_FORTRESS_MODE,
 DEV_CONTAINER_FORTRESS_OPTIONS, DEV_CONTAINER_FORTRESS_INTERACTIVE=1,
-DEV_CONTAINER_FORTRESS_DIR, DEV_CONTAINER_FORTRESS_REF, and
-DEV_CONTAINER_FORTRESS_REPO. Host mode makes zsh the login shell; set
-DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL=0 to keep the current shell.
+DEV_CONTAINER_FORTRESS_WORKSPACE_IMAGE, DEV_CONTAINER_FORTRESS_DIR,
+DEV_CONTAINER_FORTRESS_REF, and DEV_CONTAINER_FORTRESS_REPO. Host mode makes
+zsh the login shell; set DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL=0 to keep
+the current shell.
 
 Git identity: DEV_CONTAINER_FORTRESS_GIT_NAME and DEV_CONTAINER_FORTRESS_GIT_EMAIL
 set it without a prompt; otherwise a terminal is asked for a missing identity.
@@ -103,11 +116,12 @@ USAGE
 parse_args() {
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --mode | --options | --dir | --ref | --repo)
+      --mode | --options | --workspace-image | --dir | --ref | --repo)
         [ "$#" -ge 2 ] || die "$1 needs a value"
         case "$1" in
           --mode) INSTALL_MODE=$2 ;;
           --options) INSTALL_OPTIONS=$2 ;;
+          --workspace-image) WORKSPACE_IMAGE=$2 ;;
           --dir) INSTALL_DIR_OVERRIDE=$2 ;;
           --ref) REPO_REF=$2 ;;
           --repo) REPO_URL=$2 ;;
@@ -130,9 +144,12 @@ parse_args() {
   done
 
   case "$INSTALL_MODE" in
-    host | cli) ;;
-    workspace) die "workspace mode is not available yet; use --mode host or --mode cli" ;;
+    host | cli | workspace) ;;
     *) die "unknown mode: $INSTALL_MODE (expected host, cli, or workspace)" ;;
+  esac
+  case "$WORKSPACE_IMAGE" in
+    local | published) ;;
+    *) die "unknown workspace image source: $WORKSPACE_IMAGE (expected local or published)" ;;
   esac
 }
 
@@ -184,7 +201,8 @@ detect_platform() {
   esac
 }
 
-# Purpose: Fail before any changes when host mode cannot converge this machine.
+# Purpose: Fail before any changes when host or workspace mode cannot converge
+#   this machine.
 # Arguments:
 #   None.
 # Returns:
@@ -197,9 +215,9 @@ require_systemd() {
     return
   fi
   if [ "$PLATFORM_IS_WSL" = "1" ]; then
-    die "host mode needs systemd, which is off in this WSL2 distro. Add '[boot]' and 'systemd=true' to /etc/wsl.conf, run 'wsl --shutdown' from Windows, then rerun the installer"
+    die "$INSTALL_MODE mode needs systemd, which is off in this WSL2 distro. Add '[boot]' and 'systemd=true' to /etc/wsl.conf, run 'wsl --shutdown' from Windows, then rerun the installer"
   fi
-  die "host mode needs systemd as the init system; inside a container, use --mode cli"
+  die "$INSTALL_MODE mode needs systemd as the init system; inside a container, use --mode cli"
 }
 
 # Purpose: Exit early when a required command is unavailable.
@@ -451,19 +469,79 @@ run_repo_bootstrap() {
 # Returns:
 #   None. Exits with the bootstrap's status on failure.
 # Side effects:
-#   Runs the Ansible host roles against localhost. localhost comes from the
-#   example manifest, so no hosts.toml is needed. Ansible's sudo become passes
-#   -n and reuses the timestamp from acquire_privilege.
+#   Runs the Ansible host roles against localhost, in host or workspace mode.
+#   localhost comes from the example manifest, so no hosts.toml is needed.
+#   Ansible's sudo become passes -n and reuses the timestamp from
+#   acquire_privilege.
 run_host_bootstrap() {
   destination=$1
-  log_step "Converging this machine with the localhost host bootstrap"
-  # Running the one-liner asks for a Dev Fortress workstation, so make zsh the
-  # login shell unless the operator opted out.
+  log_step "Converging this machine with the localhost host bootstrap ($INSTALL_MODE mode)"
+  # Running the one-liner in host mode asks for a Dev Fortress workstation, so
+  # make zsh the login shell unless the operator opted out. Workspace mode
+  # skips the login-shell role.
   DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL="${DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL:-1}"
   export DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL
-  if ! (cd "$destination" && uv run ft host bootstrap localhost); then
+  if ! (cd "$destination" && uv run ft host bootstrap localhost --mode "$INSTALL_MODE"); then
     printf '%s\n' "[install] the host bootstrap failed; rerunning the installer is safe, or run:" >&2
-    printf '%s\n' "  cd $destination && uv run ft host bootstrap localhost -K" >&2
+    printf '%s\n' "  cd $destination && uv run ft host bootstrap localhost --mode $INSTALL_MODE -K" >&2
+    exit 1
+  fi
+}
+
+# Purpose: Quote one value for safe reuse inside a shell command string.
+# Arguments:
+#   $1: Value to quote.
+# Returns:
+#   Prints the value in single quotes, with embedded single quotes escaped.
+shell_quote() {
+  printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
+
+# Purpose: Run one command string with access to the Docker daemon.
+# Arguments:
+#   $1: Command string, run by a shell in the current directory.
+# Returns:
+#   The command's exit status.
+# Side effects:
+#   The host bootstrap has just added this user to the docker group, which this
+#   process does not hold yet. When the daemon socket is not usable directly,
+#   root runs su for this user, which starts a fresh login with the new group
+#   and needs no password. sg would avoid root, but Ubuntu 26.04 no longer
+#   ships it. sudo resets PATH, so the command restores ours. Sets
+#   DOCKER_GROUP_PENDING so the summary can ask for a new terminal.
+run_with_docker_access() {
+  if docker info >/dev/null 2>&1; then
+    sh -c "$1"
+    return
+  fi
+  DOCKER_GROUP_PENDING=1
+  run_root su "$(id -un)" -c "PATH=$(shell_quote "$PATH"); export PATH; $1"
+}
+
+# Purpose: Prepare the daily-driver workspace image for workspace mode.
+# Arguments:
+#   $1: Repository directory.
+# Returns:
+#   None. Exits on failure with a retry hint.
+# Side effects:
+#   Builds the workspace image locally by default, because corporate networks
+#   may block or distrust public registries. With --workspace-image published,
+#   pulls the CI-published image and tags it as the local workspace image.
+#   Either way, `ft workspace enter` then starts without a build.
+run_workspace_image_step() {
+  destination=$1
+  if [ "$WORKSPACE_IMAGE" = "published" ]; then
+    log_step "Pulling the published $WORKSPACE_PROFILE workspace image"
+    workspace_command="uv run ft workspace pull $WORKSPACE_PROFILE"
+  else
+    log_step "Building the $WORKSPACE_PROFILE workspace image locally; this takes a while on first run"
+    workspace_command="uv run ft workspace build $WORKSPACE_PROFILE"
+  fi
+  # No subshell here: run_with_docker_access records DOCKER_GROUP_PENDING for
+  # the summary, so the directory change travels inside the command instead.
+  if ! run_with_docker_access "cd $(shell_quote "$destination") && $workspace_command"; then
+    printf '%s\n' "[install] preparing the workspace image failed; rerunning the installer is safe, or run:" >&2
+    printf '%s\n' "  cd $destination && $workspace_command" >&2
     exit 1
   fi
 }
@@ -529,11 +607,11 @@ main() {
   log_step "Platform: ${PLATFORM_LABEL}; mode: ${INSTALL_MODE}"
 
   if [ "$PLATFORM_SUPPORTED" = "1" ]; then
-    if [ "$INSTALL_MODE" = "host" ]; then
+    if [ "$INSTALL_MODE" != "cli" ]; then
       require_systemd
     fi
     missing_packages=$(missing_ubuntu_prereqs)
-    if [ -n "$missing_packages" ] || [ "$INSTALL_MODE" = "host" ]; then
+    if [ -n "$missing_packages" ] || [ "$INSTALL_MODE" != "cli" ]; then
       acquire_privilege
     fi
     if [ -n "$missing_packages" ]; then
@@ -541,8 +619,8 @@ main() {
     else
       log_step "Native prerequisites already installed"
     fi
-  elif [ "$INSTALL_MODE" = "host" ]; then
-    die "host mode supports Ubuntu and WSL2 Ubuntu, not ${PLATFORM_LABEL}; macOS is the next planned platform. Use --mode cli to install only the ft CLI"
+  elif [ "$INSTALL_MODE" != "cli" ]; then
+    die "$INSTALL_MODE mode supports Ubuntu and WSL2 Ubuntu, not ${PLATFORM_LABEL}; macOS is the next planned platform. Use --mode cli to install only the ft CLI"
   else
     log_step "Checking required prerequisites"
     require_command git
@@ -559,8 +637,11 @@ main() {
   run_repo_bootstrap "$install_dir"
   run_options_step "$install_dir"
 
-  if [ "$INSTALL_MODE" = "host" ]; then
+  if [ "$INSTALL_MODE" != "cli" ]; then
     run_host_bootstrap "$install_dir"
+  fi
+  if [ "$INSTALL_MODE" = "workspace" ]; then
+    run_workspace_image_step "$install_dir"
   fi
   run_identity_step "$install_dir"
 
@@ -568,6 +649,13 @@ main() {
   printf '%s\n' "Repo location: $install_dir"
   if [ "$INSTALL_MODE" = "host" ]; then
     printf '%s\n' "Open a new terminal to start the managed zsh login shell."
+  elif [ "$INSTALL_MODE" = "workspace" ]; then
+    if [ "$DOCKER_GROUP_PENDING" = "1" ]; then
+      printf '%s\n' "Open a new terminal (or reconnect over SSH) so your user picks up the docker group, then run:"
+    else
+      printf '%s\n' "Start the workspace with:"
+    fi
+    printf '%s\n' "  ft workspace enter $WORKSPACE_PROFILE"
   fi
   print_path_refresh_hint
 }
