@@ -3819,6 +3819,11 @@ def _build_host_inventory(targets: list[HostTargetDefinition]) -> dict[str, obje
         }
         if target.connection == "local":
             host_record["ansible_connection"] = "local"
+            # ansible-core 2.19+ starts each worker in a new session, which
+            # hides the operator's cached sudo timestamp (tied to the terminal)
+            # from local become. Keeping workers on the terminal lets
+            # install.sh run the host bootstrap after one sudo prompt.
+            host_record["ansible_worker_session_isolation"] = False
         else:
             host_record.update(
                 {

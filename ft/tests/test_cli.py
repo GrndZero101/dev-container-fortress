@@ -365,6 +365,20 @@ def test_host_inventory_renders_yaml(tmp_path: Path) -> None:
     )
 
 
+def test_host_inventory_keeps_local_workers_on_the_terminal(tmp_path: Path) -> None:
+    """Local targets should disable worker session isolation, SSH targets not."""
+    config_path = _write_host_config(tmp_path)
+
+    result = runner.invoke(
+        app, ["host", "inventory", "--config", str(config_path), "--json"]
+    )
+
+    assert result.exit_code == 0
+    hosts = json.loads(result.stdout)["all"]["children"]["dev_fortress"]["hosts"]
+    assert hosts["localhost"]["ansible_worker_session_isolation"] is False
+    assert "ansible_worker_session_isolation" not in hosts["dev-fortress-ubuntu"]
+
+
 def test_host_target_manifest_toml_round_trips() -> None:
     """Host-target TOML rendering should round-trip through the manifest model."""
     manifest = HostTargetManifest.model_validate(
