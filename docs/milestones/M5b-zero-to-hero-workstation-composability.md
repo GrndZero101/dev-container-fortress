@@ -314,17 +314,14 @@ Next, in suggested order:
    installed by default; then re-run with `--options claude-code` for
    `claude --version`, and once more for `changed=0`. Try `--interactive`
    under `curl | sh` on a terminal
-2. re-run `ft host bootstrap localhost -K --options claude-code` on the
-   `dev-fortress` workstation, which already has Claude Code, and expect
-   `changed=0`
-3. `M5b-7`: port the tmux profiles from `dotfiles`, plus the `csm` switch in
+2. `M5b-7`: port the tmux profiles from `dotfiles`, plus the `csm` switch in
    `shell-config`
-4. `M5b-4`: `workspace` mode, with a local build by default
-5. pin `ansible_python_interpreter: /usr/bin/python3` for local targets, which
+3. `M5b-4`: `workspace` mode, with a local build by default
+4. pin `ansible_python_interpreter: /usr/bin/python3` for local targets, which
    the WSL2 run warned about
-6. verification still open: the one-liner on a fresh EC2 box, a hand-built
+5. verification still open: the one-liner on a fresh EC2 box, a hand-built
    brownfield host with existing dotfiles, and `workspace` mode
-7. `M5b-8`: the consolidated quickstart, then open the PR
+6. `M5b-8`: the consolidated quickstart, then open the PR
 
 Working notes for the next session:
 
@@ -588,3 +585,8 @@ Piped installer runs (`--mode cli`) in stock `ubuntu:26.04` containers:
 | --- | --- |
 | `--interactive` on a pseudo-terminal, Space and Enter fed in | picker shown after `bootstrap.zsh`; saved `enabled = ["claude-code"]`; install completed |
 | `--interactive --options claude-code`, no terminal | warned and continued; `ft options` reported `claude-code` from the environment |
+
+Then `ft host bootstrap localhost -K --options claude-code` on the operator's
+`dev-fortress` WSL2 workstation, which already had Claude Code, reported
+`changed=0`: the role's `creates` guard left the existing self-updating install
+alone.
