@@ -10,7 +10,8 @@ records the result.
 
 1. **`M5b`:** pick up from the "Resume Here" section of the
    [M5b file](docs/milestones/M5b-zero-to-hero-workstation-composability.md);
-   next is stable Homebrew (`M5b-5`), then the Git identity step (`M5b-6`).
+   next is the Git identity step (`M5b-6`); stable Homebrew (`M5b-5`) needs only
+   its fresh-host check.
 2. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
    the devcontainer and CLI terminal-mode flows; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).

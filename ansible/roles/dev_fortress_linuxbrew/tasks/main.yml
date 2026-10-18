@@ -26,13 +26,50 @@
     - "{{ dev_container_fortress_homebrew_prefix_effective }}"
     - "{{ dev_container_fortress_homebrew_prefix_effective }}/bin"
 
-- name: Ensure Homebrew checkout is present
+- name: List Homebrew release tags
+  ansible.builtin.command:
+    argv:
+      - git
+      - ls-remote
+      - --tags
+      - --refs
+      - "{{ dev_container_fortress_homebrew_repo_effective }}"
+  register: dev_fortress_linuxbrew_remote_tags
+  changed_when: false
+  check_mode: false
+  when: dev_container_fortress_homebrew_version_effective == 'latest'
+
+# Homebrew's installer and `brew update` both track the newest `X.Y.Z` tag, so
+# pinning the same tag keeps Ansible and Homebrew's auto-update in agreement.
+- name: Resolve the Homebrew version to check out
+  ansible.builtin.set_fact:
+    dev_fortress_linuxbrew_version: >-
+      {{
+        dev_fortress_linuxbrew_remote_tags.stdout_lines
+        | map('regex_replace', '^.*refs/tags/', '')
+        | select('match', '^[0-9]+\.[0-9]+\.[0-9]+$')
+        | community.general.version_sort
+        | last
+        | default('')
+        if dev_container_fortress_homebrew_version_effective == 'latest'
+        else dev_container_fortress_homebrew_version_effective
+      }}
+
+- name: Fail when no stable Homebrew tag was found
+  ansible.builtin.assert:
+    that: dev_fortress_linuxbrew_version | length > 0
+    fail_msg: >-
+      No X.Y.Z release tag found in {{ dev_container_fortress_homebrew_repo_effective }}.
+      Set dev_container_fortress_homebrew_version to a tag, branch, or commit.
+    quiet: true
+
+- name: Ensure Homebrew checkout is at the resolved version
   become: true
   become_user: "{{ dev_fortress_target_contract_host.user }}"
   ansible.builtin.git:
     repo: "{{ dev_container_fortress_homebrew_repo_effective }}"
     dest: "{{ dev_container_fortress_homebrew_prefix_effective }}/Homebrew"
-    version: "{{ dev_container_fortress_homebrew_branch_effective }}"
+    version: "{{ dev_fortress_linuxbrew_version }}"
     update: true
   environment:
     HOME: "{{ dev_fortress_target_contract_host.home }}"

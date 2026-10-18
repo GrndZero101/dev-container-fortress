@@ -165,6 +165,12 @@ Installs Linuxbrew for supported Ubuntu targets in the standard supported
 prefix, persists a managed shellenv snippet, and converges the current
 fortress operator tool pool after `shell-config` bootstrap.
 
+The Homebrew checkout tracks the newest stable `X.Y.Z` release tag, the same
+target that Homebrew's own installer and `brew update` choose, so Homebrew's
+auto-update and a later bootstrap pass agree. Set
+`dev_container_fortress_homebrew_version` to a tag, branch (`main` for the
+development branch), or commit to override it.
+
 ### `dev_fortress_neovim_kickstart`
 
 Clones `kickstart.nvim` into a parallel XDG config directory and installs a

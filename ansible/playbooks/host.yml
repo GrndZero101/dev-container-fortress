@@ -198,8 +198,10 @@
       {{ dev_container_fortress_homebrew_prefix | default('/home/linuxbrew/.linuxbrew') }}
     dev_container_fortress_homebrew_repo_effective: >-
       {{ dev_container_fortress_homebrew_repo | default('https://github.com/Homebrew/brew') }}
-    dev_container_fortress_homebrew_branch_effective: >-
-      {{ dev_container_fortress_homebrew_branch | default('main') }}
+    # `latest` resolves to the newest stable `X.Y.Z` tag, as Homebrew's own
+    # installer and `brew update` do; any other value is a tag, branch, or commit.
+    dev_container_fortress_homebrew_version_effective: >-
+      {{ dev_container_fortress_homebrew_version | default('latest') }}
     dev_container_fortress_homebrew_profile_snippet_effective: >-
       {{
         dev_container_fortress_xdg_config_home_effective

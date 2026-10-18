@@ -205,9 +205,9 @@ otherwise). The two repos share a small contract:
 
 ### M5b-5 Pin stable Homebrew and converge in one pass
 
-- [ ] Problem: the role tracks Homebrew's development branch, the first `M5a` EC2 converge hit a duplicate-pour race, and the Linuxbrew and `neovim_kickstart` tasks still changed on a second pass
-- [ ] Scope: check out the latest stable tag, and fix whatever keeps the second pass changing
-- [ ] Acceptance: a fresh host converges in one pass, then reports `changed=0`
+- [x] Problem: the role tracks Homebrew's development branch, the first `M5a` EC2 converge hit a duplicate-pour race, and the Linuxbrew and `neovim_kickstart` tasks still changed on a second pass
+- [x] Scope: check out the latest stable tag, and fix whatever keeps the second pass changing. The role now resolves the newest `X.Y.Z` tag, the same one `brew update` picks, and `dev_container_fortress_homebrew_version` overrides it
+- [ ] Acceptance: a fresh host converges in one pass, then reports `changed=0` (the fresh WSL2 run already did on `main`; re-check on the stable tag with the EC2 one-liner run)
 
 ### M5b-6 Add the Git identity step
 
@@ -287,13 +287,15 @@ yet):
 - done: `M5b-1` (one `sudo` prompt), `M5b-2` (installer prerequisites),
   `M5b-3` (chained `localhost` bootstrap), `M5b-10` (Ubuntu 26.04 default and
   `ubuntu-full-rolling`), the host-mode login shell, and a fresh WSL2 26.04
-  run that converged in one pass and re-ran with `changed=0`
+  run that converged in one pass and re-ran with `changed=0`, and the
+  `M5b-5` role change that pins Homebrew's newest stable tag
 - decided: stock tmux by default with `csm` switching, local workspace builds
   by default, and Homebrew in containers in `M5c`
 
 Next, in suggested order:
 
-1. `M5b-5`: track the latest stable Homebrew tag in the Linuxbrew role
+1. `M5b-5` acceptance: confirm one-pass convergence on the stable tag during
+   the fresh EC2 one-liner run (the role change is done)
 2. `M5b-6`: the Git identity step (env vars, TTY prompt, noreply hint, manual
    fallback)
 3. `M5b-9`: Claude Code on host targets through its native installer
@@ -453,3 +455,26 @@ Observed, not fixed yet:
   worth considering
 - WSL warns "Failed to start the systemd user session" for a user created with
   `useradd` after first boot; nothing in the run depended on it
+
+### `M5b-5` stable Homebrew, 2026-10-18
+
+Homebrew's installer checks out the newest `X.Y.Z` tag as a local `stable`
+branch, and every non-developer `brew update`, including the auto-update before
+`brew install`, recreates `stable` at the newest tag. The role pinned `main`, so
+the two fought: this workstation was on `stable` at `7.0.9` even though the role
+asked for `main`, and a check-mode `git` task pinned to `main` reported
+`changed` against it. A run after an auto-update would flip the checkout back to
+the development branch, which explains the earlier second-pass change.
+
+The role now lists the remote tags, resolves the newest `X.Y.Z` tag (`7.0.9`
+today), and checks it out. Check mode against the same checkout reports no
+change for the tag. `brew doctor` only flags a `master` branch, and `brew
+update` turns the detached checkout back into `stable` at the same commit, so
+Ansible and Homebrew now agree. `dev_container_fortress_homebrew_version`
+accepts any tag, branch, or commit, such as `main`, to override it.
+
+The `neovim_kickstart` change from `M5a` did not recur in the later EC2 rerun
+or the fresh WSL2 run. It tracks the kickstart `master` branch, so it changes
+only when upstream moves. The duplicate-pour race also has not recurred, and
+pinning a tag removes one moving part, so no further fix is planned unless it
+reproduces.
