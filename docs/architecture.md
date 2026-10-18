@@ -18,7 +18,10 @@ That responsibility belongs to the external `shell-config` repository.
 > tmux profiles are the one terminal-UX exception. Dev Fortress installs stock
 > tmux and offers opt-in `minimal`, `full`, and `raidboss` profiles, because a
 > working multiplexer setup belongs to the provisioned workstation and should
-> not depend on the separate `dotfiles` repo. See `M5b`.
+> not depend on the separate `dotfiles` repo. They are pick-one bootstrap
+> options (`tmux-*`), installed by the `dev_fortress_tmux` role. Switching
+> afterwards belongs to `csm tmux-profile` in `shell-config`; the two repos
+> share only the profiles directory and the one `tmux.conf` link. See `M5b`.
 
 ## Tooling Split
 

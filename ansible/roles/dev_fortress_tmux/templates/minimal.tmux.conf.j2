@@ -1,0 +1,66 @@
+# {{ ansible_managed }}
+# Dev Fortress tmux profile "minimal", ported from the dotfiles repo's
+# tmux-minimal package (2026-10-17). Each bootstrap rewrites this file, so put
+# personal settings in {{ dev_container_fortress_tmux_local_conf_effective }},
+# which loads last. Switch profiles with `csm tmux-profile`.
+#
+# minimal: pure tmux 3.2+, no plugins, no external tools.
+# Same muscle memory as full. Every line must answer "what breaks if we
+# delete it?" Nothing here may need a tmux version check.
+
+# Same prefix as full. When nested, press it twice to reach the inner one
+unbind C-b
+set -g prefix C-Space
+bind C-Space send-prefix
+
+set -g mouse on
+set -as terminal-features ",xterm-256color:RGB"
+
+# Number windows and panes from 1 to match the keyboard, and close gaps
+set -g base-index 1
+setw -g pane-base-index 1
+set -g renumber-windows on
+
+# What tmux-sensible would set: no Esc lag in vim, more scrollback, focus
+# events for editors, and messages that stay long enough to read
+set -s escape-time 10
+set -g history-limit 50000
+set -g focus-events on
+set -g display-time 4000
+
+# Open splits and new windows in the current pane's directory
+bind '"' split-window -v -c "#{pane_current_path}"
+bind % split-window -h -c "#{pane_current_path}"
+bind c new-window -c "#{pane_current_path}"
+
+# Prefixed pane navigation instead of vim-tmux-navigator: no `ps` on every
+# keypress, and C-h/j/k/l stay free for the program in the pane
+bind h select-pane -L
+bind j select-pane -D
+bind k select-pane -U
+bind l select-pane -R
+bind -r H resize-pane -L 5
+bind -r J resize-pane -D 5
+bind -r K resize-pane -U 5
+bind -r L resize-pane -R 5
+
+# Vi copy mode instead of tmux-yank. set-clipboard on sends copies to the
+# system clipboard via OSC 52, which also works over SSH and from nested tmux
+setw -g mode-keys vi
+bind -T copy-mode-vi v send -X begin-selection
+bind -T copy-mode-vi y send -X copy-selection-and-cancel
+set -g set-clipboard on
+
+# Reload whichever files were loaded, so a server started with `-f <file>`
+# doesn't reload ~/.config/tmux/tmux.conf by mistake
+bind r source-file -F "#{config_files}" \; display "reloaded"
+
+# Built-in status line. Named colours only, so it looks right without RGB.
+# The host name tells you which box an SSH'd or nested tmux is on
+set -g status-style bg=blue,fg=black
+set -g status-left " #S "
+set -g status-right " #h %H:%M "
+setw -g window-status-current-style bg=white,fg=black
+
+# Dev Fortress: personal settings, loaded last so they win. Optional (-q)
+source-file -q "{{ dev_container_fortress_tmux_local_conf_effective }}"

@@ -23,6 +23,7 @@ from typer.testing import CliRunner
 runner = CliRunner()
 
 CLAUDE_VAR = "dev_container_fortress_claude_code_manage"
+TMUX_VAR = "dev_container_fortress_tmux_profile"
 
 
 @pytest.fixture(autouse=True)
@@ -70,7 +71,22 @@ def test_parse_option_names_rejects_unknown_and_mixed_none(value: str) -> None:
 def test_default_selects_nothing() -> None:
     """With no flag, variable, or config, nothing optional is enabled."""
     assert resolve_options() == OptionSelection((), "default")
-    assert option_ansible_vars(()) == {CLAUDE_VAR: False}
+    assert option_ansible_vars(()) == {CLAUDE_VAR: False, TMUX_VAR: "none"}
+
+
+def test_tmux_profiles_are_one_pick_one_choice() -> None:
+    """One tmux profile sets the shared variable; two in one selection fail."""
+    assert parse_option_names("tmux-raidboss,claude-code") == (
+        "claude-code",
+        "tmux-raidboss",
+    )
+    assert option_ansible_vars(("tmux-raidboss",)) == {
+        CLAUDE_VAR: False,
+        TMUX_VAR: "raidboss",
+    }
+    assert option_ansible_vars(("tmux-minimal",))[TMUX_VAR] == "minimal"
+    with pytest.raises(ValueError, match="choose one of tmux-minimal and tmux-full"):
+        parse_option_names(["tmux-full", "tmux-minimal"])
 
 
 def test_precedence_flag_then_environment_then_config(
@@ -133,6 +149,27 @@ def test_options_pick_saves_the_selection(
     assert load_saved_options() == ("claude-code",)
 
 
+def test_options_pick_reopens_on_two_tmux_profiles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two tmux profiles reopen the picker with the checks kept, then save."""
+    monkeypatch.setattr("ft.cli._interactive_terminal", lambda: True)
+    picks = iter([["tmux-full", "tmux-raidboss"], ["tmux-full"]])
+    seen: list[tuple[str, ...]] = []
+
+    def fake_select(*args: object, **kwargs: object) -> list[str]:
+        seen.append(kwargs["preselected"])  # type: ignore[arg-type]
+        return next(picks)
+
+    monkeypatch.setattr("ft.cli._interactive_multi_select", fake_select)
+    result = runner.invoke(app, ["options", "pick"])
+
+    assert result.exit_code == 0
+    assert "choose one of" in result.output
+    assert seen == [(), ("tmux-full", "tmux-raidboss")]
+    assert load_saved_options() == ("tmux-full",)
+
+
 def test_host_inventory_renders_option_vars(
     tmp_path: Path, isolated_options: Path
 ) -> None:
@@ -146,7 +183,7 @@ def test_host_inventory_renders_option_vars(
 
     assert result.exit_code == 0
     group = json.loads(result.stdout)["all"]["children"]["dev_fortress"]
-    assert group["vars"] == {CLAUDE_VAR: True}
+    assert group["vars"] == {CLAUDE_VAR: True, TMUX_VAR: "none"}
 
 
 @pytest.mark.parametrize(

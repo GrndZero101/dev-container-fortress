@@ -72,6 +72,8 @@ to the declared baseline, so do not hand-edit them.
 | Homebrew shellenv | the marked `DEV FORTRESS HOMEBREW` blocks in `~/.zprofile` and `~/.profile` | Dev Fortress owns only the text between the markers |
 | Kickstart Neovim | `${XDG_CONFIG_HOME}/nvim-kickstart` and `~/.local/bin/nvim-kickstart` | Dev Fortress |
 | Docker daemon config | `/etc/docker/daemon.json` | Dev Fortress owns the whole file on `workstation` and `cloud` targets |
+| tmux profiles (`tmux-*` options) | `${XDG_DATA_HOME}/dev-container-fortress/tmux-profiles/` and `${XDG_CONFIG_HOME}/tmux/plugins/` | Dev Fortress rewrites the profiles; plugins are cloned when missing and updated with tpm (prefix + U) |
+| Active tmux profile | the `${XDG_CONFIG_HOME}/tmux/tmux.conf` link, and `${XDG_STATE_HOME}/dev-container-fortress/tmux-profile` | Dev Fortress links only when the selected profile changes, so a `csm tmux-profile` choice survives; it never replaces a file it did not link |
 | Claude Code (`claude-code` option) | `~/.local/bin/claude` and `${XDG_DATA_HOME}/claude` | Dev Fortress installs it when selected and the launcher is missing; Claude Code updates itself after that |
 
 Dotfile linking is delegated to `shell-config` itself. Its `csm bootstrap`
@@ -196,6 +198,33 @@ playbook defaults it to `false`. It fails clearly on targets without
 `/bin/bash`, such as the Alpine baseline.
 `dev_container_fortress_claude_code_installer_url` points at an alternate
 installer, such as an internal mirror.
+
+### `dev_fortress_tmux`
+
+Installs the Dev Fortress tmux profiles, ported from the `dotfiles` repo's
+`tmux-minimal`, `tmux-full`, and `tmux-raidboss` packages, and links the
+selected one. It runs only when a `tmux-*` option is selected; `ft` renders
+`dev_container_fortress_tmux_profile` as `minimal`, `full`, `raidboss`, or
+`none`, and `none` skips the role, leaving stock tmux. Everything runs as the
+target user inside `$HOME`.
+
+- every profile is templated into
+  `${XDG_DATA_HOME}/dev-container-fortress/tmux-profiles/<name>/`, with
+  absolute paths to its helper scripts and the tpm plugin directory, so
+  `csm tmux-profile` can switch without a bootstrap
+- the active profile is one symlink at `${XDG_CONFIG_HOME}/tmux/tmux.conf`.
+  The role links only when the selected profile differs from the last one it
+  applied, recorded in `${XDG_STATE_HOME}/dev-container-fortress/tmux-profile`,
+  so a re-run keeps a `csm` choice, including `none`
+- an existing `~/.tmux.conf`, or a `tmux.conf` that is not a link into the
+  profiles directory, blocks the link; the run reports it and changes neither
+- `full` and `raidboss` need tmux 3.8+, from Homebrew on Ubuntu; the role
+  checks the version before linking and fails clearly
+- `scripts/ensure-plugins.sh` clones missing tpm plugins. The role runs it for
+  the active profile, and those profiles also run it at startup, so a profile
+  chosen later with `csm` works on its first start
+- each profile loads `${XDG_CONFIG_HOME}/tmux/local.conf` last, when present,
+  for personal settings
 
 ### `dev_fortress_shell_config_ready`
 

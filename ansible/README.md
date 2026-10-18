@@ -51,7 +51,8 @@ Use the repo-local tooling through `uv run`, including:
 Examples:
 
 - `shell-config` owns shell behavior
-- tmux config should own tmux behavior
+- the Dev Fortress tmux profiles own tmux behavior, and `csm tmux-profile`
+  switches them
 - this layer installs and wires those components together
 
 ## Target Contract
@@ -157,9 +158,7 @@ The playbook is now inventory-driven rather than pinned to `localhost`, so the
 same operator surface can grow from local bootstrap targets into SSH-based
 remote targets later.
 
-For the current M5 foundation pass, the host playbook still does not yet apply
-full workstation roles such as tmux. It now proves the shared
-contract by:
+The host playbook proves the shared contract by:
 
 - reaching the target through the generated inventory
 - validating basic target metadata and gathered facts
@@ -250,6 +249,8 @@ its broader operator workflow baseline, including tools such as:
 - `direnv`
 - `gh`
 - `glab`
+- `gitmux` and `sesh`, the companions of the `tmux-full` and `tmux-raidboss`
+  profiles
 
 Homebrew is expected to pull the necessary transitive dependencies for those
 formulae. Notable examples include `pass` and `gopass` bringing in the required

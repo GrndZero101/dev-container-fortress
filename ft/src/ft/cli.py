@@ -56,6 +56,7 @@ from ft.options import (
     OptionSelection,
     option_ansible_vars,
     options_config_path,
+    parse_option_names,
     resolve_options,
     save_options,
 )
@@ -3905,7 +3906,7 @@ def _render_host_target_details(target: HostTargetDefinition) -> None:
 
 def _build_host_inventory(
     targets: list[HostTargetDefinition],
-    option_vars: dict[str, bool] | None = None,
+    option_vars: dict[str, bool | str] | None = None,
 ) -> dict[str, object]:
     """Return an Ansible inventory payload for one or more host targets.
 
@@ -7932,20 +7933,30 @@ def options_pick() -> None:
             highlight=False,
         )
         raise typer.Exit(code=1)
-    current = _resolve_bootstrap_options(None)
-    selected = _interactive_multi_select(
-        [(option.name, option.summary, option.summary) for option in CATALOG],
-        title="Dev Fortress Bootstrap Options",
-        noun="options",
-        preselected=current.names,
-        allow_empty=True,
-    )
-    if selected is None:
-        console.print("cancelled; the saved selection is unchanged")
-        raise typer.Exit(code=1)
-    path = save_options(tuple(selected))
+    preselected = _resolve_bootstrap_options(None).names
+    # The checkbox picker cannot enforce pick-one choices such as the tmux
+    # profiles, so an invalid pick reopens it with the checks kept.
+    while True:
+        selected = _interactive_multi_select(
+            [(option.name, option.summary, option.summary) for option in CATALOG],
+            title="Dev Fortress Bootstrap Options",
+            noun="options",
+            preselected=preselected,
+            allow_empty=True,
+        )
+        if selected is None:
+            console.print("cancelled; the saved selection is unchanged")
+            raise typer.Exit(code=1)
+        try:
+            names = parse_option_names(selected)
+        except ValueError as error:
+            console.print(f"[yellow]{error}[/yellow]; pick again", highlight=False)
+            preselected = tuple(selected)
+            continue
+        break
+    path = save_options(names)
     console.print(
-        f"saved options: {', '.join(selected) or 'none'} -> {path}", highlight=False
+        f"saved options: {', '.join(names) or 'none'} -> {path}", highlight=False
     )
 
 

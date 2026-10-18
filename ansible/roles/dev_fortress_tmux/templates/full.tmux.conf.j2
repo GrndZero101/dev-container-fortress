@@ -1,0 +1,178 @@
+# {{ ansible_managed }}
+# Dev Fortress tmux profile "full", ported from the dotfiles repo's
+# tmux-full package (2026-10-17). Each bootstrap rewrites this file, so put
+# personal settings in {{ dev_container_fortress_tmux_local_conf_effective }},
+# which loads last. Switch profiles with `csm tmux-profile`.
+#
+# full: the operator's daily profile. Catppuccin theme, tpm plugins, a sesh
+# session picker, and git status from gitmux. Needs tmux 3.8+.
+
+# =============================================================================
+# General options
+# =============================================================================
+set -g mouse on
+set -g default-terminal "tmux-256color"
+set -as terminal-features ",xterm-256color:RGB"
+
+# Number windows and panes from 1 to match the keyboard, and close gaps
+set -g base-index 1
+setw -g pane-base-index 1
+set -g renumber-windows on
+
+# When a session is killed, switch to another one instead of detaching
+# (recommended by sesh, so ^d in the session picker doesn't kick you out)
+set -g detach-on-destroy off
+
+# =============================================================================
+# Key bindings
+# =============================================================================
+# Change leader key to Ctrl+Space
+unbind C-b
+set -g prefix C-Space
+bind C-Space send-prefix
+
+# Open splits and new windows in the current pane's directory
+bind '"' split-window -v -c "#{pane_current_path}"
+bind % split-window -h -c "#{pane_current_path}"
+bind c new-window -c "#{pane_current_path}"
+
+# Vim-style selection in copy mode (tmux-yank provides y)
+bind -T copy-mode-vi v send -X begin-selection
+
+# Open the command prompt inside the active pane (tmux 3.8+) so it doesn't
+# draw over the status line
+bind : command-prompt -P
+
+# Session picker: catppuccin-themed fzf popup over sesh (Homebrew's sesh).
+# Lists running sessions, sesh configs and zoxide directories; picking a
+# directory creates a session for it. See the script for the picker keys.
+bind T run-shell "{{ dev_fortress_tmux_profile_dir }}/scripts/sesh-picker.sh"
+
+# =============================================================================
+# Theme (catppuccin) -- must load before the status line below
+# =============================================================================
+set -g @catppuccin_flavor "mocha"
+set -g @catppuccin_window_status_style "rounded"
+
+# Fix the window titles - https://www.reddit.com/r/tmux/comments/1conb7k/having_issue_with_window_titles/
+set -g @catppuccin_window_default_text " #W"
+set -g @catppuccin_window_text " #W"
+set -g @catppuccin_window_current_text " #W"
+
+# %Z names the zone (AWST, BST) so a shared screen or a remote box's clock is
+# unambiguous. Zones tzdata gives no letters print as an offset (+08).
+set -g @catppuccin_date_time_text " %Y-%m-%d %H:%M %Z"
+
+# Catppuccin is loaded HERE, by hand, as well as by tpm at the bottom (it is
+# still in the @plugin list). Loading it twice is deliberate -- both are needed:
+#
+#   - this early load, because the `set -agF` lines below expand immediately
+#     and so need @catppuccin_status_* already defined, while tmux-cpu
+#     rewrites status-right when tpm loads it and so needs status-right
+#     already built. Only loading here satisfies both;
+#   - the @plugin entry, because tpm only installs and updates (prefix + U)
+#     what is declared in that list.
+#
+# The second load just re-applies the same settings. Its one side effect is
+# that anything overriding a catppuccin style must come AFTER the tpm line --
+# see the post-tpm overrides section at the end of this file.
+# Dev Fortress: clone any plugin below that is missing before the first one
+# loads, so this profile starts cleanly even when `csm tmux-profile` chose it
+# after the bootstrap. `run` without -b blocks the config until it is done
+run '{{ dev_fortress_tmux_profile_dir }}/scripts/ensure-plugins.sh "{{ dev_fortress_tmux_profile_dir }}/tmux.conf" "{{ dev_container_fortress_tmux_plugins_dir_effective }}" >/dev/null'
+
+run '{{ dev_container_fortress_tmux_plugins_dir_effective }}/tmux/catppuccin.tmux'
+
+# =============================================================================
+# Custom status modules (catppuccin's custom-module recipe)
+# =============================================================================
+# Defined after the load because they use its palette and separators. The
+# icon is a \U escape for a Nerd Font glyph, which editors and diffs often
+# hide. #{l:...} keeps the #() literal through the -F expansion below.
+#
+# status_module.conf reads MODULE_NAME when it's sourced. Catppuccin's recipe
+# sets it with %hidden, but that runs when this whole file is parsed, before
+# any `source` here runs; by then catppuccin's load has left it at its last
+# module (weather). set-environment is a command, so it runs in order.
+
+# Disk usage of the filesystem holding ~ (on macOS, the Data volume, not the
+# read-only system volume at /). df -P gives the same columns on both
+set-environment -gh MODULE_NAME "disk_usage"
+set -g @catppuccin_disk_usage_icon "\U000f012b "
+set -gF @catppuccin_disk_usage_color "#{E:@thm_mauve}"
+set -g @catppuccin_disk_usage_text ' #{l:#(df -P ~ | tail -1 | tr -s " " | cut -d" " -f5)}'
+source "{{ dev_container_fortress_tmux_plugins_dir_effective }}/tmux/utils/status_module.conf"
+
+# =============================================================================
+# Status line
+# =============================================================================
+# The mix of -ag / -agF (and gitmux's bare #{@...}) follows catppuccin's docs:
+# -F is used for modules backed by another plugin (cpu, ram, gitmux)
+# so their placeholders are in status-right before that plugin rewrites it.
+# tmux cuts status-right from the END, so a cap the modules outgrow clips the
+# clock. 150 leaves gitmux room to grow (its branch cap is in gitmux.conf)
+# while still capping how much of the window list a narrow terminal loses.
+set -g status-right-length 150
+set -g status-left-length 100
+# Session name leads, so it reads "session > its windows" left to right.
+# No application module: it shows #{pane_current_command}, which the window
+# names (tmux-nerd-font-window-name) already show.
+set -g status-left "#{E:@catppuccin_status_session} "
+# gitmux leads because its width varies with the repo state: as the leftmost
+# module it grows into the free space and the modules after it don't shift.
+set -gF status-right "#{@catppuccin_status_gitmux}"
+set -agF status-right "#{E:@catppuccin_status_cpu}"
+set -agF status-right "#{E:@catppuccin_status_ram}"
+set -agF status-right "#{E:@catppuccin_status_disk_usage}"
+set -agF status-right "#{E:@catppuccin_status_date_time}"
+
+# =============================================================================
+# Plugins (tpm) -- keep the tpm `run` as the last line of this section
+# =============================================================================
+set -g @plugin 'tmux-plugins/tpm'
+set -g @plugin 'tmux-plugins/tmux-sensible'
+set -g @plugin 'christoomey/vim-tmux-navigator'
+set -g @plugin 'tmux-plugins/tmux-yank'
+set -g @plugin 'tmux-plugins/tmux-cpu'
+set -g @plugin 'catppuccin/tmux'
+set -g @plugin 'joshmedeski/tmux-nerd-font-window-name'
+
+# vim-tmux-navigator: treat Claude Code like vim so C-h/j/k/l reach it (C-j is
+# its newline key) instead of switching panes. This is the plugin's default
+# pattern with `claude` added; use prefix + arrows to leave a Claude pane.
+set -g @vim_navigator_pattern '(\S+/)?g?\.?(view|l?n?vim?x?|fzf|claude)(diff)?(-wrapped)?'
+
+# Initialize TMUX plugin manager (keep this after all @plugin lines and status
+# settings; only the post-tpm overrides below may follow it)
+run '{{ dev_container_fortress_tmux_plugins_dir_effective }}/tpm/tpm'
+
+# =============================================================================
+# Post-tpm overrides -- anything that must beat catppuccin goes here
+# =============================================================================
+# --- Command prompt appearance -----------------------------------------------
+# These MUST stay below the tpm line: tpm re-sources catppuccin, which sets
+# message-style, so an override placed any earlier is silently discarded.
+#
+# tmux 3.7 draws the message as a format *overlaid* on the status line instead
+# of replacing the whole line, so a style now needs `fill` to clear its own
+# background (stock tmux uses "bg=yellow,fill=yellow"). Catppuccin 2.3.0 omits
+# `fill`, which is what let the status bar bleed through the prompt.
+# Upstream: https://github.com/catppuccin/tmux/issues/600, fixed by PR #606
+# (unmerged as of 2026-10-14). Once a release has it, only align and width
+# here are ours.
+#
+# `width` constrains the prompt to a box anchored at the left, so it only
+# covers part of the bar and appears only while a prompt or message is active.
+# Keep align=left: align=centre and align=right split the ":" prefix away from
+# the text being typed, and only align=left renders correctly on its own.
+set -gF message-style "fg=#{@thm_teal},bg=#{@thm_overlay_0},fill=#{@thm_overlay_0},align=left,width=40%"
+set -gF message-command-style "fg=#{@thm_teal},bg=#{@thm_overlay_0},fill=#{@thm_overlay_0},align=left,width=40%"
+
+# --- Dev Fortress: gitmux config ---------------------------------------------
+# catppuccin's gitmux module reads ~/.gitmux.conf; point it at this profile's
+# copy so Dev Fortress never writes into $HOME. Below the tpm line, because
+# tpm's second catppuccin load resets the module text
+set -g @catppuccin_gitmux_text ' #(gitmux -cfg "{{ dev_fortress_tmux_profile_dir }}/gitmux.conf" "#{pane_current_path}")'
+
+# Dev Fortress: personal settings, loaded last so they win. Optional (-q)
+source-file -q "{{ dev_container_fortress_tmux_local_conf_effective }}"

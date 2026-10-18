@@ -2,8 +2,11 @@
 
 Some components, such as agentic coding tools, are large and not wanted on
 every machine, so the host bootstrap installs them only when selected. The
-selection is resolved here and handed to Ansible as one boolean variable per
-catalog entry; the roles never decide on their own.
+selection is resolved here and handed to Ansible as inventory variables; the
+roles never decide on their own. Most options are on/off and set one boolean
+each. Options that share an Ansible variable, such as the tmux profiles, are
+one pick-one choice: at most one of them may be selected, and the variable
+takes its value, or ``none`` when no member is selected.
 
 Precedence, highest first: an explicit ``--options`` value, the
 ``DEV_CONTAINER_FORTRESS_OPTIONS`` environment variable, the saved
@@ -29,11 +32,17 @@ class BootstrapOption:
         name: The identifier used in flags, the environment, and the config file.
         summary: A one-line description for listings and the picker.
         ansible_var: The inventory variable that enables the component's role.
+        value: For a pick-one choice, the value ``ansible_var`` takes when this
+            option is selected; ``None`` for an on/off option.
     """
 
     name: str
     summary: str
     ansible_var: str
+    value: str | None = None
+
+
+TMUX_PROFILE_VAR = "dev_container_fortress_tmux_profile"
 
 
 # The catalog is ordered as the picker shows it.
@@ -42,6 +51,24 @@ CATALOG: tuple[BootstrapOption, ...] = (
         name="claude-code",
         summary="Claude Code via its native installer (about 270 MB; updates itself)",
         ansible_var="dev_container_fortress_claude_code_manage",
+    ),
+    BootstrapOption(
+        name="tmux-minimal",
+        summary="tmux profile: plain tmux settings, no plugins or downloads",
+        ansible_var=TMUX_PROFILE_VAR,
+        value="minimal",
+    ),
+    BootstrapOption(
+        name="tmux-full",
+        summary="tmux profile: catppuccin, tpm plugins, sesh picker, gitmux status",
+        ansible_var=TMUX_PROFILE_VAR,
+        value="full",
+    ),
+    BootstrapOption(
+        name="tmux-raidboss",
+        summary="tmux profile: tmux-full plus a second status line of system modules",
+        ansible_var=TMUX_PROFILE_VAR,
+        value="raidboss",
     ),
 )
 
@@ -80,8 +107,8 @@ def parse_option_names(values: list[str] | str) -> tuple[str, ...]:
         The unique selected names, ordered as in the catalog.
 
     Raises:
-        ValueError: When a name is not in the catalog, or ``none`` is mixed
-            with other names.
+        ValueError: When a name is not in the catalog, ``none`` is mixed
+            with other names, or two members of one pick-one choice are selected.
     """
     raw = [values] if isinstance(values, str) else values
     names = {
@@ -101,7 +128,29 @@ def parse_option_names(values: list[str] | str) -> tuple[str, ...]:
         raise ValueError(
             f"unknown option(s): {', '.join(unknown)} (supported: {supported})"
         )
-    return tuple(option.name for option in CATALOG if option.name in names)
+    selected = tuple(option for option in CATALOG if option.name in names)
+    _check_pick_one(selected)
+    return tuple(option.name for option in selected)
+
+
+def _check_pick_one(selected: tuple[BootstrapOption, ...]) -> None:
+    """Reject a selection with two members of one pick-one choice.
+
+    Args:
+        selected: The selected catalog entries.
+
+    Raises:
+        ValueError: When two selected options share a pick-one variable.
+    """
+    seen: dict[str, str] = {}
+    for option in selected:
+        if option.value is None:
+            continue
+        if option.ansible_var in seen:
+            raise ValueError(
+                f"choose one of {seen[option.ansible_var]} and {option.name}, not both"
+            )
+        seen[option.ansible_var] = option.name
 
 
 def load_saved_options(path: Path | None = None) -> tuple[str, ...] | None:
@@ -183,13 +232,22 @@ def resolve_options(
     return OptionSelection((), "default")
 
 
-def option_ansible_vars(names: tuple[str, ...]) -> dict[str, bool]:
-    """Map a selection to one boolean inventory variable per catalog entry.
+def option_ansible_vars(names: tuple[str, ...]) -> dict[str, bool | str]:
+    """Map a selection to the inventory variables of every catalog entry.
 
     Args:
-        names: Selected option names.
+        names: Validated option names.
 
     Returns:
-        Every catalog entry's variable, ``True`` only for selected ones.
+        A boolean per on/off option, ``True`` only when selected, and per
+        pick-one variable the selected member's value, or ``none``.
     """
-    return {option.ansible_var: option.name in names for option in CATALOG}
+    variables: dict[str, bool | str] = {}
+    for option in CATALOG:
+        if option.value is None:
+            variables[option.ansible_var] = option.name in names
+        elif option.name in names:
+            variables[option.ansible_var] = option.value
+        else:
+            variables.setdefault(option.ansible_var, NONE_KEYWORD)
+    return variables

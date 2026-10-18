@@ -1,0 +1,1 @@
+../../full/scripts/ensure-plugins.sh

@@ -76,7 +76,9 @@ Modes:
   cli        Install only the checkout, uv, ft, and Ansible.
   workspace  Thin host plus a daily-driver workspace (not available yet).
 
-Optional components, such as claude-code, are installed only when selected:
+Optional components are installed only when selected: claude-code, and at
+most one tmux profile (tmux-minimal, tmux-full, or tmux-raidboss; without one,
+tmux keeps its stock settings):
   --options LIST   Comma-separated options for this run, or none.
   --interactive    Pick options in a checkbox list and save the choice
                    (needs a terminal; run `ft options` later to review).

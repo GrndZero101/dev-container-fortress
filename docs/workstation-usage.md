@@ -35,7 +35,6 @@ Current host-tooling policy:
 Scaffolded but not complete yet:
 
 - cross-platform workstation parity beyond the Ubuntu-first path
-- tmux integration
 - host-side corporate CA support
 - richer secrets backup automation, including a formal `rustic` restore loop
 - full host-side validation coverage outside the currently documented Ubuntu and disposable-target loops
@@ -197,9 +196,9 @@ base directories exist, converges baseline packages on Ubuntu, Alpine, and Arch,
 converges the native bootstrap substrate, installs Docker CE on Ubuntu
 `workstation` and `cloud` targets, clones and bootstraps `shell-config`,
 installs the fortress profile-local `zinit` checkout, applies Ubuntu Linuxbrew
-uplift where enabled, and reports current readiness state for handoff. Full
-workstation-style roles such as tmux and editor automation are still follow-up
-work.
+uplift where enabled, installs the selected optional components such as Claude
+Code and a tmux profile, and reports current readiness state for handoff.
+Editor automation beyond the kickstart Neovim launcher is still follow-up work.
 
 See [Ansible README](../ansible/README.md) for the current host-automation layer status.
 
@@ -262,7 +261,7 @@ Today the real host loop converges:
 - login-shell convergence to `zsh` for remote SSH targets
 - Docker CE plus the `buildx` and Compose plugins on Ubuntu workstation/cloud targets
 - Ubuntu Linuxbrew bootstrap and the current fortress-facing formula set
-- optional components when selected (`ft options`), starting with Claude Code through its native installer, after which it updates itself
+- optional components when selected (`ft options`): Claude Code through its native installer, after which it updates itself, and at most one tmux profile (`tmux-minimal`, `tmux-full`, or `tmux-raidboss`), switchable later with `csm tmux-profile`
 
 The current Ubuntu/WSL Linuxbrew tool pool now includes a broader operator
 baseline such as `tmux`, `helix`, `neovim`, `yazi`, `lazygit`,
@@ -275,9 +274,9 @@ and installs an `nvim-kickstart` launcher in `${HOME}/.local/bin`. That keeps
 the IDE-style starter config available without overwriting an existing
 `~/.config/nvim`.
 
-It does not yet converge the full workstation stack such as tmux
-configuration/integration, editor configuration, corporate CA handling, or
-broader non-Ubuntu workstation parity. Those remain follow-up milestones.
+It does not yet converge the full workstation stack such as editor
+configuration, corporate CA handling, or broader non-Ubuntu workstation
+parity. Those remain follow-up milestones.
 
 > [!NOTE]
 > Docker access without `sudo` still depends on refreshed group membership after

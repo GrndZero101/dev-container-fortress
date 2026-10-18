@@ -43,6 +43,9 @@ formulae = [
   "direnv",
   "gh",
   "glab",
+  # Companions for the tmux-full and tmux-raidboss profiles.
+  "gitmux",
+  "sesh",
 ]
 
 [homebrew.linux]

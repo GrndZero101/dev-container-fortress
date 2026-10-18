@@ -10,7 +10,8 @@ records the result.
 
 1. **`M5b`:** pick up from the "Resume Here" section of the
    [M5b file](docs/milestones/M5b-zero-to-hero-workstation-composability.md);
-   next is the tmux profiles (`M5b-7`), then `workspace` mode (`M5b-4`).
+   next is landing the `shell-config` `csm tmux-profile` branch, then
+   `workspace` mode (`M5b-4`).
 2. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
    the devcontainer and CLI terminal-mode flows; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).

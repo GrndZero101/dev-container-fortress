@@ -1,0 +1,196 @@
+---
+# Installs every Dev Fortress tmux profile and links the selected one. The
+# contract with `csm tmux-profile` in shell-config:
+#   - each profile is a directory under the profiles directory, holding its
+#     tmux.conf and helpers; Dev Fortress owns and rewrites them on each run
+#   - the active profile is one symlink at ${XDG_CONFIG_HOME}/tmux/tmux.conf,
+#     and no link means stock tmux
+#   - the bootstrap relinks only when the selected profile differs from the
+#     one it last applied (the state file), so a re-run keeps a `csm` choice,
+#     including none
+#   - an existing ~/.tmux.conf, or a tmux.conf this role did not link, is
+#     never replaced; the run reports it and leaves both alone
+# Everything runs as the connection user and stays inside $HOME.
+- name: Fail clearly on an unknown tmux profile
+  ansible.builtin.assert:
+    that: dev_container_fortress_tmux_profile_effective in dev_container_fortress_tmux_profiles
+    fail_msg: >-
+      Unknown tmux profile '{{ dev_container_fortress_tmux_profile_effective }}';
+      choose one of {{ dev_container_fortress_tmux_profiles | list | join(', ') }}, or none.
+    quiet: true
+
+- name: Ensure the tmux profile directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: >-
+    {{
+      dev_container_fortress_tmux_profiles | list
+      | map('regex_replace', '^', dev_container_fortress_tmux_profiles_dir_effective ~ '/')
+      | list
+      + [
+          dev_container_fortress_tmux_conf_effective | dirname,
+          dev_container_fortress_tmux_state_file_effective | dirname,
+        ]
+    }}
+
+# Every profile is installed, not just the selected one, so `csm` can switch
+# between them without a bootstrap.
+- name: Install the tmux profile helpers
+  ansible.builtin.copy:
+    src: "{{ item }}/"
+    dest: "{{ dev_container_fortress_tmux_profiles_dir_effective }}/{{ item }}/"
+    mode: preserve
+  loop: "{{ dev_container_fortress_tmux_profiles | list }}"
+  # minimal has no helpers. The test runs on the controller, where files/ is
+  when: (role_path ~ '/files/' ~ item) is directory
+
+- name: Install the tmux profile configs
+  ansible.builtin.template:
+    src: "{{ item }}.tmux.conf.j2"
+    dest: "{{ dev_container_fortress_tmux_profiles_dir_effective }}/{{ item }}/tmux.conf"
+    mode: "0644"
+  vars:
+    dev_fortress_tmux_profile_dir: "{{ dev_container_fortress_tmux_profiles_dir_effective }}/{{ item }}"
+  loop: "{{ dev_container_fortress_tmux_profiles | list }}"
+
+- name: Inspect the tmux config links
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  loop:
+    - "{{ dev_container_fortress_tmux_conf_effective }}"
+    - "{{ ansible_facts['env']['HOME'] }}/.tmux.conf"
+    - "{{ dev_container_fortress_tmux_state_file_effective }}"
+  register: dev_fortress_tmux_stats
+
+- name: Read the last profile the bootstrap applied
+  ansible.builtin.slurp:
+    src: "{{ dev_container_fortress_tmux_state_file_effective }}"
+  register: dev_fortress_tmux_state
+  when: dev_fortress_tmux_stats.results[2].stat.exists
+
+- name: Decide whether to link the selected tmux profile
+  vars:
+    conf: "{{ dev_fortress_tmux_stats.results[0].stat }}"
+    profiles_prefix: "{{ dev_container_fortress_tmux_profiles_dir_effective ~ '/' }}"
+  ansible.builtin.set_fact:
+    # The active profile now: none, a profile name, or unmanaged when the
+    # file is not a link into the profiles directory.
+    dev_fortress_tmux_current: >-
+      {{
+        'none' if not conf.exists
+        else (conf.lnk_target | dirname | basename)
+        if (conf.islnk and conf.lnk_target.startswith(profiles_prefix))
+        else 'unmanaged'
+      }}
+    dev_fortress_tmux_applied: >-
+      {{ (dev_fortress_tmux_state.content | b64decode | trim) if dev_fortress_tmux_state.content is defined else '' }}
+    dev_fortress_tmux_home_conf: "{{ dev_fortress_tmux_stats.results[1].stat.exists }}"
+
+- name: Settle the tmux link plan
+  ansible.builtin.set_fact:
+    dev_fortress_tmux_blocked: >-
+      {{ dev_fortress_tmux_home_conf | bool or dev_fortress_tmux_current == 'unmanaged' }}
+    dev_fortress_tmux_relink: >-
+      {{
+        dev_fortress_tmux_applied != dev_container_fortress_tmux_profile_effective
+        and dev_fortress_tmux_current != dev_container_fortress_tmux_profile_effective
+      }}
+
+- name: Check the tmux version for the selected profile
+  ansible.builtin.command:
+    argv: [tmux, -V]
+  environment:
+    PATH: "{{ dev_container_fortress_homebrew_prefix_effective }}/bin:{{ ansible_facts['env']['PATH'] }}"
+  register: dev_fortress_tmux_version
+  changed_when: false
+  failed_when: false
+  when:
+    - dev_fortress_tmux_relink | bool
+    - not dev_fortress_tmux_blocked | bool
+
+- name: Fail clearly when tmux is missing or too old for the profile
+  vars:
+    found: "{{ dev_fortress_tmux_version.stdout | default('') | regex_search('[0-9]+\\.[0-9]+') | default('', true) }}"
+    needed: "{{ dev_container_fortress_tmux_profiles[dev_container_fortress_tmux_profile_effective] }}"
+  ansible.builtin.assert:
+    that:
+      - found | length > 0
+      - found is version(needed, '>=')
+    fail_msg: >-
+      The tmux-{{ dev_container_fortress_tmux_profile_effective }} profile needs tmux
+      {{ needed }}+, but found '{{ dev_fortress_tmux_version.stdout | default('no tmux', true) }}'.
+      On Ubuntu, Homebrew provides a current tmux; elsewhere, install one or pick tmux-minimal.
+    quiet: true
+  when: dev_fortress_tmux_version is not skipped
+
+- name: Link the selected tmux profile
+  ansible.builtin.file:
+    src: "{{ dev_container_fortress_tmux_profiles_dir_effective }}/{{ dev_container_fortress_tmux_profile_effective }}/tmux.conf"
+    dest: "{{ dev_container_fortress_tmux_conf_effective }}"
+    state: link
+    force: true
+  when:
+    - dev_fortress_tmux_relink | bool
+    - not dev_fortress_tmux_blocked | bool
+
+# Recorded only after a link the bootstrap made (or found already in place),
+# so a blocked run links once the conflicting file is moved aside.
+- name: Record the applied tmux profile
+  ansible.builtin.copy:
+    content: "{{ dev_container_fortress_tmux_profile_effective }}\n"
+    dest: "{{ dev_container_fortress_tmux_state_file_effective }}"
+    mode: "0644"
+  when:
+    - dev_fortress_tmux_applied != dev_container_fortress_tmux_profile_effective
+    - not dev_fortress_tmux_blocked | bool
+
+- name: Settle the active tmux profile
+  ansible.builtin.set_fact:
+    dev_fortress_tmux_active: >-
+      {{
+        dev_container_fortress_tmux_profile_effective
+        if (dev_fortress_tmux_relink | bool and not dev_fortress_tmux_blocked | bool)
+        else dev_fortress_tmux_current
+      }}
+
+# The profiles also do this at startup; doing it here means the first start
+# needs no network.
+- name: Install the tpm plugins of the active tmux profile
+  ansible.builtin.command:
+    argv:
+      - "{{ dev_container_fortress_tmux_profiles_dir_effective }}/{{ dev_fortress_tmux_active }}/scripts/ensure-plugins.sh"
+      - "{{ dev_container_fortress_tmux_profiles_dir_effective }}/{{ dev_fortress_tmux_active }}/tmux.conf"
+      - "{{ dev_container_fortress_tmux_plugins_dir_effective }}"
+  register: dev_fortress_tmux_plugins
+  changed_when: dev_fortress_tmux_plugins.stdout | length > 0
+  when:
+    - dev_fortress_tmux_active in ['full', 'raidboss']
+    - not ansible_check_mode
+
+- name: Report that an existing tmux config blocked the profile link
+  vars:
+    blocker: >-
+      {{ '~/.tmux.conf' if dev_fortress_tmux_home_conf | bool else dev_container_fortress_tmux_conf_effective }}
+  ansible.builtin.debug:
+    msg: >-
+      {{ blocker }} is not a Dev Fortress link, and tmux loads it, so
+      tmux-{{ dev_container_fortress_tmux_profile_effective }} was not linked. Move it
+      aside, for example into ~/.local/state/tmux-backup/, and re-run.
+  when: dev_fortress_tmux_blocked | bool
+
+- name: Report the active tmux profile
+  vars:
+    origin: >-
+      {{
+        'kept from `csm tmux-profile`'
+        if dev_fortress_tmux_active != dev_container_fortress_tmux_profile_effective
+        else 'selected by the tmux-' ~ dev_container_fortress_tmux_profile_effective ~ ' option'
+      }}
+    restart: >-
+      {{ ' Running tmux servers keep their settings until restarted.' if dev_fortress_tmux_relink | bool else '' }}
+  ansible.builtin.debug:
+    msg: "tmux profile: {{ dev_fortress_tmux_active }} ({{ origin }}).{{ restart }}"
+  when: not dev_fortress_tmux_blocked | bool

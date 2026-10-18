@@ -95,6 +95,27 @@ installed unless you select them. Choose them in one of three ways:
 `ft host bootstrap` will install. Removing an option later stops managing it but
 does not uninstall it.
 
+The tmux profiles are options too, and you pick at most one. Without one, tmux
+keeps its stock settings and Dev Fortress writes no tmux config.
+
+| Option | Profile |
+| --- | --- |
+| `tmux-minimal` | plain tmux settings: no plugins, no downloads, tmux 3.2+ |
+| `tmux-full` | catppuccin theme, tpm plugins, a `sesh` session picker, and `gitmux` status; tmux 3.8+ |
+| `tmux-raidboss` | `tmux-full` plus a second status line of system modules; tmux 3.8+ |
+
+Selecting any of them installs all three, so `csm tmux-profile` in
+`shell-config` can switch between them later, or back to stock tmux with
+`csm tmux-profile none`. A bootstrap re-run keeps that choice unless you
+select a different profile. Put personal settings in
+`${XDG_CONFIG_HOME:-~/.config}/tmux/local.conf`, which every profile loads
+last.
+
+> [!NOTE]
+> Dev Fortress never replaces a `~/.config/tmux/tmux.conf` it did not link,
+> and links no profile while `~/.tmux.conf` exists, because tmux would load
+> both. The bootstrap reports the conflict; move the file aside and re-run.
+
 The installer finishes with `ft identity`, which sets the global Git
 `user.name` and `user.email`. It keeps an existing identity, uses the
 `DEV_CONTAINER_FORTRESS_GIT_*` variables when they are set, and otherwise
@@ -136,7 +157,7 @@ On host bootstrap paths, Dev Fortress will also manage the installed
 | `DEV_CONTAINER_FORTRESS_REPO` | `--repo` | Use an alternate Git repository URL |
 | `DEV_CONTAINER_FORTRESS_PYTHON_VERSION` | | Override the uv-managed Python version used by `bootstrap.zsh` |
 | `DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL` | | Host mode makes zsh the login shell; set `0` to keep the current one |
-| `DEV_CONTAINER_FORTRESS_OPTIONS` | `--options` | Optional components for this run, such as `claude-code`, or `none` |
+| `DEV_CONTAINER_FORTRESS_OPTIONS` | `--options` | Optional components for this run, such as `claude-code,tmux-full`, or `none` |
 | `DEV_CONTAINER_FORTRESS_INTERACTIVE` | `--interactive` | Set `1` to pick optional components in a checkbox list |
 | `DEV_CONTAINER_FORTRESS_GIT_NAME` | | Git `user.name` to set without a prompt |
 | `DEV_CONTAINER_FORTRESS_GIT_EMAIL` | | Git `user.email` to set without a prompt |
