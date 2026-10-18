@@ -95,6 +95,10 @@ Each milestone should have:
 - Make existing aligned workstations and fresh hosts converge toward the same
   declared Dev Fortress baseline.
 - Build toward milestone-based squash merges rather than unbounded branch drift.
+- Serve four use cases: a direct Ubuntu host (physical, virtual, or cloud), WSL2
+  Ubuntu on Windows, a VS Code devcontainer, and a devcontainer CLI terminal
+  mode. Treat every one as a long-lived, composable development environment
+  rather than a tightly pinned build artifact.
 
 ## Milestones
 
@@ -377,6 +381,34 @@ Non-goals:
 
 Details:
 [M5b draft](milestones/M5b-zero-to-hero-workstation-composability.md)
+
+### `M5c` Composable Container Workspaces
+
+Status: `planned`
+
+Objective:
+Make the container targets long-lived, composable development environments by
+standardizing their userland on Homebrew and making the VS Code devcontainer
+and devcontainer CLI terminal mode genuinely useful.
+
+Exit criteria:
+
+- container userland tools come from Homebrew, using the same bundle model as
+  the hosts
+- Claude Code is installed in every container target through its native
+  installer
+- one recommended way to get code into a devcontainer (bind mount or volume
+  clone), with the other one as a documented variant
+- a devcontainer CLI terminal mode works end to end
+- `ft workspace` and `.devcontainer/` share one definition or document why
+  they differ
+
+Non-goals:
+
+- byte-for-byte reproducible image builds, and new container distros
+
+Details:
+[M5c draft](milestones/M5c-composable-container-workspaces.md)
 
 ### `M6` Operator CLI Maturity
 

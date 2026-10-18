@@ -103,8 +103,8 @@
 
 * Keep Dockerfiles focused on reproducible builds and a clear layer structure.
 * Use distro packages for low-level system prerequisites inside containers.
-* Use Python plus `uv` tooling for pinned userland tool installation inside containers.
-* Avoid introducing Homebrew into container targets unless explicitly requested.
+* Use Python plus `uv` tooling for pinned userland tool installation inside containers until `M5c` moves them to Homebrew.
+* Homebrew in container targets is the agreed direction (`M5c`). These environments are long-lived and composable rather than strictly deterministic, so do not argue against Homebrew in containers on reproducibility grounds alone.
 * Prefer deterministic downloads, pinned versions, and checksum verification for externally fetched tools.
   * Exception: `uv` itself deliberately tracks the latest release in container images. Do not pin it unless a regression forces a temporary pin.
 * Keep image size and build complexity in mind, but do not sacrifice auditability for minor optimizations.

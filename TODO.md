@@ -17,6 +17,9 @@ records the result.
    (where tmux profiles live, the default tmux profile, and image pull versus
    local build for `workspace` mode), then begin with the `M5b-1` privilege
    spike.
+3. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
+   the devcontainer and CLI terminal-mode flows; see the
+   [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 
 ## Parked
 

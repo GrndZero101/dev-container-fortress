@@ -16,6 +16,11 @@ The same default command should work on a fresh WSL2 Ubuntu instance, an
 Ubuntu desktop or server, and an Ubuntu EC2 instance stood up independently.
 Re-running it on a brownfield host should converge, not clobber.
 
+This milestone covers the first two Dev Fortress use cases: a direct Ubuntu
+host and WSL2 Ubuntu. The container use cases, a VS Code devcontainer and a
+devcontainer CLI terminal mode, belong to
+[`M5c`](M5c-composable-container-workspaces.md).
+
 ## Current Gap
 
 As of 2026-10-18 a fresh Ubuntu machine needs about seven manual steps:
@@ -45,6 +50,7 @@ EC2 over SSH (`M5a`), but the onramp around them is manual and spread across
 - [ ] Re-running the command on an already converged or hand-built host is safe and reports what it changed
 - [ ] A Git identity step works non-interactively from environment variables, prompts only on a TTY, and documents a manual fallback for corporate and GitLab identities
 - [ ] Dev Fortress offers tmux profiles ported from the `dotfiles` repo: `minimal`, `full`, and `raidboss`
+- [ ] Claude Code is installed by default on host targets through its native installer, so it updates itself between bootstrap runs
 - [ ] The flow is verified on fresh WSL2 Ubuntu, fresh Ubuntu EC2 running the one-liner on the box, and one brownfield host
 - [ ] One "Zero to Hero" quickstart replaces the scattered onramp docs, and `README.md` points to it
 
@@ -179,6 +185,12 @@ first start.
 - [ ] Scope: one "Zero to Hero" quickstart covering modes, overrides, identity, and tmux, linked from `README.md`
 - [ ] Acceptance: a new user needs only that page to reach a working workstation
 
+### M5b-9 Install Claude Code on host targets
+
+- [ ] Problem: Claude Code is installed by hand on every new host
+- [ ] Scope: a host role that runs the native installer as the operator user, skips hosts where it already exists, and leaves updates to Claude Code itself
+- [ ] Acceptance: `claude --version` works after a fresh bootstrap, and a re-run reports no change
+
 ## Verification Notes
 
 - [ ] Fresh WSL2 Ubuntu instance, default command
@@ -206,6 +218,8 @@ Recorded on 2026-10-18:
   are ported into Dev Fortress
 - the identity step needs a manual fallback for corporate and GitLab use
 - Homebrew moves to its latest stable tag for one-pass convergence
+- Claude Code is a default package on every target, installed through its
+  native installer so it updates itself (the container side is in `M5c`)
 
 Still open:
 

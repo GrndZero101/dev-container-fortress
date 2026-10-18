@@ -106,6 +106,11 @@ Container-side policy should stay separate from the host story:
 - Homebrew should not become the default package substrate inside the Dev
   Fortress container images
 
+> [!NOTE]
+> This is the current contract, not the direction. `M5c` moves the container
+> userland onto Homebrew so hosts and containers share one toolchain. See the
+> [M5c draft](milestones/M5c-composable-container-workspaces.md).
+
 For host targets, Homebrew remains the preferred path for newer steady-state
 tooling where it is supported. For container targets, the base image package
 manager is acceptable for GPG-class substrate until a stronger repo-owned
