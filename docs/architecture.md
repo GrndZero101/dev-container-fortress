@@ -438,6 +438,12 @@ Recommended early Terraform rules:
 - keep reusable images separate from disposable hosts: `infra/aws-arch-ami/`
   imports the signed upstream Arch cloud image once as a private AMI, and the
   disposable host stack only looks it up through `os = "arch"`
+- define one host once: `infra/modules/disposable-host/` holds the EC2 host,
+  with no provider of its own, so the single-host root
+  (`infra/aws-disposable-ubuntu/`) and the multi-OS verification fleet
+  (`infra/aws-test-fleet/`, one module instance per OS target) share it. Both
+  roots emit the same `host_target_toml_fragment` output, so `ft host
+  import-terraform` handles one host or a whole fleet the same way
 
 ### Operator CLI Direction for Hosts
 
@@ -445,9 +451,12 @@ The long-term CLI should reflect this layering explicitly.
 A likely future direction is:
 
 - `ft host ...` for reachability, inventory, and provisioning workflows
-- `ft infra ...` only if Terraform-backed host creation becomes a first-class concern
+- `ft infra ...` for Terraform-backed host creation: `aws-disposable-ubuntu`
+  for one host and `aws-test-fleet` for the verification fleet, both wrapping
+  the same managed-key and import flow
 
-Recommended early focus is still the host surface, not the infra surface.
+The infra surface stays a thin wrapper; reachability and convergence remain on
+the host surface.
 That keeps Dev Fortress centered on reachable developer environments rather than
 on provider-specific provisioning first.
 

@@ -357,7 +357,7 @@ Details:
 
 ### `M5b` Zero to Hero: Workstation Composability
 
-Status: `now`
+Status: `done` (squash-merged in PR #5, 2026-10-19)
 
 Objective:
 Take a brand-new or existing Ubuntu machine to a working Dev Fortress
@@ -522,7 +522,7 @@ Details:
 
 ### `M7b` Cloud Test Fleet
 
-Status: `next`, after the `M5b` PR and before `M5c`
+Status: `now`, before `M5c`
 
 Objective:
 Verify Dev Fortress on several fresh supported OS targets at once with one

@@ -140,6 +140,13 @@ aws_disposable_ubuntu_app = typer.Typer(
         "managed SSH keys and host-target import wiring."
     ),
 )
+aws_test_fleet_app = typer.Typer(
+    no_args_is_help=False,
+    help=(
+        "Operate the short-lived multi-OS EC2 verification fleet: one apply "
+        "creates every host, one destroy removes them all."
+    ),
+)
 aws_disposable_ubuntu_capacity_app = typer.Typer(
     no_args_is_help=False,
     help=("Select EC2 capacity inputs for the disposable Ubuntu Terraform stack."),
@@ -169,6 +176,7 @@ workspace_app.add_typer(workspace_secrets_app, name="secrets")
 app.add_typer(infra_app, name="infra")
 app.add_typer(deploy_app, name="deploy")
 infra_app.add_typer(aws_disposable_ubuntu_app, name="aws-disposable-ubuntu")
+infra_app.add_typer(aws_test_fleet_app, name="aws-test-fleet")
 aws_disposable_ubuntu_app.add_typer(aws_disposable_ubuntu_capacity_app, name="capacity")
 app.add_typer(options_app, name="options")
 app.add_typer(completion_app, name="completion")
@@ -307,6 +315,14 @@ def deploy_callback(context: typer.Context) -> None:
 @aws_disposable_ubuntu_app.callback(invoke_without_command=True)
 def aws_disposable_ubuntu_callback(context: typer.Context) -> None:
     """Render disposable-Ubuntu infra help when no subcommand is passed."""
+    if context.invoked_subcommand is None:
+        console.print(context.get_help())
+        raise typer.Exit()
+
+
+@aws_test_fleet_app.callback(invoke_without_command=True)
+def aws_test_fleet_callback(context: typer.Context) -> None:
+    """Render test-fleet infra help when no subcommand is passed."""
     if context.invoked_subcommand is None:
         console.print(context.get_help())
         raise typer.Exit()
@@ -1933,6 +1949,16 @@ def _default_disposable_ubuntu_terraform_dir() -> Path:
 def _default_disposable_ubuntu_seed_config_path() -> Path:
     """Return the repo-local seed host manifest for the disposable Ubuntu stack."""
     return _default_disposable_ubuntu_terraform_dir() / "hosts.seed.toml"
+
+
+def _default_test_fleet_terraform_dir() -> Path:
+    """Return the repo-local Terraform directory for the EC2 test fleet."""
+    return _repo_root() / "infra" / "aws-test-fleet"
+
+
+def _default_test_fleet_seed_config_path() -> Path:
+    """Return the seed host manifest that names the fleet's shared SSH key."""
+    return _default_test_fleet_terraform_dir() / "hosts.seed.toml"
 
 
 def _default_disposable_ubuntu_capacity_tfvars_path() -> Path:
@@ -6754,6 +6780,83 @@ def infra_aws_disposable_ubuntu_destroy(
     )
     if exit_code != 0:
         raise typer.Exit(code=exit_code)
+
+
+# The fleet reuses the disposable-host commands: the fleet root takes the same
+# TF_VAR_name and TF_VAR_ssh_public_key, and emits one host-target fragment
+# that holds every host, so only the defaults differ.
+TEST_FLEET_NAME = "dev-fortress-fleet"
+
+
+@aws_test_fleet_app.command("plan")
+def infra_aws_test_fleet_plan() -> None:
+    """Run terraform init, validate, and plan for the EC2 test fleet."""
+    infra_aws_disposable_ubuntu_plan(
+        terraform_dir=_default_test_fleet_terraform_dir(),
+        seed_config=_default_test_fleet_seed_config_path(),
+        target_name=TEST_FLEET_NAME,
+    )
+
+
+@aws_test_fleet_app.command("apply")
+def infra_aws_test_fleet_apply(
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            file_okay=True,
+            dir_okay=False,
+            resolve_path=True,
+            help=(
+                "Optional host target config path. Defaults to FT_HOST_CONFIG "
+                "or the XDG-managed hosts.toml path."
+            ),
+        ),
+    ] = None,
+    auto_approve: Annotated[
+        bool,
+        typer.Option(
+            "--auto-approve",
+            help="Pass -auto-approve to terraform apply.",
+        ),
+    ] = False,
+    json_output: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help="Render the import result as structured JSON.",
+        ),
+    ] = False,
+) -> None:
+    """Apply the EC2 test fleet, then import every host into hosts.toml."""
+    infra_aws_disposable_ubuntu_apply(
+        terraform_dir=_default_test_fleet_terraform_dir(),
+        seed_config=_default_test_fleet_seed_config_path(),
+        target_name=TEST_FLEET_NAME,
+        config=config,
+        auto_import=True,
+        auto_approve=auto_approve,
+        json_output=json_output,
+    )
+
+
+@aws_test_fleet_app.command("destroy")
+def infra_aws_test_fleet_destroy(
+    auto_approve: Annotated[
+        bool,
+        typer.Option(
+            "--auto-approve",
+            help="Pass -auto-approve to terraform destroy.",
+        ),
+    ] = False,
+) -> None:
+    """Destroy every host in the EC2 test fleet."""
+    infra_aws_disposable_ubuntu_destroy(
+        terraform_dir=_default_test_fleet_terraform_dir(),
+        seed_config=_default_test_fleet_seed_config_path(),
+        target_name=TEST_FLEET_NAME,
+        auto_approve=auto_approve,
+    )
 
 
 @aws_disposable_ubuntu_capacity_app.command("select")

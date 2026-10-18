@@ -8,15 +8,11 @@ records the result.
 
 ## Up Next
 
-1. **`M5b`:** pick up from the "Resume Here" section of the
-   [M5b file](docs/milestones/M5b-zero-to-hero-workstation-composability.md);
-   the quickstart (`M5b-8`) is done, and the PR is open
-   ([#5](https://github.com/GrndZero101/dev-container-fortress/pull/5)); next
-   is the green CI and the operator's squash merge.
-2. **Then `M7b`:** a five-host EC2 test fleet (Ubuntu 24.04, 26.04, 26.10,
-   Arch, Alpine) with one apply and one destroy; see the
+1. **`M7b`:** the fleet root, Alpine profile, and `ft infra aws-test-fleet`
+   are built and planned; next the operator rebuilds the Arch AMI, applies the
+   fleet, and the first fleet run (`M7b-4`) follows; see the
    [M7b file](docs/milestones/M7b-cloud-test-fleet.md).
-3. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
+2. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
    the devcontainer and CLI terminal-mode flows; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 

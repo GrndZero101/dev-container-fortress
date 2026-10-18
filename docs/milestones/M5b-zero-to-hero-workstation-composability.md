@@ -2,8 +2,8 @@
 
 ## Status
 
-- [ ] Milestone complete
-- [x] Active milestone
+- [x] Milestone complete (squash-merged in PR #5, 2026-10-19)
+- [ ] Active milestone
 
 ## Objective
 
@@ -275,7 +275,7 @@ otherwise). The two repos share a small contract:
 - [x] Start after `M5a` is squash-merged
 - [x] Branch from `main` as `feat/m0005b-zero-to-hero`
 - [ ] Commit freely at verified checkpoints
-- [ ] Squash merge into `main` once the exit criteria are met
+- [x] Squash merge into `main` once the exit criteria are met (PR #5, `78eadf6`)
 
 ## Decisions
 

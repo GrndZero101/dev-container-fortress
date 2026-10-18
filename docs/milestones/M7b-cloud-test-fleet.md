@@ -3,7 +3,7 @@
 ## Status
 
 - [ ] Milestone complete
-- [x] Next candidate milestone, after the `M5b` PR and before `M5c`
+- [x] Active milestone, on `feat/m0007b-cloud-test-fleet` (started 2026-10-19, after `M5b` merged)
 
 ## Objective
 
@@ -24,8 +24,9 @@ cheap, short-lived EC2 fleet: one apply to create it, one destroy to remove it.
   and trust state, without hand-editing `hosts.toml`
 - [ ] Each target runs its documented check and a second run reports
   `changed=0`, or the gap is recorded as a finding
-- [ ] The single-host `infra/aws-disposable-ubuntu/` stack keeps working
-  unchanged for one-off hosts
+- [x] The single-host `infra/aws-disposable-ubuntu/` stack keeps working
+  unchanged for one-off hosts (its plan matches `main` resource for resource;
+  only the per-resource tags moved off provider defaults, 2026-10-19)
 - [ ] The fleet run, its cost shape, and its teardown are documented, so a run
   needs no tribal knowledge
 
@@ -61,34 +62,47 @@ any more, so the importer stack has to run again first.
 
 ### `M7b-1` Fleet Terraform root
 
-- [ ] Problem: the disposable host stack holds one host per state, so a second
+- [x] Problem: the disposable host stack holds one host per state, so a second
   host name replaces the first
-- [ ] Scope: add `infra/aws-test-fleet/`, which calls the existing host stack
+- [x] Scope: add `infra/aws-test-fleet/`, which calls the existing host stack
   as a module with `for_each` over a typed hosts map (name, OS, release,
   architecture, instance type). Move provider configuration out of the reused
   stack if `for_each` on the module requires it, without changing its
   single-host behavior. Default to Spot with the documented on-demand
-  fallback shape
-- [ ] Acceptance: `terraform plan` shows five hosts; `terraform fmt` and
-  `terraform validate` pass for both roots
+  fallback shape. The resources moved into `infra/modules/disposable-host/`
+  (a module with a provider block cannot take `for_each`), with `moved` blocks
+  for applied single hosts. The fleet shares one managed SSH key and detects
+  the SSH ingress IP once
+- [x] Acceptance: `terraform plan` shows five hosts; `terraform fmt` and
+  `terraform validate` pass for both roots. Verified 2026-10-19: without
+  `arch`, the plan has 21 resources for four hosts; with it, the plan stops
+  with "Build the private Arch AMI with infra/aws-arch-ami first", because
+  that AMI is not registered yet
 
 ### `M7b-2` Alpine OS profile
 
-- [ ] Problem: the OS profile map has `ubuntu` and `arch` only
-- [ ] Scope: add an `alpine` profile with its cloud-init login user, no SSM
+- [x] Problem: the OS profile map has `ubuntu` and `arch` only
+- [x] Scope: add an `alpine` profile with its cloud-init login user, no SSM
   agent, and an architecture-aware AMI name pattern that excludes the `metal`
-  and `uefi` variants
-- [ ] Acceptance: the plan resolves the latest Alpine 3.24 AMI for arm64 and
-  amd64
+  and `uefi` variants. A new optional `ami_name_regex` profile field does the
+  excluding, and the AMI lookup moved to `aws_ami_ids` so a missing image
+  fails with an actionable message
+- [x] Acceptance: the plan resolves the latest Alpine 3.24 AMI for arm64 and
+  amd64: `alpine-3.24.2-aarch64-cloudinit-r2` and
+  `alpine-3.24.2-x86_64-cloudinit-r2` on 2026-10-19
 
 ### `M7b-3` Fleet import into `ft`
 
-- [ ] Problem: `ft host import-terraform` and the infra commands assume one
+- [x] Problem: `ft host import-terraform` and the infra commands assume one
   host
-- [ ] Scope: import every fleet output as a host target with its managed SSH
-  key and known-hosts entry, and remove them on teardown
+- [x] Scope: import every fleet output as a host target with its managed SSH
+  key and known-hosts entry, and remove them on teardown. `ft infra
+  aws-test-fleet plan|apply|destroy` forwards to the single-host commands
+  with the fleet's directory, seed file, and key name; import already
+  handled several `[[targets]]` blocks. Removal on teardown is deferred: the
+  next apply overwrites the same names
 - [ ] Acceptance: `ft host list` shows all five, and `ft host doctor <name>
-  --probe` passes for each
+  --probe` passes for each (needs the first apply)
 
 ### `M7b-4` First fleet run
 

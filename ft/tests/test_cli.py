@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 import typer
 from ft.cli import (
+    TEST_FLEET_NAME,
     _container_host_ssh_public_key_path,
     _default_windows_ssh_dir,
     _deploy_rsync_command,
@@ -698,6 +699,140 @@ def test_infra_aws_disposable_ubuntu_apply_auto_imports_target(
     assert [command[-1] for command in calls] == ["init", "validate", "-auto-approve"]
     assert calls[2][-2] == "apply"
     assert import_calls == [(terraform_dir, None)]
+
+
+def test_infra_aws_test_fleet_apply_targets_the_fleet_stack(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Fleet apply should run the fleet root with its shared key, then import it."""
+    public_key_path = tmp_path / "dev_fortress_ed25519.pub"
+    public_key_path.write_text("ssh-ed25519 AAAATEST dev-fortress-fleet\n")
+    key_calls: list[tuple[str, Path]] = []
+    calls: list[tuple[list[str], dict[str, str] | None]] = []
+    import_calls: list[Path] = []
+
+    def fake_key(target_name: str, seed_config_path: Path) -> Path:
+        key_calls.append((target_name, seed_config_path))
+        return public_key_path
+
+    def fake_stream(
+        command: list[str],
+        *,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append((command, env))
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    def fake_import(
+        terraform_dir_arg: Path, config_path_arg: Path | None
+    ) -> dict[str, object]:
+        import_calls.append(terraform_dir_arg)
+        return {
+            "config": str(tmp_path / "hosts.toml"),
+            "terraform_dir": str(terraform_dir_arg),
+            "imported_targets": ["dev-fortress-fleet-alpine"],
+            "total_targets": 1,
+        }
+
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: "/usr/bin/terraform")
+    monkeypatch.setattr("ft.cli._ensure_managed_ssh_public_key_for_name", fake_key)
+    monkeypatch.setattr("ft.cli._run_streaming_command", fake_stream)
+    monkeypatch.setattr("ft.cli._import_terraform_host_targets", fake_import)
+
+    result = runner.invoke(app, ["infra", "aws-test-fleet", "apply", "--auto-approve"])
+
+    fleet_dir = Path(__file__).parents[2] / "infra" / "aws-test-fleet"
+    assert result.exit_code == 0
+    assert {command[1] for command, _ in calls} == {f"-chdir={fleet_dir}"}
+    assert [command[2:] for command, _ in calls] == [
+        ["init"],
+        ["validate"],
+        ["apply", "-auto-approve"],
+    ]
+    assert all(env and env["TF_VAR_name"] == "dev-fortress-fleet" for _, env in calls)
+    assert {seed for _, seed in key_calls} == {fleet_dir / "hosts.seed.toml"}
+    assert import_calls == [fleet_dir]
+
+
+def test_test_fleet_seed_names_the_shared_fleet_key() -> None:
+    """The fleet seed manifest must define the key name ft passes as TF_VAR_name."""
+    seed_path = (
+        Path(__file__).parents[2] / "infra" / "aws-test-fleet" / "hosts.seed.toml"
+    )
+    manifest = HostTargetManifest.model_validate(
+        tomllib.loads(seed_path.read_text(encoding="utf-8"))
+    )
+
+    targets = manifest.by_name()
+    assert TEST_FLEET_NAME in targets
+    assert targets[TEST_FLEET_NAME].resolved_ssh_key_name() == TEST_FLEET_NAME
+
+
+def test_host_import_terraform_imports_every_fleet_host(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """A fleet fragment with several targets should import each one."""
+    config_path = tmp_path / "hosts.toml"
+    terraform_dir = tmp_path / "terraform"
+    terraform_dir.mkdir()
+    blocks = [
+        f"""[[targets]]
+name = "dev-fortress-fleet-{suffix}"
+kind = "cloud"
+connection = "ssh"
+host = "{suffix}.example.internal"
+port = 22
+user = "{user}"
+auth_method = "ssh_key"
+ssh_key_name = "dev-fortress-fleet"
+ansible_python_interpreter = "/usr/bin/python3"
+tags = ["ssh", "{os}", "cloud", "disposable"]
+"""
+        for suffix, user, os in [
+            ("alpine", "alpine", "alpine"),
+            ("ubuntu-2604", "ubuntu", "ubuntu"),
+        ]
+    ]
+    payload = {
+        "host_target_toml_fragment": {
+            "sensitive": False,
+            "type": "string",
+            "value": "\n".join(blocks),
+        }
+    }
+
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: "/usr/bin/terraform")
+    monkeypatch.setattr(
+        "ft.cli._run_command",
+        lambda command: subprocess.CompletedProcess(
+            command, 0, stdout=json.dumps(payload), stderr=""
+        ),
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "host",
+            "import-terraform",
+            "--terraform-dir",
+            str(terraform_dir),
+            "--config",
+            str(config_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    targets = HostTargetManifest.model_validate(
+        tomllib.loads(config_path.read_text(encoding="utf-8"))
+    ).by_name()
+    assert set(targets) == {
+        "dev-fortress-fleet-alpine",
+        "dev-fortress-fleet-ubuntu-2604",
+    }
+    assert {t.resolved_ssh_key_name() for t in targets.values()} == {
+        "dev-fortress-fleet"
+    }
+    assert targets["dev-fortress-fleet-alpine"].user == "alpine"
 
 
 def test_infra_aws_disposable_ubuntu_capacity_select_wraps_stack_script(

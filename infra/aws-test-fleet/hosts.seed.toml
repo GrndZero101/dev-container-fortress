@@ -1,0 +1,15 @@
+# Seed host target used to prepare the fleet's one shared managed SSH key
+# before any fleet host exists. `ft infra aws-test-fleet apply` imports the real
+# hosts from the Terraform outputs, each with ssh_key_name = "dev-fortress-fleet".
+
+[[targets]]
+name = "dev-fortress-fleet"
+kind = "cloud"
+connection = "ssh"
+host = "placeholder.invalid"
+port = 22
+user = "ubuntu"
+auth_method = "ssh_key"
+ssh_key_name = "dev-fortress-fleet"
+ansible_python_interpreter = "/usr/bin/python3"
+tags = ["ssh", "cloud", "disposable", "fleet", "seed"]
