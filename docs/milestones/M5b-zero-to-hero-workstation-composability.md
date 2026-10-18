@@ -230,9 +230,9 @@ otherwise). The two repos share a small contract:
 
 ### M5b-9 Install Claude Code on host targets
 
-- [ ] Problem: Claude Code is installed by hand on every new host
-- [ ] Scope: a host role that runs the native installer as the operator user, skips hosts where it already exists, and leaves updates to Claude Code itself
-- [ ] Acceptance: `claude --version` works after a fresh bootstrap, and a re-run reports no change
+- [x] Problem: Claude Code is installed by hand on every new host
+- [x] Scope: a host role that runs the native installer as the operator user, skips hosts where it already exists, and leaves updates to Claude Code itself. `dev_fortress_claude_code`, on `workstation` and `cloud` targets, with `DEV_CONTAINER_FORTRESS_CLAUDE_CODE=0` to opt out
+- [ ] Acceptance: `claude --version` works after a fresh bootstrap, and a re-run reports no change (the role alone passed both under a fresh `HOME`; confirm in the fresh EC2 one-liner run)
 
 ### M5b-10 Default to Ubuntu 26.04 and make release trials easy
 
@@ -289,16 +289,19 @@ yet):
   (Ubuntu 26.04 default and `ubuntu-full-rolling`), and the host-mode login
   shell. A fresh WSL2 26.04 run converged in one pass and re-ran with
   `changed=0`
-- `M5b-5`: the role change that pins Homebrew's newest stable tag is done;
-  only its fresh-host acceptance run is left
+- `M5b-5` and `M5b-9`: the role changes (Homebrew's newest stable tag, and
+  the `dev_fortress_claude_code` role) are done; only their fresh-host
+  acceptance runs are left
 - decided: stock tmux by default with `csm` switching, local workspace builds
   by default, and Homebrew in containers in `M5c`
 
 Next, in suggested order:
 
-1. `M5b-5` acceptance: confirm one-pass convergence on the stable tag during
-   the fresh EC2 one-liner run (the role change is done)
-2. `M5b-9`: Claude Code on host targets through its native installer
+1. `M5b-5` and `M5b-9` acceptance: during the fresh EC2 one-liner run,
+   confirm one-pass convergence on the stable tag, `claude --version`, and
+   `changed=0` on the re-run (both role changes are done)
+2. re-run `ft host bootstrap localhost -K` on the `dev-fortress` workstation,
+   which already has Claude Code, and expect `changed=0`
 3. `M5b-7`: port the tmux profiles from `dotfiles`, plus the `csm` switch in
    `shell-config`
 4. `M5b-4`: `workspace` mode, with a local build by default
@@ -511,3 +514,30 @@ Piped installer runs (`--mode cli`) in stock `ubuntu:26.04` containers:
 
 The forge login itself was not exercised beyond the unit tests; the `gh`
 device flow was proven by hand in `M5a`.
+
+### `M5b-9` Claude Code, 2026-10-18
+
+The new `dev_fortress_claude_code` role pipes `https://claude.ai/install.sh`
+into `bash` as the target user, guarded by `creates: ~/.local/bin/claude`, then
+reports `claude --version`. The installer downloads the binary for the
+platform (glibc or musl, x64 or arm64), verifies its SHA-256 against the
+release manifest, and refuses to run under `sudo`, so the role uses no
+`become`. Once the launcher exists, the role leaves updates to Claude Code.
+
+It runs by default on `workstation` and `cloud` targets, skipping Alpine,
+whose baseline has no `bash`, and the disposable `docker` SSH targets.
+`dev_container_fortress_claude_code_manage` or
+`DEV_CONTAINER_FORTRESS_CLAUDE_CODE=0` turns it off, for example where a
+corporate policy blocks Claude Code.
+
+Run alone against `localhost` with a throwaway `HOME`:
+
+| Run | Result |
+| --- | --- |
+| 1, fresh | installed 2.1.302, `changed=1`; `claude --version` worked |
+| 2, re-run | `changed=0` |
+
+The installer wrote only `~/.local/bin/claude`, `~/.local/share/claude`
+(273 MB), `~/.claude`, `~/.claude.json`, and cache and state directories. It
+did not touch any shell rc file; `shell-config` already puts `~/.local/bin` on
+`PATH`. `ansible-lint` passes on the production profile.

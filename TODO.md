@@ -10,8 +10,8 @@ records the result.
 
 1. **`M5b`:** pick up from the "Resume Here" section of the
    [M5b file](docs/milestones/M5b-zero-to-hero-workstation-composability.md);
-   next is Claude Code on host targets (`M5b-9`); stable Homebrew (`M5b-5`)
-   needs only its fresh-host check.
+   stable Homebrew (`M5b-5`) and Claude Code (`M5b-9`) need only their
+   fresh-host checks; next is the tmux profiles (`M5b-7`).
 2. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
    the devcontainer and CLI terminal-mode flows; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
