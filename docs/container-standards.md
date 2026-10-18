@@ -44,6 +44,11 @@ That means they should:
   - `PATH=$HOME/.local/bin:$PATH`
 - Repo-specific runtime data may live below an XDG-owned subtree such as
   `$XDG_DATA_HOME/dev-container-fortress/`.
+- `UV_PROJECT_ENVIRONMENT=.venv-container`. Bind-mounted checkouts are shared
+  with the host, so each project keeps its container environment in
+  `.venv-container` beside the host's `.venv` instead of rebuilding it for the
+  other side's interpreter. uv resolves the relative path per project root, and
+  the directory ignores itself in Git.
 
 ## Persisted State Contract
 

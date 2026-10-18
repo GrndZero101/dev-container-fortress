@@ -99,6 +99,10 @@ ENV XDG_CACHE_HOME=${HOME}/.cache
 ENV XDG_DATA_HOME=${HOME}/.local/share
 ENV XDG_CONFIG_HOME=${HOME}/.config
 ENV XDG_STATE_HOME=${HOME}/.local/state
+# Mounted checkouts are shared with the host, so keep the container's project
+# environment beside the host .venv instead of overwriting it. uv resolves
+# this relative path per project root, and the directory ignores itself.
+ENV UV_PROJECT_ENVIRONMENT=.venv-container
 ENV PATH=${HOME}/.local/bin:${PATH}
 ENV SHELL_CONFIG_PROFILE=${SHELL_CONFIG_PROFILE_DEFAULT}
 

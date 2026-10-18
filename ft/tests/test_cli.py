@@ -3440,6 +3440,9 @@ def test_workspace_auth_checks_reflect_profile_mounts(
     from ft.models import WorkspaceProfileDefinition
 
     monkeypatch.delenv("SSH_AUTH_SOCK", raising=False)
+    # Workspace images export BROWSER for the host browser bridge.
+    monkeypatch.delenv("BROWSER", raising=False)
+    monkeypatch.delenv("GH_BROWSER", raising=False)
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setattr("ft.cli.Path.home", lambda: tmp_path / "home")
     gh_path = (

@@ -148,16 +148,26 @@ For remote workspace validation:
 uv run ft deploy exec dev-fortress-ec2-dev -- \
   uv run ft workspace build ubuntu-full \
     --shell-config-source local \
-    --shell-config-stage-from ~/workspaces/tboss/shell-config
+    --shell-config-stage-from ../shell-config
 
-uv run ft deploy exec dev-fortress-ec2-dev -- \
-  uv run ft workspace up ubuntu-full \
-    --shell-config-checkout ~/workspaces/tboss/shell-config
-
-uv run ft deploy exec dev-fortress-ec2-dev -- \
-  uv run ft workspace validate ubuntu-full \
-    --shell-config-checkout ~/workspaces/tboss/shell-config
+uv run ft deploy exec dev-fortress-ec2-dev -- uv run ft workspace up ubuntu-full
+uv run ft deploy exec dev-fortress-ec2-dev -- uv run ft workspace validate ubuntu-full
 ```
+
+`ft deploy exec` runs from the remote `dev-container-fortress` checkout, so
+`../shell-config` is the sibling clone, and `up` and `validate` find that clone
+without a flag.
+
+> [!WARNING]
+> `ft deploy exec` quotes each argument for the remote shell, so `~` and
+> `$HOME` are not expanded. Use paths relative to the remote checkout or
+> absolute paths. To run a shell snippet inside the workspace, pass it as one
+> argument:
+>
+> ```zsh
+> uv run ft deploy exec dev-fortress-ec2-dev -- \
+>   uv run ft workspace exec ubuntu-full -- zsh -lc 'git status -sb'
+> ```
 
 For disposable container parity checks on EC2:
 
@@ -166,6 +176,83 @@ uv run ft deploy exec dev-fortress-ec2-dev -- uv run ft container refresh ubuntu
 uv run ft deploy exec dev-fortress-ec2-dev -- uv run ft container validate ubuntu
 uv run ft deploy exec dev-fortress-ec2-dev -- uv run ft container refresh alpine
 uv run ft deploy exec dev-fortress-ec2-dev -- uv run ft container validate alpine
+```
+
+## Develop and Push From the Workspace
+
+Open a shell inside the workspace on the host:
+
+```zsh
+uv run ft host ssh dev-fortress-ec2-dev
+# then, on the host:
+cd ~/workspaces/tboss/dev-container-fortress
+uv run ft workspace enter ubuntu-full
+```
+
+A fresh host has no Git identity and no forge login. Set both once per host;
+they persist across workspace replacement because the identity lives in the
+bind-mounted checkout and the forge login lives in the persisted `config-gh` or
+`config-glab` mount.
+
+### Git identity
+
+Set the identity on each checkout, inside the workspace:
+
+```zsh
+git config user.name "Your Name"
+git config user.email "<id>+<user>@users.noreply.github.com"
+```
+
+> [!IMPORTANT]
+> If your GitHub account keeps its email private, GitHub declines pushes whose
+> commits use that private address. Use the noreply address from
+> GitHub → Settings → Emails. For an employer or GitLab identity, use the
+> address that forge expects instead.
+
+Set it per checkout rather than with `--global`. The workspace's
+`~/.gitconfig` is not a persisted path, so a global identity is lost when the
+container is replaced.
+
+### GitHub login
+
+The host has no browser, so use the device flow:
+
+```zsh
+gh auth login --hostname github.com --git-protocol https --web
+gh auth setup-git
+gh auth status
+```
+
+`gh` prints a one-time code. Open <https://github.com/login/device> on any
+machine and enter it within about 15 minutes; after that the code expires and
+`gh` fails with `context deadline exceeded`. `gh auth setup-git` makes `gh` the
+Git credential helper, so `git push` over HTTPS works.
+
+> [!NOTE]
+> The container has no keyring, so `gh` stores the token in plain text in the
+> persisted `config-gh` mount on the host disk. The disk is encrypted and
+> deleted with the instance, but the token stays valid on GitHub until you run
+> `gh auth logout` or revoke it under GitHub → Settings → Applications.
+
+### GitLab and corporate forges
+
+Use `glab auth login`, which persists in the `config-glab` mount, or the
+forge's documented token flow. When a device or browser flow is blocked, set a
+personal access token through the forge CLI or Git credential helper by hand.
+Only the GitHub path above has been exercised end to end.
+
+### Commit and push
+
+```zsh
+git add <paths>
+git commit
+git push
+```
+
+Then pull on the workstation:
+
+```zsh
+git pull --ff-only
 ```
 
 ## Remote Editor Use
@@ -229,8 +316,12 @@ mirroring, but it is no longer the primary EC2 development loop. Prefer
 
 ## Tear Down
 
-When the remote development host is no longer needed:
+When the remote development host is no longer needed, push any work first,
+then:
 
 ```zsh
 uv run ft infra aws-disposable-ubuntu destroy
 ```
+
+`destroy` leaves the imported target in `hosts.toml` with the old address. The
+next `apply` overwrites it, so no cleanup is needed before reprovisioning.

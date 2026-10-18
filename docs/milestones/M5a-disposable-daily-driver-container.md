@@ -268,18 +268,30 @@ Gaps found while dogfooding the loop:
 - `ft host ssh <target> -- <command>` is still missing (already an `M6` gap),
   and `ft host show` truncates the managed key path
 
-The loop works end to end, but only with steps the runbook does not cover, so
-the EC2 exit criterion and the `M5a-6` acceptance stay open until it does.
+The loop works end to end, but only with steps the runbook did not cover, so
+the EC2 exit criterion and the `M5a-6` acceptance stay open until a rerun from
+the runbook alone passes.
+
+Follow-ups done after the run:
+
+- `docs/ec2-development-loop.md` now covers the workspace Git identity (with the
+  noreply caveat), the `gh` device-flow login, a GitLab and corporate fallback,
+  and the commit, push, and pull round trip
+- the runbook's `~/...` paths never worked through `ft deploy exec`, which
+  quotes each argument; it now uses `../shell-config` and sibling discovery
+- the images set `UV_PROJECT_ENVIRONMENT=.venv-container`, so the host `.venv`
+  and the container environment no longer overwrite each other
+- `test_workspace_auth_checks_reflect_profile_mounts` read the real `BROWSER`
+  and failed inside workspaces; it now clears it
+
+Stable Homebrew and one-pass host convergence moved to `M5b`, which owns the
+fresh and brownfield host onramp.
 
 Open, in suggested order:
 
-1. Document the workspace Git identity and `gh` device-flow login in
-   `docs/ec2-development-loop.md`, then rerun the loop from the runbook alone.
-2. Pin the Linuxbrew role to the latest stable Homebrew tag and make host
-   convergence settle in one pass.
-3. Give the host and the workspace separate Python environments for the shared
-   checkout.
-4. The separate `tboss-workspace` devcontainers persist cache and auth paths but
+1. Rerun the EC2 loop from `docs/ec2-development-loop.md` alone, then tick the
+   EC2 exit criterion and `M5a-6` acceptance.
+2. The separate `tboss-workspace` devcontainers persist cache and auth paths but
    not `state`, `zoxide`, or `atuin`; aligning them is tracked in that repo's
    `TODO.md`.
 
