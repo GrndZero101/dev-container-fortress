@@ -287,6 +287,27 @@ Follow-ups done after the run:
 Stable Homebrew and one-pass host convergence moved to `M5b`, which owns the
 fresh and brownfield host onramp.
 
+### EC2 loop rerun on 2026-10-18, runbook only
+
+Followed `docs/ec2-development-loop.md` alone on an m8g.large (Graviton4,
+2 vCPU, 8 GiB) arm64 Spot host. This note was committed from inside the
+`ubuntu-full` workspace on that host.
+
+- `ft host validate` passed first time in under 7 minutes: one real converge,
+  then an idempotency pass with `changed=0`. The Homebrew duplicate-pour race
+  did not recur
+- `ft deploy init --dev-branch`, `ft doctor`, and the 168 tests passed on the host
+- the runbook's `ubuntu-full` build passed in 1 minute 40 seconds with the
+  `../shell-config` path, and `up` and `validate` passed without
+  `--shell-config-checkout`, using sibling discovery
+- the tests passed inside the workspace in `.venv-container`, and the host
+  `.venv` was untouched
+- the host `.venv` uses Homebrew's Python 3.15 rather than the uv-managed 3.14,
+  because `ft deploy init` does not run `bootstrap.zsh` and nothing pins the
+  version; tracked for `M5b`
+- the first `gh` device code expired unused after its 15 minutes, so start the
+  login only when someone is ready to enter the code
+
 Open, in suggested order:
 
 1. Rerun the EC2 loop from `docs/ec2-development-loop.md` alone, then tick the
