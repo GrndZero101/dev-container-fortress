@@ -180,6 +180,10 @@ But that is the weaker development path when you are also editing
 `shell-config`, because you still need to be deliberate about which
 `shell-config` checkout your shell and containers are using.
 
+Pass `--mode cli` (`curl … | sh -s -- --mode cli`) to stop after the `ft`
+install; the default `host` mode also converges the machine with
+`ft host bootstrap localhost`.
+
 The Dev Fortress bootstrap will:
 
 1. install `uv` if missing
@@ -193,6 +197,7 @@ The Dev Fortress bootstrap will:
 
 Optional environment overrides for the installer path:
 
+- `DEV_CONTAINER_FORTRESS_MODE` to choose `host` (default) or `cli`
 - `DEV_CONTAINER_FORTRESS_DIR` to change the checkout destination
 - `DEV_CONTAINER_FORTRESS_REF` to pin a branch, tag, or commit
 - `DEV_CONTAINER_FORTRESS_REPO` to use an alternate repository URL

@@ -58,42 +58,60 @@ For active repository work, prefer the development path.
 The fastest operator path is the one-liner installer.
 
 > [!IMPORTANT]
-> Baseline prerequisites:
-> `git` and `zsh`.
-> For the container validation loop below, you also need Docker with `buildx`.
-> `install.sh` checks the required baseline tools and warns if Docker or
-> `buildx` are not available yet.
+> On Ubuntu and WSL2 Ubuntu the only prerequisite is `curl`: the installer
+> installs `git`, `zsh`, `python3`, and its other native prerequisites itself,
+> behind one `sudo` password prompt. On other platforms only `--mode cli`
+> works, and it needs `git` and `zsh` already installed.
 
 ### One-liner
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
-  DEV_CONTAINER_FORTRESS_DIR="$HOME/projects/dev-container-fortress" sh
+curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | sh
 ```
 
-This clones or refreshes the repo, ensures `uv` exists, and then hands off to
-the repo bootstrap, which provisions a uv-managed Python 3.14 runtime for the
-project environment and installs a live `ft` CLI from the local checkout plus
-a user-level Ansible for `ft host` commands.
+In the default `host` mode this installs the native prerequisites, clones or
+refreshes the repo, ensures `uv` exists, and hands off to the repo bootstrap,
+which provisions a uv-managed Python 3.14 runtime and installs a live `ft` CLI
+plus a user-level Ansible. It then converges this machine with
+`ft host bootstrap localhost`: Docker, `shell-config`, the zsh login shell, and
+the Homebrew toolchain. Re-running the command is safe.
+
+`sudo` asks for your password once. The installer keeps the `sudo` session
+alive in the background so the Ansible run can reuse it, which means the
+whole install must run in one terminal.
+
+| Mode | What it does |
+| --- | --- |
+| `host` (default) | Prerequisites, `ft`, and the full `localhost` host bootstrap |
+| `cli` | Prerequisites (Ubuntu only), the checkout, `uv`, `ft`, and Ansible; no host changes beyond packages |
+| `workspace` | Thin host plus a daily-driver workspace; planned in `M5b` |
+
+Pass flags through the pipe with `sh -s --`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
+  sh -s -- --mode cli --dir "$HOME/projects/dev-container-fortress"
+```
 
 On host bootstrap paths, Dev Fortress will also manage the installed
 `shell-config` checkout unless you deliberately point it somewhere else.
 
 > [!NOTE]
-> `install.sh` supports a few environment variables for common onboarding
-> overrides.
+> Every flag also has an environment variable.
 
-| Variable | Purpose |
-| --- | --- |
-| `DEV_CONTAINER_FORTRESS_DIR` | Choose the local checkout destination |
-| `DEV_CONTAINER_FORTRESS_REF` | Pin a branch, tag, or commit |
-| `DEV_CONTAINER_FORTRESS_REPO` | Use an alternate Git repository URL |
-| `DEV_CONTAINER_FORTRESS_PYTHON_VERSION` | Override the uv-managed Python version used by `bootstrap.zsh` |
+| Variable | Flag | Purpose |
+| --- | --- | --- |
+| `DEV_CONTAINER_FORTRESS_MODE` | `--mode` | Choose `host`, `cli`, or `workspace` |
+| `DEV_CONTAINER_FORTRESS_DIR` | `--dir` | Choose the local checkout destination |
+| `DEV_CONTAINER_FORTRESS_REF` | `--ref` | Pin a branch, tag, or commit |
+| `DEV_CONTAINER_FORTRESS_REPO` | `--repo` | Use an alternate Git repository URL |
+| `DEV_CONTAINER_FORTRESS_PYTHON_VERSION` | | Override the uv-managed Python version used by `bootstrap.zsh` |
 
 Full example with all installer overrides:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
+  DEV_CONTAINER_FORTRESS_MODE="host" \
   DEV_CONTAINER_FORTRESS_DIR="$HOME/projects/dev-container-fortress" \
   DEV_CONTAINER_FORTRESS_REF="main" \
   DEV_CONTAINER_FORTRESS_REPO="https://github.com/GrndZero101/dev-container-fortress.git" \

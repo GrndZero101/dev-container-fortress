@@ -79,8 +79,13 @@ Installer-style:
 
 ```zsh
 curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
-  DEV_CONTAINER_FORTRESS_DIR="$HOME/src/dev-container-fortress" sh
+  DEV_CONTAINER_FORTRESS_DIR="$HOME/src/dev-container-fortress" sh -s -- --mode cli
 ```
+
+> [!TIP]
+> `--mode cli` keeps this guide's step-by-step order. Without it, the
+> installer's default `host` mode also installs the native prerequisites and
+> runs the `localhost` host bootstrap from the later steps, in one command.
 
 At the end of this step, the repo-local `uv` environment should be ready and
 `bootstrap.zsh` should also install a live `ft` CLI and Ansible into the user
