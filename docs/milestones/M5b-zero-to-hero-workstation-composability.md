@@ -332,8 +332,8 @@ Recorded while building `M5b-7` (2026-10-18):
 
 ## Resume Here
 
-State at the end of 2026-10-19, on `feat/m0005b-zero-to-hero` (no PR yet;
-the 2026-10-19 commits are not pushed):
+State at the end of 2026-10-19, on `feat/m0005b-zero-to-hero` (pushed, with
+PR #5 open):
 
 - done: `M5b-1` (one `sudo` prompt), `M5b-2` (installer prerequisites),
   `M5b-3` (chained `localhost` bootstrap), `M5b-6` (`ft identity`), `M5b-10`
@@ -361,7 +361,7 @@ the 2026-10-19 commits are not pushed):
 
 Next, in suggested order:
 
-1. open the `M5b` PR: `M5b-8` (the quickstart) is done
+1. the `M5b` PR is open ([#5](https://github.com/GrndZero101/dev-container-fortress/pull/5)); squash-merge it once CI is green
 2. optional: `workspace` mode on a fresh arm64 EC2 host (local build only; the
    published images are amd64), now a natural first `M7b` fleet check
 
