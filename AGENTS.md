@@ -10,6 +10,7 @@
 
 * This repository is for provisioning and packaging developer environments.
 * Keep shell UX and shell behavior in the external `shell-config` repository rather than reimplementing them here.
+  * Exception: Dev Fortress ships the opt-in tmux profiles (`minimal`, `full`, `raidboss`). tmux setup is workstation terminal UX rather than shell behavior, and it should work out of the box without the separate `dotfiles` repo.
 * Prefer the thinnest layer that fits the job:
   * Ansible for host orchestration
   * Homebrew for host package bundles

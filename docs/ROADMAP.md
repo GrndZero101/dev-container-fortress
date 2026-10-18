@@ -316,7 +316,7 @@ Details:
 
 ### `M5a` Disposable Daily-Driver Container
 
-Status: `now`
+Status: `done`
 
 Objective:
 Define and prove the first real day-to-day development container workflow so a
@@ -357,7 +357,7 @@ Details:
 
 ### `M5b` Zero to Hero: Workstation Composability
 
-Status: `next`
+Status: `now`
 
 Objective:
 Take a brand-new or existing Ubuntu machine to a working Dev Fortress
@@ -372,7 +372,8 @@ Exit criteria:
   the host bootstrap, with at most one `sudo` prompt
 - stable Homebrew and one-pass convergence; re-runs on brownfield hosts are safe
 - a Git identity step with a manual corporate and GitLab fallback
-- tmux profiles (`minimal`, `full`, `raidboss`) ported from `dotfiles`
+- stock tmux by default, with `minimal`, `full`, and `raidboss` profiles
+  ported from `dotfiles` as one-setting opt-ins
 - one consolidated "Zero to Hero" quickstart
 
 Non-goals:

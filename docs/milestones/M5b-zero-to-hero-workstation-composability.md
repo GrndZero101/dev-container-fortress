@@ -3,7 +3,7 @@
 ## Status
 
 - [ ] Milestone complete
-- [ ] Active milestone
+- [x] Active milestone
 
 ## Objective
 
@@ -49,7 +49,7 @@ EC2 over SSH (`M5a`), but the onramp around them is manual and spread across
 - [ ] The Linuxbrew role tracks the latest stable Homebrew tag, and a fresh host converges in one pass, with the idempotency pass reporting `changed=0`
 - [ ] Re-running the command on an already converged or hand-built host is safe and reports what it changed
 - [ ] A Git identity step works non-interactively from environment variables, prompts only on a TTY, and documents a manual fallback for corporate and GitLab identities
-- [ ] Dev Fortress offers tmux profiles ported from the `dotfiles` repo: `minimal`, `full`, and `raidboss`
+- [ ] Dev Fortress installs stock tmux with no config by default, and offers `minimal`, `full`, and `raidboss` profiles ported from the `dotfiles` repo, each selectable with one setting
 - [ ] Claude Code is installed by default on host targets through its native installer, so it updates itself between bootstrap runs
 - [ ] The flow is verified on fresh WSL2 Ubuntu, fresh Ubuntu EC2 running the one-liner on the box, and one brownfield host
 - [ ] One "Zero to Hero" quickstart replaces the scattered onramp docs, and `README.md` points to it
@@ -88,8 +88,9 @@ existing `DEV_CONTAINER_FORTRESS_*` pattern:
 | --- | --- | --- |
 | install directory | XDG-aligned checkout path | `DEV_CONTAINER_FORTRESS_DIR` |
 | mode | `host` | `DEV_CONTAINER_FORTRESS_MODE=workspace` |
+| workspace image | local build | `DEV_CONTAINER_FORTRESS_WORKSPACE_IMAGE=published` |
 | `shell-config` profile | `zsh-tll-citadel-dev-fortress` | existing profile variable |
-| tmux profile | to decide | `DEV_CONTAINER_FORTRESS_TMUX_PROFILE=raidboss` |
+| tmux profile | none (stock tmux, no config written) | `DEV_CONTAINER_FORTRESS_TMUX_PROFILE=full` |
 | Git identity | prompt on a TTY, else skip with a hint | `DEV_CONTAINER_FORTRESS_GIT_NAME`, `DEV_CONTAINER_FORTRESS_GIT_EMAIL` |
 
 Arguments after `sh -s --` should map to the same settings for people who
@@ -101,9 +102,10 @@ prefer flags.
   zinit, login shell, Homebrew tools, Neovim kickstart, and the chosen tmux
   profile.
 - `workspace`: the bootstrap floor plus Docker and `ft`, then a ready
-  daily-driver workspace. Prefer pulling the published
-  `ghcr.io/grndzero101/dev-container-fortress:ubuntu-full` image for speed and
-  keep a local build as the fallback.
+  daily-driver workspace. Build the image locally by default, because
+  corporate environments may block or distrust public registries. Pulling the
+  published `ghcr.io/grndzero101/dev-container-fortress:ubuntu-full` image is
+  an opt-in for speed.
 
 ### Privilege
 
@@ -131,9 +133,17 @@ overwrite an existing `~/.tmux.conf` or Git identity silently.
 ### tmux Profiles
 
 Port `tmux-minimal`, `tmux-full`, and `tmux-raidboss` from the `dotfiles` repo
-into a Dev Fortress role with one profile variable. `full` and `raidboss` need
-tmux 3.8+, which Homebrew provides on Ubuntu, and they bootstrap tpm plugins on
-first start.
+into a Dev Fortress role with one profile variable. The default is no profile:
+tmux is installed and runs with its stock settings, and Dev Fortress writes no
+config. Switching to `full`, the operator's daily profile, must be one setting
+and one re-run. `full` and `raidboss` need tmux 3.8+, which Homebrew provides
+on Ubuntu, and they bootstrap tpm plugins on first start.
+
+Dev Fortress owns these profiles even though `AGENTS.md` keeps shell UX in
+`shell-config`: tmux is terminal-multiplexer setup for the provisioned
+workstation rather than shell behavior, and a working tmux setup should come
+out of the box without the separate `dotfiles` repo. Personal tmux tweaks stay
+in `dotfiles`.
 
 ## Issue Drafts
 
@@ -158,7 +168,7 @@ first start.
 ### M5b-4 Add the workspace mode
 
 - [ ] Problem: there is no thin-host path from the one-liner
-- [ ] Scope: `DEV_CONTAINER_FORTRESS_MODE=workspace` installs the bootstrap floor and Docker, then prepares the daily-driver workspace from the published image
+- [ ] Scope: `DEV_CONTAINER_FORTRESS_MODE=workspace` installs the bootstrap floor and Docker, then builds the daily-driver workspace locally, with an opt-in to pull the published image
 - [ ] Acceptance: `ft workspace enter ubuntu-full` works straight after the installer finishes
 
 ### M5b-5 Pin stable Homebrew and converge in one pass
@@ -176,8 +186,8 @@ first start.
 ### M5b-7 Port the tmux profiles
 
 - [ ] Problem: tmux setup lives only in the separate `dotfiles` repo
-- [ ] Scope: port the `minimal`, `full`, and `raidboss` profiles into a role with one profile variable and brownfield-safe linking
-- [ ] Acceptance: each profile installs and starts cleanly on Ubuntu, and switching profiles is safe
+- [ ] Scope: port the `minimal`, `full`, and `raidboss` profiles into a role with one profile variable, a no-config default, and brownfield-safe linking
+- [ ] Acceptance: the default leaves stock tmux untouched, each profile installs and starts cleanly on Ubuntu, and switching profiles, including back to none, is safe
 
 ### M5b-8 Consolidate the onramp docs
 
@@ -202,8 +212,8 @@ first start.
 
 ## Branch and Merge Plan
 
-- [ ] Start after `M5a` is squash-merged
-- [ ] Branch from `main` as `feat/m0005b-zero-to-hero`
+- [x] Start after `M5a` is squash-merged
+- [x] Branch from `main` as `feat/m0005b-zero-to-hero`
 - [ ] Commit freely at verified checkpoints
 - [ ] Squash merge into `main` once the exit criteria are met
 
@@ -221,15 +231,14 @@ Recorded on 2026-10-18:
 - Claude Code is a default package on every target, installed through its
   native installer so it updates itself (the container side is in `M5c`)
 
-Still open:
+Settled when starting the milestone:
 
-- Where the tmux profiles live. `AGENTS.md` keeps shell UX in `shell-config`;
-  tmux is terminal UX rather than shell behavior, and the request is to offer
-  it from Dev Fortress. Record the reason in `AGENTS.md` and
-  `docs/architecture.md` when it is settled.
-- The default tmux profile, or none.
-- Whether `workspace` mode pulls the published image by default or builds
-  locally.
+- the tmux profiles live in Dev Fortress, with the reason recorded in
+  `AGENTS.md` and `docs/architecture.md`
+- the default is stock tmux with no config; `minimal`, `full`, and `raidboss`
+  are all ported from `dotfiles` and selected with one setting
+- `workspace` mode builds the image locally by default and pulls the published
+  image only on request
 
 ## Progress Notes
 
@@ -243,7 +252,12 @@ Findings from the `M5a` rerun to fold into the issues above:
   uv-managed 3.14 (relevant to `M5b-3`)
 - WSL interop can be disabled, which breaks `wslview` browser opening and the
   Windows profile lookup in `ft host ssh-config --windows`. The onramp must not
-  assume interop on WSL2
+  assume interop on WSL2. On the operator's machine the cause was a sibling
+  distro: all WSL2 distros share one kernel, so binfmt registrations are
+  VM-wide, and an idle `Ubuntu-22.04` shutdown cleared `WSLInterop` for every
+  distro even though WSL's generated drop-in disables
+  `systemd-binfmt --unregister`. `sudo systemctl restart systemd-binfmt`
+  restores it. A self-heal timer in the WSL host role is worth considering
 - `ft host ssh-config` on WSL2 writes only the WSL config, but VS Code on
   Windows reads the Windows one. It should detect WSL and point to `--windows`,
   and fall back to the single `/mnt/c/Users/*` profile with a `.ssh` directory

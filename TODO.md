@@ -8,16 +8,10 @@ records the result.
 
 ## Up Next
 
-1. **Merge `M5a`:** open the PR for
-   `feat/m0005a-disposable-daily-driver-container` and squash-merge it into
-   `main`; the exit criteria in the
-   [M5a file](docs/milestones/M5a-disposable-daily-driver-container.md) are ticked.
-2. **Start `M5b` Zero to Hero:** settle the open decisions in the
-   [M5b file](docs/milestones/M5b-zero-to-hero-workstation-composability.md)
-   (where tmux profiles live, the default tmux profile, and image pull versus
-   local build for `workspace` mode), then begin with the `M5b-1` privilege
-   spike.
-3. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
+1. **`M5b-1`:** spike the single-prompt privilege model, then `M5b-2`
+   (installer prerequisites); see the
+   [M5b file](docs/milestones/M5b-zero-to-hero-workstation-composability.md).
+2. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
    the devcontainer and CLI terminal-mode flows; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 

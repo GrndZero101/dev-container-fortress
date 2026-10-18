@@ -14,6 +14,12 @@ It should not become the place where shell behavior is defined.
 
 That responsibility belongs to the external `shell-config` repository.
 
+> [!NOTE]
+> tmux profiles are the one terminal-UX exception. Dev Fortress installs stock
+> tmux and offers opt-in `minimal`, `full`, and `raidboss` profiles, because a
+> working multiplexer setup belongs to the provisioned workstation and should
+> not depend on the separate `dotfiles` repo. See `M5b`.
+
 ## Tooling Split
 
 ### Host targets
