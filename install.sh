@@ -393,6 +393,10 @@ sync_repo_checkout() {
   if [ -n "$REPO_REF" ]; then
     log_step "Checking out ref $REPO_REF"
     git -C "$destination" checkout "$REPO_REF"
+    # A branch ref must fast-forward on re-runs too; tags and commits stay put.
+    if git -C "$destination" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1; then
+      git -C "$destination" pull --ff-only
+    fi
   else
     log_step "Checking out origin/HEAD"
     current_branch=$(git -C "$destination" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)
