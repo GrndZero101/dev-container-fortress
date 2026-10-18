@@ -246,7 +246,7 @@ otherwise). The two repos share a small contract:
 
 - [x] Problem: agentic coding tools are large and not wanted on every machine, so they should not be in the default bootstrap
 - [x] Scope: an option catalog in `ft`, a non-interactive selection (`--options` on `ft host bootstrap` and `install.sh`, `DEV_CONTAINER_FORTRESS_OPTIONS`, or `options.toml`), and a checkbox picker (`ft options pick`, `install.sh --interactive`); `claude-code` is the first option
-- [ ] Acceptance: the default one-liner installs no optional component, `--options claude-code` installs Claude Code, and `--interactive` under `curl | sh` shows the picker and saves the choice (unit tests and a pseudo-terminal picker run pass; the full installer runs are still to do)
+- [ ] Acceptance: the default one-liner installs no optional component, `--options claude-code` installs Claude Code, and `--interactive` under `curl | sh` shows the picker and saves the choice (unit tests and the piped `--interactive` installer runs pass; the host-mode runs with and without `claude-code` are still to do)
 
 ## Verification Notes
 
@@ -581,3 +581,10 @@ Checked: 13 new tests (200 in total), `ruff`, `ansible-lint` on the production
 profile, and `shellcheck` on the installer. Driving `ft options pick` on a
 pseudo-terminal with Space and Enter saved `enabled = ["claude-code"]`, and
 `ft options` then reported it from `config`.
+
+Piped installer runs (`--mode cli`) in stock `ubuntu:26.04` containers:
+
+| Run | Result |
+| --- | --- |
+| `--interactive` on a pseudo-terminal, Space and Enter fed in | picker shown after `bootstrap.zsh`; saved `enabled = ["claude-code"]`; install completed |
+| `--interactive --options claude-code`, no terminal | warned and continued; `ft options` reported `claude-code` from the environment |
