@@ -1,10 +1,21 @@
 ---
+# Precedence: the inventory variable, then DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL
+# (install.sh sets it to 1 in host mode), then remote targets only, so a plain
+# `ft host bootstrap localhost` never changes the operator's own shell.
 - name: Determine whether Dev Fortress should manage the login shell
+  vars:
+    dev_fortress_login_shell_env: >-
+      {{ lookup('ansible.builtin.env', 'DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL', default='') }}
   ansible.builtin.set_fact:
     dev_fortress_login_shell_manage_effective: >-
       {{
         dev_container_fortress_manage_login_shell
-        | default(dev_fortress_target_contract_host.connection != 'local')
+        | default(
+            dev_fortress_login_shell_env | bool
+            if dev_fortress_login_shell_env | length > 0
+            else dev_fortress_target_contract_host.connection != 'local'
+          )
+        | bool
       }}
 
 - name: Check common zsh paths for login-shell convergence

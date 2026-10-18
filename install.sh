@@ -75,7 +75,8 @@ Modes:
 
 Every flag has an environment variable: DEV_CONTAINER_FORTRESS_MODE,
 DEV_CONTAINER_FORTRESS_DIR, DEV_CONTAINER_FORTRESS_REF, and
-DEV_CONTAINER_FORTRESS_REPO.
+DEV_CONTAINER_FORTRESS_REPO. Host mode makes zsh the login shell; set
+DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL=0 to keep the current shell.
 USAGE
 }
 
@@ -429,6 +430,10 @@ run_repo_bootstrap() {
 run_host_bootstrap() {
   destination=$1
   log_step "Converging this machine with the localhost host bootstrap"
+  # Running the one-liner asks for a Dev Fortress workstation, so make zsh the
+  # login shell unless the operator opted out.
+  DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL="${DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL:-1}"
+  export DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL
   if ! (cd "$destination" && uv run ft host bootstrap localhost); then
     printf '%s\n' "[install] the host bootstrap failed; rerunning the installer is safe, or run:" >&2
     printf '%s\n' "  cd $destination && uv run ft host bootstrap localhost -K" >&2

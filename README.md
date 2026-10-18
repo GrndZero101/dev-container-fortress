@@ -106,6 +106,7 @@ On host bootstrap paths, Dev Fortress will also manage the installed
 | `DEV_CONTAINER_FORTRESS_REF` | `--ref` | Pin a branch, tag, or commit |
 | `DEV_CONTAINER_FORTRESS_REPO` | `--repo` | Use an alternate Git repository URL |
 | `DEV_CONTAINER_FORTRESS_PYTHON_VERSION` | | Override the uv-managed Python version used by `bootstrap.zsh` |
+| `DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL` | | Host mode makes zsh the login shell; set `0` to keep the current one |
 
 Full example with all installer overrides:
 

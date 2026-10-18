@@ -153,6 +153,12 @@ module. This stays configurable per target and defaults to enabled for
 non-local targets so real SSH and cloud hosts actually enter the Dev Fortress
 shell on login.
 
+Precedence: the `dev_container_fortress_manage_login_shell` inventory variable,
+then the `DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL` environment variable, then
+the non-local default. `install.sh` sets the environment variable to `1` in
+host mode, because running the one-liner asks for a Dev Fortress workstation;
+a plain `ft host bootstrap localhost` leaves the operator's shell alone.
+
 ### `dev_fortress_linuxbrew`
 
 Installs Linuxbrew for supported Ubuntu targets in the standard supported

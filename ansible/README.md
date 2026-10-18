@@ -168,7 +168,7 @@ contract by:
 - converging and then asserting the native bootstrap prerequisite command contract (`python3`, `git`, `curl`, `zsh`)
 - cloning and bootstrapping `shell-config` using only that minimal native prerequisite layer
 - installing the fortress profile-local `zinit` checkout so the richer plugin-backed shell behavior is available on supported hosts
-- converging the target user's login shell to `zsh` for non-local targets by default
+- converging the target user's login shell to `zsh` for non-local targets by default, and for `localhost` when `install.sh` runs in host mode
 - installing Linuxbrew in the supported Ubuntu prefix and converging a reduced first-pass formula set for Ubuntu targets
 - installing Linuxbrew in the supported Ubuntu prefix and converging the core fortress-facing tool set for Ubuntu targets
 - cloning `kickstart.nvim` into a parallel Neovim app config and exposing an
