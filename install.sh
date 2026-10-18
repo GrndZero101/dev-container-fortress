@@ -254,7 +254,10 @@ acquire_privilege() {
   require_command sudo
   USE_SUDO=1
 
-  if ! sudo -n -v 2>/dev/null; then
+  # Probe with a real command, not `sudo -n -v`: -v checks every sudoers entry
+  # the user has, so EC2's ubuntu user (NOPASSWD plus the password-only %sudo
+  # group rule) fails it even though every command runs without a password.
+  if ! sudo -n true 2>/dev/null; then
     # sudo reads the password from /dev/tty, so this works under curl | sh as
     # long as a terminal exists.
     if ! (: </dev/tty) 2>/dev/null; then
