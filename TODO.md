@@ -8,10 +8,9 @@ records the result.
 
 ## Up Next
 
-1. **`M5b` next slices:** stable Homebrew (`M5b-5`), the Git identity step
-   (`M5b-6`), and tmux profiles with `csm` switching (`M5b-7`), then the EC2
-   one-liner run; see the
-   [M5b file](docs/milestones/M5b-zero-to-hero-workstation-composability.md).
+1. **`M5b`:** pick up from the "Resume Here" section of the
+   [M5b file](docs/milestones/M5b-zero-to-hero-workstation-composability.md);
+   next is stable Homebrew (`M5b-5`), then the Git identity step (`M5b-6`).
 2. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
    the devcontainer and CLI terminal-mode flows; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).

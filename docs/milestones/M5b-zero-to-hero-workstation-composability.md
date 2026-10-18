@@ -279,6 +279,46 @@ Settled when starting the milestone:
 - `workspace` mode builds the image locally by default and pulls the published
   image only on request
 
+## Resume Here
+
+State at the end of 2026-10-18, on `feat/m0005b-zero-to-hero` (pushed, no PR
+yet):
+
+- done: `M5b-1` (one `sudo` prompt), `M5b-2` (installer prerequisites),
+  `M5b-3` (chained `localhost` bootstrap), `M5b-10` (Ubuntu 26.04 default and
+  `ubuntu-full-rolling`), the host-mode login shell, and a fresh WSL2 26.04
+  run that converged in one pass and re-ran with `changed=0`
+- decided: stock tmux by default with `csm` switching, local workspace builds
+  by default, and Homebrew in containers in `M5c`
+
+Next, in suggested order:
+
+1. `M5b-5`: track the latest stable Homebrew tag in the Linuxbrew role
+2. `M5b-6`: the Git identity step (env vars, TTY prompt, noreply hint, manual
+   fallback)
+3. `M5b-9`: Claude Code on host targets through its native installer
+4. `M5b-7`: port the tmux profiles from `dotfiles`, plus the `csm` switch in
+   `shell-config`
+5. `M5b-4`: `workspace` mode, with a local build by default
+6. pin `ansible_python_interpreter: /usr/bin/python3` for local targets, which
+   the WSL2 run warned about
+7. verification still open: the one-liner on a fresh EC2 box, a hand-built
+   brownfield host, and `workspace` mode
+8. `M5b-8`: the consolidated quickstart, then open the PR
+
+Working notes for the next session:
+
+- the throwaway WSL2 test recipe: `wsl.exe --install Ubuntu-26.04 --name
+  m5b-test --no-launch`, add a password-`sudo` user as root with
+  `wsl.exe -e`, share the branch as a git bundle in `/mnt/wsl`, and run the
+  one-liner under `script` to answer the single prompt. Keep the distro awake
+  with a background `sleep infinity` while testing
+- stopping any sibling WSL2 distro wipes `WSLInterop`; restore it with
+  `wsl-restore-interop` in a normal terminal
+- container recipe for installer checks: `ubuntu:26.04` with `/src` mounted and
+  `[safe] directory = *` in `~/.gitconfig`, then
+  `sh /src/install.sh --repo /src --ref <branch>`
+
 ## Progress Notes
 
 Drafted on 2026-10-18 after the `M5a` EC2 loop, which supplied most of the gap
