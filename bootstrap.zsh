@@ -11,7 +11,7 @@ fi
 set -euo pipefail
 
 BOOTSTRAP_DIR=${0:A:h}
-FORTRESS_PYTHON_VERSION=${DEV_CONTAINER_FORTRESS_PYTHON_VERSION:-3.14}
+FORTRESS_PYTHON_VERSION=${DEV_CONTAINER_FORTRESS_PYTHON_VERSION:-$(<"${BOOTSTRAP_DIR}/.python-version")}
 UV_WAS_INSTALLED=0
 
 # Purpose: Print a consistently formatted bootstrap log line.

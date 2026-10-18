@@ -26,7 +26,7 @@ The Ubuntu, Alpine, and Arch Dockerfiles now use a shared split bootstrap strate
 
 - copy `uv` from Astral's distroless image for build-time package work
 - install `uv` again with Astral's shell installer for the final runtime user
-- install managed Python 3.14 with `uv` so the `ft` package runs without depending on distro Python versions
+- install the managed Python that the repo-root `.python-version` pins with `uv` so the `ft` package runs without depending on distro Python versions
 - install the `ft` CLI with `uv tool install` into the runtime user's XDG-managed tool directories
 - install the `ft` zsh completion artifact into the user's XDG-managed data tree so shell-config can load it without vendoring cross-repo files
 - keep runtime state under the user's home directory rather than a custom `/opt` tree

@@ -84,9 +84,9 @@ Recommended baseline on your workstation:
 - `curl`
 - `rsync`
 
-You do not need `uv` or Python 3.14 preinstalled. The repo bootstrap will
-install `uv` if needed and then provision a uv-managed Python 3.14 runtime for
-the project environment.
+You do not need `uv` or a specific Python preinstalled. The repo bootstrap
+will install `uv` if needed and then provision the uv-managed Python that the
+repo-root `.python-version` pins (3.14 today) for the project environment.
 
 ### macOS with Homebrew
 
@@ -189,7 +189,7 @@ The Dev Fortress bootstrap will:
 
 1. install `uv` if missing
 2. hand off to `bootstrap.zsh`
-3. provision a uv-managed Python 3.14 runtime for the project environment
+3. provision the uv-managed Python that `.python-version` pins for the project environment
 4. create or refresh the local project environment
 5. install the live `ft` CLI into the user tool path with `uv tool install`
 6. install Ansible into the user tool path with `uv tool install` so the
@@ -214,7 +214,7 @@ zsh ./bootstrap.zsh
 This will:
 
 1. install `uv` if missing
-2. provision a uv-managed Python 3.14 runtime for the local project
+2. provision the uv-managed Python that `.python-version` pins for the local project
 3. create or refresh the local `.venv`
 4. install Python dependencies for local development
 5. install the live `ft` CLI into the user tool path from the local checkout

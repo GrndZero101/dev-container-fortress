@@ -71,7 +71,7 @@ curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/
 
 In the default `host` mode this installs the native prerequisites, clones or
 refreshes the repo, ensures `uv` exists, and hands off to the repo bootstrap,
-which provisions a uv-managed Python 3.14 runtime and installs a live `ft` CLI
+which provisions the uv-managed Python that `.python-version` pins and installs a live `ft` CLI
 plus a user-level Ansible. It then converges this machine with
 `ft host bootstrap localhost`: Docker, `shell-config`, the zsh login shell, and
 the Homebrew toolchain. Re-running the command is safe.
@@ -155,7 +155,7 @@ On host bootstrap paths, Dev Fortress will also manage the installed
 | `DEV_CONTAINER_FORTRESS_DIR` | `--dir` | Choose the local checkout destination |
 | `DEV_CONTAINER_FORTRESS_REF` | `--ref` | Pin a branch, tag, or commit |
 | `DEV_CONTAINER_FORTRESS_REPO` | `--repo` | Use an alternate Git repository URL |
-| `DEV_CONTAINER_FORTRESS_PYTHON_VERSION` | | Override the uv-managed Python version used by `bootstrap.zsh` |
+| `DEV_CONTAINER_FORTRESS_PYTHON_VERSION` | | Override the repo-root `.python-version` pin for `bootstrap.zsh` |
 | `DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL` | | Host mode makes zsh the login shell; set `0` to keep the current one |
 | `DEV_CONTAINER_FORTRESS_OPTIONS` | `--options` | Optional components for this run, such as `claude-code,tmux-full`, or `none` |
 | `DEV_CONTAINER_FORTRESS_WORKSPACE_IMAGE` | `--workspace-image` | Workspace mode: `local` (default) builds the image, `published` pulls it |

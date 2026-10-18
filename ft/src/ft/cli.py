@@ -208,7 +208,7 @@ DEPLOY_RSYNC_EXCLUDES = (
 WORKSPACE_TOOLCHAIN_CHECKS = (
     ("ft", "ft --help >/dev/null && print -r -- ok"),
     ("uv", "uv --version"),
-    ("python", "python3.14 --version"),
+    ("python", f"python{sys.version_info.major}.{sys.version_info.minor} --version"),
     ("nvim", "setopt pipefail; nvim --version | head -n 1"),
 )
 ANSIBLE_PLAY_RECAP_PATTERN = re.compile(

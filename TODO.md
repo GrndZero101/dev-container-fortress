@@ -18,6 +18,8 @@ records the result.
 
 ## Parked
 
+- Bump `.python-version` to 3.15 once an `ansible-core` release supports it;
+  2.21.5 crashes on 3.15 (`dataclasses` has no `_is_type`).
 - Find what wipes `WSLInterop` when a sibling WSL2 distro shuts down (it now
   reproduces with a fresh store distro), and consider a self-heal timer;
   `wsl-restore-interop` restores it meanwhile.
