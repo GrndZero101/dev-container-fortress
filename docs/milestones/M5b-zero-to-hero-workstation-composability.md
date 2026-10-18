@@ -221,3 +221,16 @@ Still open:
 
 Drafted on 2026-10-18 after the `M5a` EC2 loop, which supplied most of the gap
 list.
+
+Findings from the `M5a` rerun to fold into the issues above:
+
+- `ft deploy init` does not run `bootstrap.zsh`, and nothing pins the Python
+  version, so the host `.venv` picked up Homebrew's Python 3.15 instead of the
+  uv-managed 3.14 (relevant to `M5b-3`)
+- WSL interop can be disabled, which breaks `wslview` browser opening and the
+  Windows profile lookup in `ft host ssh-config --windows`. The onramp must not
+  assume interop on WSL2
+- `ft host ssh-config` on WSL2 writes only the WSL config, but VS Code on
+  Windows reads the Windows one. It should detect WSL and point to `--windows`,
+  and fall back to the single `/mnt/c/Users/*` profile with a `.ssh` directory
+  when interop is off (relevant to `M5b-8`)

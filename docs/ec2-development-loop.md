@@ -279,6 +279,12 @@ can then connect to the stable host alias:
 dev-fortress-ec2-dev
 ```
 
+> [!IMPORTANT]
+> From WSL2, the command above only updates the WSL `~/.ssh/config`. VS Code on
+> Windows runs Remote-SSH with Windows OpenSSH and never reads that file, so
+> it cannot resolve the host alias until you install the Windows-side config
+> below.
+
 When running from WSL2 but connecting with VS Code on Windows, install a
 Windows-side SSH config instead:
 
@@ -294,7 +300,8 @@ managed private key and known-hosts file there, and renders `C:/...` paths for
 Windows OpenSSH. The command resolves the Windows profile from `%USERPROFILE%`
 or WSL Windows interop; it does not guess from the WSL username because Windows
 and WSL user IDs may differ. If the Windows user path cannot be inferred, pass
-it explicitly:
+it explicitly. This is required when WSL interop is disabled, and when more
+than one Windows profile exists:
 
 ```zsh
 uv run ft host ssh-config dev-fortress-ec2-dev \

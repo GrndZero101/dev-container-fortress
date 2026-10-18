@@ -8,13 +8,11 @@ records the result.
 
 ## Up Next
 
-1. **Finish `M5a`:** rerun the EC2 loop from
-   [`docs/ec2-development-loop.md`](docs/ec2-development-loop.md) alone, then
-   tick the EC2 exit criterion and `M5a-6` in the
-   [M5a file](docs/milestones/M5a-disposable-daily-driver-container.md).
-2. **Merge `M5a`:** squash-merge `feat/m0005a-disposable-daily-driver-container`
-   into `main` once its exit criteria are ticked.
-3. **Start `M5b` Zero to Hero:** settle the open decisions in the
+1. **Merge `M5a`:** open the PR for
+   `feat/m0005a-disposable-daily-driver-container` and squash-merge it into
+   `main`; the exit criteria in the
+   [M5a file](docs/milestones/M5a-disposable-daily-driver-container.md) are ticked.
+2. **Start `M5b` Zero to Hero:** settle the open decisions in the
    [M5b file](docs/milestones/M5b-zero-to-hero-workstation-composability.md)
    (where tmux profiles live, the default tmux profile, and image pull versus
    local build for `workspace` mode), then begin with the `M5b-1` privilege

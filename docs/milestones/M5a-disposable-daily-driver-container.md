@@ -26,8 +26,8 @@ safe to destroy and recreate frequently without hidden snowflake state.
 - [x] The workflow supports a small explicit set of persisted state mounts for caches and auth material
 - [x] The initial auth and secrets contract is explicit for SSH, Git HTTPS/OAuth, and GPG-backed `pass` or `gopass`
 - [x] Optional heavy CLI layers such as `gh`, `glab`, `aws`, and `az` are modeled as opt-in image or tool profiles rather than mandatory base-image contents
-- [ ] A disposable Ubuntu EC2 host can be provisioned, bootstrapped, used for real development inside the daily-driver container, and destroyed again with the same documented operator loop
-- [ ] The recommended loop is documented truthfully in user-facing docs once implemented
+- [x] A disposable Ubuntu EC2 host can be provisioned, bootstrapped, used for real development inside the daily-driver container, and destroyed again with the same documented operator loop
+- [x] The recommended loop is documented truthfully in user-facing docs once implemented
 
 ## Non-Goals
 
@@ -159,7 +159,7 @@ opt-in and do not become mandatory weight for all users and all targets.
 
 - [x] Problem: disposable hosts and containers need a truthfully scoped story for what should persist across rebuilds and what should not
 - [x] Scope: define persisted cache, CLI config, SSH, forge, cloud, and secrets-adjacent mount policy
-- [ ] Acceptance: auth and persistence boundaries are explicit enough for repeatable use on local hosts and disposable EC2
+- [x] Acceptance: auth and persistence boundaries are explicit enough for repeatable use on local hosts and disposable EC2
 
 ### M5a-5 Add optional tool-layer selection
 
@@ -171,7 +171,7 @@ opt-in and do not become mandatory weight for all users and all targets.
 
 - [x] Problem: the strongest reproducibility claim is not proven until a real disposable cloud host can be used for actual development inside the container
 - [x] Scope: validate the end-to-end EC2 flow: provision, bootstrap, mount repos, work inside container, and destroy
-- [ ] Acceptance: the documented Ubuntu EC2 loop works end to end and is worth repeating daily
+- [x] Acceptance: the documented Ubuntu EC2 loop works end to end and is worth repeating daily
 
 ## Verification Notes
 
@@ -180,7 +180,7 @@ opt-in and do not become mandatory weight for all users and all targets.
 - [x] The daily-driver container can start against bind-mounted `dev-container-fortress` and `shell-config` checkouts
 - [ ] Normal development tasks work from inside the container, including editing, git operations, shell-config iteration, and Fortress self-hosting checks
 - [x] Replacing the container does not lose intentionally persisted state
-- [ ] Destroying and recreating the EC2 host does not require undocumented operator recovery steps
+- [x] Destroying and recreating the EC2 host does not require undocumented operator recovery steps
 
 ## Progress Notes
 
@@ -306,19 +306,29 @@ Followed `docs/ec2-development-loop.md` alone on an m8g.large (Graviton4,
   because `ft deploy init` does not run `bootstrap.zsh` and nothing pins the
   version; tracked for `M5b`
 - the first `gh` device code expired unused after its 15 minutes, so start the
-  login only when someone is ready to enter the code
+  login only when someone is ready to enter the code. The push round trip was
+  already proven on the first run, so this commit came back to the local clone
+  with `git format-patch` and `git am` instead, keeping its hash
+- the host was inspected over `ft host ssh` and VS Code Remote-SSH. VS Code on
+  Windows reads the Windows OpenSSH config, so it needs
+  `ft host ssh-config --windows`; with WSL interop disabled the Windows
+  profile cannot be inferred and `--windows-ssh-dir` is required
+- `ft infra aws-disposable-ubuntu destroy` removed all six resources and left
+  an empty state
 
-Open, in suggested order:
+The rerun passed from the runbook alone, which closes the EC2 exit criterion
+and the `M5a-6` acceptance. The shell-config iteration part of the "normal
+development tasks" check was not exercised on EC2, so that box stays open.
 
-1. Rerun the EC2 loop from `docs/ec2-development-loop.md` alone, then tick the
-   EC2 exit criterion and `M5a-6` acceptance.
-2. The separate `tboss-workspace` devcontainers persist cache and auth paths but
+Open:
+
+1. The separate `tboss-workspace` devcontainers persist cache and auth paths but
    not `state`, `zoxide`, or `atuin`; aligning them is tracked in that repo's
    `TODO.md`.
 
 ## Branch and Merge Plan
 
-- [ ] Branch from `main` as `feat/m0005a-disposable-daily-driver-container`
-- [ ] Commit freely at verified checkpoints
+- [x] Branch from `main` as `feat/m0005a-disposable-daily-driver-container`
+- [x] Commit freely at verified checkpoints
 - [ ] Open one PR for the milestone once the proposed operator contract is stable
 - [ ] Squash merge into `main`
