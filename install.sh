@@ -307,6 +307,11 @@ ensure_uv() {
   if command -v uv >/dev/null 2>&1; then
     return
   fi
+  # A fresh shell may not have ~/.local/bin on PATH yet; reuse an earlier install.
+  if [ -x "${HOME}/.local/bin/uv" ]; then
+    export PATH="${HOME}/.local/bin:${PATH}"
+    return
+  fi
 
   log_step "uv not found; installing via the Astral standalone installer"
   UV_WAS_INSTALLED=1
