@@ -396,8 +396,8 @@ Exit criteria:
 
 - container userland tools come from Homebrew, using the same bundle model as
   the hosts
-- Claude Code is installed in every container target through its native
-  installer
+- Claude Code is available in every container target as an opt-in through
+  its native installer, using the same option model as the hosts
 - one recommended way to get code into a devcontainer (bind mount or volume
   clone), with the other one as a documented variant
 - a devcontainer CLI terminal mode works end to end
@@ -457,7 +457,11 @@ Exit criteria:
 
 Details:
 Track as a maintainability-focused follow-on once the current M5 operator loop
-stabilizes.
+stabilizes. The likely vehicle is a port into the
+[`python-template-cli-typer`](https://github.com/GrndZero101/python-template-cli-typer)
+template, whose guardrails, hooks, and rules should keep the rewrite
+maintainable. Self-contained modules such as `ft/src/ft/options.py` and
+`ft/src/ft/identity.py` should move across largely unchanged.
 
 ### `M7` Local Verification Workflow
 

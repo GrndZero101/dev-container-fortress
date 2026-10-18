@@ -47,6 +47,12 @@ Host-side policy should stay explicit:
 > runs that installer once and then leaves updates to Claude Code. Containers
 > follow the same rule in `M5c`.
 
+Large extras such as agentic coding tools are optional components rather than
+baseline. `ft` owns the selection (`--options`, `DEV_CONTAINER_FORTRESS_OPTIONS`,
+the XDG `options.toml`, or the `ft options pick` checkbox list) and renders one
+boolean inventory variable per option; each role only reads its variable. The
+default selection is empty.
+
 > [!NOTE]
 > Arch Linux hosts are a deliberate exception. The official Arch repositories
 > already ship the steady-state toolchain, so Arch hosts use pacman and skip

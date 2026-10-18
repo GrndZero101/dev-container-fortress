@@ -80,6 +80,21 @@ the Homebrew toolchain. Re-running the command is safe.
 alive in the background so the Ansible run can reuse it, which means the
 whole install must run in one terminal.
 
+### Optional components
+
+Large extras, starting with Claude Code (`claude-code`, about 270 MB), are not
+installed unless you select them. Choose them in one of three ways:
+
+| Way | Example | Lasts |
+| --- | --- | --- |
+| Flag or variable | `sh -s -- --options claude-code` | this run; overrides the saved choice |
+| Checkbox picker | `sh -s -- --interactive`, or `uv run ft options pick` later | saved to `options.toml` |
+| Config file | `enabled = ["claude-code"]` in `${XDG_CONFIG_HOME:-~/.config}/dev-container-fortress/options.toml` | every later bootstrap |
+
+`uv run ft options` lists the choices and shows which ones the next
+`ft host bootstrap` will install. Removing an option later stops managing it but
+does not uninstall it.
+
 The installer finishes with `ft identity`, which sets the global Git
 `user.name` and `user.email`. It keeps an existing identity, uses the
 `DEV_CONTAINER_FORTRESS_GIT_*` variables when they are set, and otherwise
@@ -121,7 +136,8 @@ On host bootstrap paths, Dev Fortress will also manage the installed
 | `DEV_CONTAINER_FORTRESS_REPO` | `--repo` | Use an alternate Git repository URL |
 | `DEV_CONTAINER_FORTRESS_PYTHON_VERSION` | | Override the uv-managed Python version used by `bootstrap.zsh` |
 | `DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL` | | Host mode makes zsh the login shell; set `0` to keep the current one |
-| `DEV_CONTAINER_FORTRESS_CLAUDE_CODE` | | Host mode installs Claude Code; set `0` to skip it |
+| `DEV_CONTAINER_FORTRESS_OPTIONS` | `--options` | Optional components for this run, such as `claude-code`, or `none` |
+| `DEV_CONTAINER_FORTRESS_INTERACTIVE` | `--interactive` | Set `1` to pick optional components in a checkbox list |
 | `DEV_CONTAINER_FORTRESS_GIT_NAME` | | Git `user.name` to set without a prompt |
 | `DEV_CONTAINER_FORTRESS_GIT_EMAIL` | | Git `user.email` to set without a prompt |
 | `DEV_CONTAINER_FORTRESS_FORGE_LOGIN` | | `github` or `gitlab`: also start a forge login on a terminal |

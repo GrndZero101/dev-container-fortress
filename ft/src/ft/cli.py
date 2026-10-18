@@ -51,6 +51,14 @@ from ft.models import (
     WorkspaceProfileManifest,
     WorkspaceToolLayerDefinition,
 )
+from ft.options import (
+    CATALOG,
+    OptionSelection,
+    option_ansible_vars,
+    options_config_path,
+    resolve_options,
+    save_options,
+)
 from ft.platforms import detect_architecture, detect_system
 from ft.secrets import run_secret_readiness_checks
 from ft.settings import FtSettings
@@ -135,6 +143,14 @@ aws_disposable_ubuntu_capacity_app = typer.Typer(
     no_args_is_help=False,
     help=("Select EC2 capacity inputs for the disposable Ubuntu Terraform stack."),
 )
+options_app = typer.Typer(
+    no_args_is_help=False,
+    invoke_without_command=True,
+    help=(
+        "List and choose optional host bootstrap components, such as Claude Code. "
+        "Nothing optional is installed unless selected."
+    ),
+)
 completion_app = typer.Typer(
     no_args_is_help=False,
     help=(
@@ -153,6 +169,7 @@ app.add_typer(infra_app, name="infra")
 app.add_typer(deploy_app, name="deploy")
 infra_app.add_typer(aws_disposable_ubuntu_app, name="aws-disposable-ubuntu")
 aws_disposable_ubuntu_app.add_typer(aws_disposable_ubuntu_capacity_app, name="capacity")
+app.add_typer(options_app, name="options")
 app.add_typer(completion_app, name="completion")
 
 console = Console()
@@ -2164,11 +2181,75 @@ def _resolve_host_targets(
     )
 
 
+def _interactive_terminal() -> bool:
+    """Return whether stdin and stdout are both attached to a terminal."""
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _resolve_bootstrap_options(explicit: list[str] | None) -> OptionSelection:
+    """Resolve optional bootstrap components, reporting bad input as a CLI error.
+
+    Args:
+        explicit: ``--options`` values, or ``None`` when not given.
+
+    Returns:
+        The resolved selection.
+
+    Raises:
+        typer.BadParameter: When any source names unknown options.
+    """
+    try:
+        return resolve_options(explicit)
+    except ValueError as error:
+        raise typer.BadParameter(str(error), param_hint="--options") from error
+
+
 def _interactive_select_host_targets(
     targets: list[HostTargetDefinition],
 ) -> list[HostTargetDefinition]:
     """Interactively select one or more host targets with prompt-toolkit."""
-    if not sys.stdin.isatty() or not sys.stdout.isatty():
+    if not targets:
+        return []
+    items = []
+    for target in targets:
+        detail = target.kind
+        if target.tags:
+            detail = f"{detail} | {', '.join(target.tags)}"
+        items.append((target.name, detail, " ".join([target.kind, *target.tags])))
+    selected = _interactive_multi_select(
+        items, title="Dev Fortress Target Selector", noun="targets"
+    )
+    if not selected:
+        raise typer.Exit(code=1)
+    selected_lookup = set(selected)
+    return [target for target in targets if target.name in selected_lookup]
+
+
+def _interactive_multi_select(
+    items: list[tuple[str, str, str]],
+    *,
+    title: str,
+    noun: str,
+    preselected: tuple[str, ...] = (),
+    allow_empty: bool = False,
+) -> list[str] | None:
+    """Run a filterable prompt-toolkit checkbox picker.
+
+    Args:
+        items: ``(key, detail, search_text)`` rows; the key is shown and returned.
+        title: Header text.
+        noun: Plural item name for the empty-filter message.
+        preselected: Keys checked when the picker opens.
+        allow_empty: Whether Enter with nothing checked returns no keys. When
+            false, Enter checks the row under the cursor instead.
+
+    Returns:
+        The checked keys in ``items`` order, or ``None`` when cancelled.
+
+    Raises:
+        typer.BadParameter: Without an interactive terminal or prompt-toolkit.
+    """
+    if not _interactive_terminal():
         raise typer.BadParameter(
             "--interactive requires an interactive terminal",
             param_hint="--interactive",
@@ -2186,12 +2267,8 @@ def _interactive_select_host_targets(
             param_hint="--interactive",
         ) from error
 
-    if not targets:
-        return []
-
-    selected_names: set[str] = set()
+    selected_names: set[str] = set(preselected)
     cursor_index = 0
-    result: list[HostTargetDefinition] = []
     query_field = TextArea(
         text="",
         multiline=False,
@@ -2210,65 +2287,57 @@ def _interactive_select_host_targets(
             "pointer": "bold #8be9fd",
             "checkbox.on": "bold #50fa7b",
             "checkbox.off": "#6272a4",
-            "target.name": "bold #f8f8f2",
-            "target.meta": "#a9b1d6",
-            "target.count": "#7aa2f7",
-            "target.empty": "#6272a4 italic",
-            "target.active.pointer": "bold #1f2335 bg:#7aa2f7",
-            "target.active.checkbox.on": "bold #1f2335 bg:#7aa2f7",
-            "target.active.checkbox.off": "bold #1f2335 bg:#7aa2f7",
-            "target.active.name": "bold #1f2335 bg:#7aa2f7",
-            "target.active.meta": "#1f2335 bg:#7aa2f7",
+            "item.name": "bold #f8f8f2",
+            "item.meta": "#a9b1d6",
+            "item.count": "#7aa2f7",
+            "item.empty": "#6272a4 italic",
+            "item.active.pointer": "bold #1f2335 bg:#7aa2f7",
+            "item.active.checkbox.on": "bold #1f2335 bg:#7aa2f7",
+            "item.active.checkbox.off": "bold #1f2335 bg:#7aa2f7",
+            "item.active.name": "bold #1f2335 bg:#7aa2f7",
+            "item.active.meta": "#1f2335 bg:#7aa2f7",
             "footer": "#6272a4",
             "footer.key": "bold #8be9fd",
         }
     )
 
-    def filtered_targets() -> list[HostTargetDefinition]:
+    def filtered_items() -> list[tuple[str, str, str]]:
         query = query_field.text.strip().lower()
         if not query:
-            return targets
+            return items
         return [
-            target
-            for target in targets
-            if query in target.name.lower()
-            or query in target.kind.lower()
-            or any(query in tag.lower() for tag in target.tags)
+            item
+            for item in items
+            if query in item[0].lower() or query in item[2].lower()
         ]
 
     def clamp_cursor() -> None:
         nonlocal cursor_index
-        matches = filtered_targets()
+        matches = filtered_items()
         if not matches:
             cursor_index = 0
             return
         cursor_index = max(0, min(cursor_index, len(matches) - 1))
 
-    def render_target_list() -> list[tuple[str, str]]:
-        matches = filtered_targets()
+    def render_items() -> list[tuple[str, str]]:
+        matches = filtered_items()
         if not matches:
             return [
-                ("class:target.empty", "  no targets match the current filter"),
+                ("class:item.empty", f"  no {noun} match the current filter"),
             ]
 
         fragments: list[tuple[str, str]] = []
-        for index, target in enumerate(matches):
+        for index, (key, detail, _) in enumerate(matches):
             is_active = index == cursor_index
             pointer = ">" if is_active else " "
-            checkbox = "[x]" if target.name in selected_names else "[ ]"
-            tags = ", ".join(target.tags)
-            detail = f"{target.kind}"
-            if tags:
-                detail = f"{detail} | {tags}"
-            prefix = "target.active" if is_active else "target"
-            checkbox_style = (
-                "checkbox.on" if target.name in selected_names else "checkbox.off"
-            )
+            checkbox = "[x]" if key in selected_names else "[ ]"
+            prefix = "item.active" if is_active else "item"
+            checkbox_style = "checkbox.on" if key in selected_names else "checkbox.off"
             fragments.extend(
                 [
                     (f"class:{prefix}.pointer", f"{pointer} "),
                     (f"class:{prefix}.{checkbox_style}", f"{checkbox} "),
-                    (f"class:{prefix}.name", target.name),
+                    (f"class:{prefix}.name", key),
                     (f"class:{prefix}.meta", f"  {detail}\n"),
                 ]
             )
@@ -2276,10 +2345,10 @@ def _interactive_select_host_targets(
 
     def render_header() -> list[tuple[str, str]]:
         return [
-            ("class:frame.title", "Dev Fortress Target Selector"),
+            ("class:frame.title", title),
             (
                 "class:frame.subtitle",
-                f"  {len(filtered_targets())}/{len(targets)} visible",
+                f"  {len(filtered_items())}/{len(items)} visible",
             ),
         ]
 
@@ -2300,7 +2369,7 @@ def _interactive_select_host_targets(
         height=1,
     )
     result_window = Window(
-        FormattedTextControl(render_target_list),
+        FormattedTextControl(render_items),
         always_hide_cursor=True,
     )
     footer = Window(
@@ -2314,43 +2383,41 @@ def _interactive_select_host_targets(
     @kb.add("k")
     def _move_up(event: object) -> None:
         nonlocal cursor_index
-        if filtered_targets():
+        if filtered_items():
             cursor_index = max(0, cursor_index - 1)
 
     @kb.add("down")
     @kb.add("j")
     def _move_down(event: object) -> None:
         nonlocal cursor_index
-        matches = filtered_targets()
+        matches = filtered_items()
         if matches:
             cursor_index = min(len(matches) - 1, cursor_index + 1)
 
     @kb.add("space")
     def _toggle_current(event: object) -> None:
-        matches = filtered_targets()
+        matches = filtered_items()
         if not matches:
             return
-        target = matches[cursor_index]
-        if target.name in selected_names:
-            selected_names.remove(target.name)
+        key = matches[cursor_index][0]
+        if key in selected_names:
+            selected_names.remove(key)
         else:
-            selected_names.add(target.name)
+            selected_names.add(key)
 
     @kb.add("enter")
     def _accept(event: object) -> None:
-        matches = filtered_targets()
-        if not matches:
-            return
-        if not selected_names:
-            selected_names.add(matches[cursor_index].name)
-        selected_lookup = set(selected_names)
-        result.extend([target for target in targets if target.name in selected_lookup])
-        event.app.exit(result=result)
+        matches = filtered_items()
+        if not selected_names and not allow_empty:
+            if not matches:
+                return
+            selected_names.add(matches[cursor_index][0])
+        event.app.exit(result=[key for key, _, _ in items if key in selected_names])
 
     @kb.add("escape")
     @kb.add("c-c")
     def _cancel(event: object) -> None:
-        event.app.exit(result=[])
+        event.app.exit(result=None)
 
     @query_field.buffer.on_text_changed.add_handler
     def _on_text_changed(_: object) -> None:
@@ -2377,10 +2444,7 @@ def _interactive_select_host_targets(
         mouse_support=False,
         refresh_interval=0.1,
     )
-    selected = app.run()
-    if not selected:
-        raise typer.Exit(code=1)
-    return selected
+    return app.run()
 
 
 def _resolve_single_host_target(
@@ -3248,6 +3312,7 @@ def _bootstrap_host_targets(
     ensure_ssh_keys: bool,
     check: bool,
     ask_become_pass: bool,
+    options: OptionSelection | None = None,
 ) -> int:
     """Run the host bootstrap playbook for one or more configured targets.
 
@@ -3256,6 +3321,8 @@ def _bootstrap_host_targets(
         ensure_ssh_keys: Whether to create managed SSH keys instead of running Ansible.
         check: Whether to run Ansible in check mode.
         ask_become_pass: Whether to pass ``-K`` to ``ansible-playbook``.
+        options: Optional components to enable; resolved from the environment
+            and saved config when omitted.
 
     Returns:
         Process exit code from the underlying bootstrap action.
@@ -3267,6 +3334,7 @@ def _bootstrap_host_targets(
             check=check,
             ask_become_pass=ask_become_pass,
             capture_recap=False,
+            options=options,
         )["returncode"]
     )
 
@@ -3278,6 +3346,7 @@ def _bootstrap_host_targets_with_result(
     check: bool,
     ask_become_pass: bool,
     capture_recap: bool,
+    options: OptionSelection | None = None,
 ) -> dict[str, object]:
     """Run the host bootstrap playbook and return execution metadata.
 
@@ -3287,6 +3356,8 @@ def _bootstrap_host_targets_with_result(
         check: Whether to run Ansible in check mode.
         ask_become_pass: Whether to pass ``-K`` to ``ansible-playbook``.
         capture_recap: Whether to parse ``PLAY RECAP`` counters from the Ansible log.
+        options: Optional components to enable; resolved from the environment
+            and saved config when omitted.
 
     Returns:
         Execution metadata containing the bootstrap exit code and any parsed recap.
@@ -3319,7 +3390,12 @@ def _bootstrap_host_targets_with_result(
             )
             return {"returncode": 1, "target_recaps": {}}
 
-    inventory = _build_host_inventory(targets)
+    selection = options if options is not None else _resolve_bootstrap_options(None)
+    console.print(
+        f"options: {', '.join(selection.names) or 'none'} ({selection.source})",
+        highlight=False,
+    )
+    inventory = _build_host_inventory(targets, option_ansible_vars(selection.names))
     with tempfile.NamedTemporaryFile(
         mode="w", encoding="utf-8", suffix=".yml", delete=False
     ) as handle:
@@ -3827,8 +3903,19 @@ def _render_host_target_details(target: HostTargetDefinition) -> None:
     console.print(table)
 
 
-def _build_host_inventory(targets: list[HostTargetDefinition]) -> dict[str, object]:
-    """Return an Ansible inventory payload for one or more host targets."""
+def _build_host_inventory(
+    targets: list[HostTargetDefinition],
+    option_vars: dict[str, bool] | None = None,
+) -> dict[str, object]:
+    """Return an Ansible inventory payload for one or more host targets.
+
+    Args:
+        targets: Host targets to render.
+        option_vars: Optional-component variables applied to every target.
+
+    Returns:
+        The inventory as nested dictionaries.
+    """
     hosts: dict[str, dict[str, object]] = {}
 
     for target in targets:
@@ -3864,15 +3951,10 @@ def _build_host_inventory(targets: list[HostTargetDefinition]) -> dict[str, obje
                 host_record["ansible_ssh_common_args"] = ssh_common_args
         hosts[target.name] = host_record
 
-    return {
-        "all": {
-            "children": {
-                "dev_fortress": {
-                    "hosts": hosts,
-                }
-            }
-        }
-    }
+    group: dict[str, object] = {"hosts": hosts}
+    if option_vars:
+        group["vars"] = option_vars
+    return {"all": {"children": {"dev_fortress": group}}}
 
 
 def _yaml_scalar(value: object) -> str:
@@ -6299,7 +6381,10 @@ def host_inventory(
     resolved_targets = (
         manifest.targets if target is None else _resolve_host_targets(target, manifest)
     )
-    inventory = _build_host_inventory(resolved_targets)
+    inventory = _build_host_inventory(
+        resolved_targets,
+        option_ansible_vars(_resolve_bootstrap_options(None).names),
+    )
     if json_output:
         _json_dump(inventory)
         return
@@ -7788,6 +7873,17 @@ def host_bootstrap(
             help="Pass --ask-become-pass through to ansible-playbook.",
         ),
     ] = False,
+    options: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--options",
+            help=(
+                "Optional components for this run, comma-separated or repeated, "
+                "or 'none'. Overrides DEV_CONTAINER_FORTRESS_OPTIONS and the saved "
+                "selection; see `ft options`."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Run the thin inventory-driven host bootstrap playbook for one or more targets."""
     _, manifest = _load_host_target_manifest(config)
@@ -7800,7 +7896,56 @@ def host_bootstrap(
             ensure_ssh_keys=ensure_ssh_keys,
             check=check,
             ask_become_pass=ask_become_pass,
+            options=_resolve_bootstrap_options(options),
         )
+    )
+
+
+@options_app.callback()
+def options_list(ctx: typer.Context) -> None:
+    """Show the optional components and which ones the next bootstrap enables."""
+    if ctx.invoked_subcommand is not None:
+        return
+    selection = _resolve_bootstrap_options(None)
+    table = Table(title=f"Bootstrap options ({selection.source})")
+    table.add_column("enabled", justify="center")
+    table.add_column("option", style="cyan")
+    table.add_column("summary")
+    for option in CATALOG:
+        enabled = "[green]yes[/green]" if option.name in selection.names else "-"
+        table.add_row(enabled, option.name, option.summary)
+    console.print(table)
+    console.print(
+        f"Saved selection: {options_config_path()}. Change it with `ft options pick`, "
+        "or pass --options to `ft host bootstrap` for one run.",
+        highlight=False,
+    )
+
+
+@options_app.command("pick")
+def options_pick() -> None:
+    """Choose optional components in a checkbox picker and save the selection."""
+    if not _interactive_terminal():
+        console.print(
+            "ft options pick needs a terminal; edit "
+            f"{options_config_path()} or pass --options instead",
+            highlight=False,
+        )
+        raise typer.Exit(code=1)
+    current = _resolve_bootstrap_options(None)
+    selected = _interactive_multi_select(
+        [(option.name, option.summary, option.summary) for option in CATALOG],
+        title="Dev Fortress Bootstrap Options",
+        noun="options",
+        preselected=current.names,
+        allow_empty=True,
+    )
+    if selected is None:
+        console.print("cancelled; the saved selection is unchanged")
+        raise typer.Exit(code=1)
+    path = save_options(tuple(selected))
+    console.print(
+        f"saved options: {', '.join(selected) or 'none'} -> {path}", highlight=False
     )
 
 

@@ -62,21 +62,10 @@
         dev_container_fortress_neovim_kickstart_wrapper
         | default(ansible_facts['env']['HOME'] ~ '/.local/bin/nvim-kickstart')
       }}
-    # Precedence: the inventory variable, then DEV_CONTAINER_FORTRESS_CLAUDE_CODE,
-    # then workstation and cloud targets. Alpine is left out because the native
-    # installer needs bash, which the Alpine baseline does not install.
+    # Optional components are off unless selected; `ft` renders one boolean per
+    # option from `--options`, DEV_CONTAINER_FORTRESS_OPTIONS, or options.toml.
     dev_container_fortress_claude_code_manage_effective: >-
-      {{
-        dev_container_fortress_claude_code_manage
-        | default(
-            lookup('ansible.builtin.env', 'DEV_CONTAINER_FORTRESS_CLAUDE_CODE', default='') | bool
-            if lookup('ansible.builtin.env', 'DEV_CONTAINER_FORTRESS_CLAUDE_CODE', default='') | length > 0
-            else (
-              dev_fortress_target_kind in ['workstation', 'cloud']
-              and ansible_facts['os_family'] != 'Alpine'
-            )
-          )
-      }}
+      {{ dev_container_fortress_claude_code_manage | default(false) }}
     dev_container_fortress_claude_code_installer_url_effective: >-
       {{ dev_container_fortress_claude_code_installer_url | default('https://claude.ai/install.sh') }}
     dev_container_fortress_claude_code_launcher_effective: >-

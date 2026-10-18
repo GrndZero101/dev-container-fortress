@@ -72,7 +72,7 @@ to the declared baseline, so do not hand-edit them.
 | Homebrew shellenv | the marked `DEV FORTRESS HOMEBREW` blocks in `~/.zprofile` and `~/.profile` | Dev Fortress owns only the text between the markers |
 | Kickstart Neovim | `${XDG_CONFIG_HOME}/nvim-kickstart` and `~/.local/bin/nvim-kickstart` | Dev Fortress |
 | Docker daemon config | `/etc/docker/daemon.json` | Dev Fortress owns the whole file on `workstation` and `cloud` targets |
-| Claude Code | `~/.local/bin/claude` and `${XDG_DATA_HOME}/claude` | Dev Fortress installs it when the launcher is missing; Claude Code updates itself after that |
+| Claude Code (`claude-code` option) | `~/.local/bin/claude` and `${XDG_DATA_HOME}/claude` | Dev Fortress installs it when selected and the launcher is missing; Claude Code updates itself after that |
 
 Dotfile linking is delegated to `shell-config` itself. Its `csm bootstrap`
 links the profile's dotfiles and moves a pre-existing file aside instead of
@@ -188,12 +188,14 @@ under `sudo` and installs into the user's home. The task is skipped when
 `~/.local/bin/claude` already exists, so a re-run reports no change and never
 fights Claude Code's own background updates.
 
-It runs by default on `workstation` and `cloud` targets other than Alpine,
-whose baseline lacks the `bash` the installer needs. Precedence: the
-`dev_container_fortress_claude_code_manage` inventory variable, then the
-`DEV_CONTAINER_FORTRESS_CLAUDE_CODE` environment variable (`0` opts out), then
-that default. `dev_container_fortress_claude_code_installer_url` points at an
-alternate installer, such as an internal mirror.
+It is the first optional component and runs only when `claude-code` is
+selected. `ft` resolves the selection from `--options`,
+`DEV_CONTAINER_FORTRESS_OPTIONS`, or `options.toml` (see `ft options`) and
+renders `dev_container_fortress_claude_code_manage` into the inventory; the
+playbook defaults it to `false`. It fails clearly on targets without
+`/bin/bash`, such as the Alpine baseline.
+`dev_container_fortress_claude_code_installer_url` points at an alternate
+installer, such as an internal mirror.
 
 ### `dev_fortress_shell_config_ready`
 

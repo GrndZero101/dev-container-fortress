@@ -2,6 +2,19 @@
 # The native installer refuses to run under sudo and installs into the
 # operator's home, so every task here runs as the connection user. After the
 # first install Claude Code updates itself, so a present launcher is left alone.
+- name: Check for the bash the native installer needs
+  ansible.builtin.stat:
+    path: /bin/bash
+  register: dev_fortress_claude_code_bash
+
+- name: Fail clearly when bash is missing
+  ansible.builtin.assert:
+    that: dev_fortress_claude_code_bash.stat.exists
+    fail_msg: >-
+      The claude-code option needs /bin/bash, which this target lacks (the
+      Alpine baseline does not install it). Install bash or drop the option.
+    quiet: true
+
 - name: Install Claude Code with its native installer
   ansible.builtin.shell:
     cmd: set -o pipefail && curl -fsSL {{ dev_container_fortress_claude_code_installer_url_effective }} | bash

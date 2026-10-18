@@ -262,7 +262,7 @@ Today the real host loop converges:
 - login-shell convergence to `zsh` for remote SSH targets
 - Docker CE plus the `buildx` and Compose plugins on Ubuntu workstation/cloud targets
 - Ubuntu Linuxbrew bootstrap and the current fortress-facing formula set
-- Claude Code through its native installer on workstation/cloud targets, after which it updates itself
+- optional components when selected (`ft options`), starting with Claude Code through its native installer, after which it updates itself
 
 The current Ubuntu/WSL Linuxbrew tool pool now includes a broader operator
 baseline such as `tmux`, `helix`, `neovim`, `yazi`, `lazygit`,

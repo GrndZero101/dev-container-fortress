@@ -13,6 +13,8 @@ REPO_URL="${DEV_CONTAINER_FORTRESS_REPO:-https://github.com/GrndZero101/dev-cont
 REPO_REF="${DEV_CONTAINER_FORTRESS_REF:-}"
 INSTALL_MODE="${DEV_CONTAINER_FORTRESS_MODE:-host}"
 INSTALL_DIR_OVERRIDE="${DEV_CONTAINER_FORTRESS_DIR:-}"
+INSTALL_OPTIONS="${DEV_CONTAINER_FORTRESS_OPTIONS:-}"
+INSTALL_INTERACTIVE="${DEV_CONTAINER_FORTRESS_INTERACTIVE:-0}"
 UV_WAS_INSTALLED=0
 
 # Ubuntu releases the one-liner supports: the current LTS, the newest interim
@@ -63,7 +65,8 @@ die() {
 #   None.
 print_usage() {
   cat <<'USAGE'
-Usage: install.sh [--mode host|cli|workspace] [--dir PATH] [--ref REF] [--repo URL]
+Usage: install.sh [--mode host|cli|workspace] [--options LIST] [--interactive]
+                  [--dir PATH] [--ref REF] [--repo URL]
 
 Pass flags through curl with: curl -fsSL .../install.sh | sh -s -- --mode cli
 
@@ -73,11 +76,16 @@ Modes:
   cli        Install only the checkout, uv, ft, and Ansible.
   workspace  Thin host plus a daily-driver workspace (not available yet).
 
+Optional components, such as claude-code, are installed only when selected:
+  --options LIST   Comma-separated options for this run, or none.
+  --interactive    Pick options in a checkbox list and save the choice
+                   (needs a terminal; run `ft options` later to review).
+
 Every flag has an environment variable: DEV_CONTAINER_FORTRESS_MODE,
+DEV_CONTAINER_FORTRESS_OPTIONS, DEV_CONTAINER_FORTRESS_INTERACTIVE=1,
 DEV_CONTAINER_FORTRESS_DIR, DEV_CONTAINER_FORTRESS_REF, and
 DEV_CONTAINER_FORTRESS_REPO. Host mode makes zsh the login shell; set
-DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL=0 to keep the current shell. It also
-installs Claude Code; set DEV_CONTAINER_FORTRESS_CLAUDE_CODE=0 to skip it.
+DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL=0 to keep the current shell.
 
 Git identity: DEV_CONTAINER_FORTRESS_GIT_NAME and DEV_CONTAINER_FORTRESS_GIT_EMAIL
 set it without a prompt; otherwise a terminal is asked for a missing identity.
@@ -93,15 +101,20 @@ USAGE
 parse_args() {
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --mode | --dir | --ref | --repo)
+      --mode | --options | --dir | --ref | --repo)
         [ "$#" -ge 2 ] || die "$1 needs a value"
         case "$1" in
           --mode) INSTALL_MODE=$2 ;;
+          --options) INSTALL_OPTIONS=$2 ;;
           --dir) INSTALL_DIR_OVERRIDE=$2 ;;
           --ref) REPO_REF=$2 ;;
           --repo) REPO_URL=$2 ;;
         esac
         shift 2
+        ;;
+      -i | --interactive)
+        INSTALL_INTERACTIVE=1
+        shift
         ;;
       -h | --help)
         print_usage
@@ -450,6 +463,37 @@ run_host_bootstrap() {
   fi
 }
 
+# Purpose: Settle which optional components the host bootstrap installs.
+# Arguments:
+#   $1: Repository directory.
+# Returns:
+#   None.
+# Side effects:
+#   Exports DEV_CONTAINER_FORTRESS_OPTIONS for ft when --options was given.
+#   With --interactive and a terminal, runs `ft options pick`, which saves the
+#   choice to options.toml, and then unsets the variable so the saved choice
+#   applies. A missing terminal or a cancelled picker never fails the install.
+run_options_step() {
+  destination=$1
+  if [ -n "$INSTALL_OPTIONS" ]; then
+    DEV_CONTAINER_FORTRESS_OPTIONS=$INSTALL_OPTIONS
+    export DEV_CONTAINER_FORTRESS_OPTIONS
+  fi
+  [ "$INSTALL_INTERACTIVE" = "1" ] || return 0
+
+  log_step "Choosing optional components"
+  # Under curl | sh, stdin is this script, so the picker must read the terminal.
+  if ! (: </dev/tty) 2>/dev/null; then
+    warn_step "--interactive needs a terminal; continuing with the non-interactive selection"
+    return 0
+  fi
+  if (cd "$destination" && uv run ft options pick </dev/tty >/dev/tty); then
+    unset DEV_CONTAINER_FORTRESS_OPTIONS
+  else
+    warn_step "no options were saved; continuing with the non-interactive selection"
+  fi
+}
+
 # Purpose: Set the Git identity without ever failing the install.
 # Arguments:
 #   $1: Repository directory.
@@ -508,6 +552,7 @@ main() {
   sync_repo_checkout "$install_dir"
   ensure_uv
   run_repo_bootstrap "$install_dir"
+  run_options_step "$install_dir"
 
   if [ "$INSTALL_MODE" = "host" ]; then
     run_host_bootstrap "$install_dir"
