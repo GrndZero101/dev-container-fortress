@@ -138,6 +138,9 @@ That means they should:
 
 The Ubuntu image currently implements this contract by:
 
+- building on the current Ubuntu LTS (`ubuntu:26.04`) through the
+  `UBUNTU_RELEASE` build argument, which workspace profiles set with
+  `os_release` (for example `rolling` for the newest release)
 - using Astral's distroless image for build-time `uv`
 - installing runtime `uv` with Astral's installer
 - creating a non-root `vscode` user

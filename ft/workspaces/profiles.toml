@@ -58,3 +58,11 @@ container_target = "ubuntu"
 working_directory = "/workspace/dev-container-fortress"
 persisted_mounts = ["cache", "state", "zoxide", "atuin", "gh", "glab", "aws", "azure", "gnupg", "password-store"]
 tool_layers = ["gitforge", "secrets", "aws", "azure"]
+
+[profiles.ubuntu-full-rolling]
+description = "ubuntu-full on the newest Ubuntu release (Docker's ubuntu:rolling, currently 26.10) for trying a new release with the full toolchain."
+container_target = "ubuntu"
+working_directory = "/workspace/dev-container-fortress"
+persisted_mounts = ["cache", "state", "zoxide", "atuin", "gh", "glab", "aws", "azure", "gnupg", "password-store"]
+tool_layers = ["gitforge", "secrets", "aws", "azure"]
+os_release = "rolling"

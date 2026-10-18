@@ -978,6 +978,7 @@ def _workspace_mount_plan_payload(
     return {
         "profile": profile_name,
         "target": profile.container_target,
+        "os_release": profile.os_release or "image default",
         "working_directory": profile.working_directory,
         "tool_layers": [
             {
@@ -4379,6 +4380,10 @@ def _build_workspace_profile(
         for _, layer_definition in image_build_layers
         if layer_definition.build_arg is not None
     ]
+    release_build_arg = CONTAINER_TARGETS[profile.container_target].release_build_arg
+    if profile.os_release is not None and release_build_arg is not None:
+        console.print(f"workspace OS release: {profile.os_release}")
+        extra_build_args.append(f"{release_build_arg}={profile.os_release}")
 
     return _build_single_container_target(
         profile.container_target,

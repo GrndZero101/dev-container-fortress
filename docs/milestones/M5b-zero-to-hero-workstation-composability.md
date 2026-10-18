@@ -42,7 +42,8 @@ EC2 over SSH (`M5a`), but the onramp around them is manual and spread across
 
 ## Exit Criteria
 
-- [ ] One documented command takes a fresh Ubuntu 24.04 machine to a converged host workstation: `curl -fsSL …/install.sh | sh`
+- [ ] One documented command takes a fresh Ubuntu 26.04 LTS machine to a converged host workstation: `curl -fsSL …/install.sh | sh`
+- [ ] Ubuntu 26.04 LTS is the default release for container images and EC2 hosts, and the newest release (26.10 today) is one setting away on each, so a new release can be tried with the full toolchain
 - [ ] The installer detects the platform, installs its own native prerequisites with one `sudo` step, and fails clearly on unsupported platforms such as macOS
 - [ ] The installer registers `localhost` in `hosts.toml` when it is missing and runs the host bootstrap without a separate operator step
 - [ ] `host` is the default mode; a `workspace` mode gives a thin host with Docker and `ft`, plus a ready daily-driver workspace
@@ -233,6 +234,12 @@ otherwise). The two repos share a small contract:
 - [ ] Scope: a host role that runs the native installer as the operator user, skips hosts where it already exists, and leaves updates to Claude Code itself
 - [ ] Acceptance: `claude --version` works after a fresh bootstrap, and a re-run reports no change
 
+### M5b-10 Default to Ubuntu 26.04 and make release trials easy
+
+- [x] Problem: everything defaulted to 24.04, and trying a new Ubuntu release with the full toolchain meant hand-editing Dockerfiles and Terraform
+- [x] Scope: 26.04 as the default for the Ubuntu image, EC2 AMI, and installer support list; a profile-level `os_release` with an `ubuntu-full-rolling` profile; `TF_VAR_ubuntu_release` for EC2
+- [ ] Acceptance: `ubuntu-full` builds and validates on 26.04, `ubuntu-full-rolling` builds and validates on 26.10 (both done), and the host roles converge on a 26.04 host (open)
+
 ## Verification Notes
 
 - [ ] Fresh WSL2 Ubuntu instance, default command
@@ -240,7 +247,7 @@ otherwise). The two repos share a small contract:
 - [ ] Ubuntu desktop or server, if one is available
 - [ ] Brownfield: re-run on an already converged host, then on a hand-built host with existing dotfiles
 - [ ] `workspace` mode on a fresh host
-- [ ] A stock `ubuntu:24.04` container as a fast CI check of the installer prerequisites
+- [ ] A stock `ubuntu:26.04` container as a fast CI check of the installer prerequisites
 
 ## Branch and Merge Plan
 
@@ -345,3 +352,25 @@ checkout:
 
 Still needed: a full host-mode converge on a systemd host, which is the fresh
 WSL2 and fresh EC2 rows in the verification notes.
+
+### `M5b-10` Ubuntu release survey, 2026-10-18
+
+| Source | 26.04 LTS (`resolute`) | 26.10 (`stonking`) |
+| --- | --- | --- |
+| Docker Hub `ubuntu:` tag | ✅ 26.04.1 | ✅, also `rolling` |
+| Docker apt repository suite | ✅ | ✅ |
+| AWS SSM AMI parameter | ✅ | ✅ |
+| WSL store image | ✅ `Ubuntu-26.04` | ❌ interim releases are not published for WSL |
+
+Every Ubuntu package the host roles install exists on both releases. A 26.10
+WSL2 distro would need a release upgrade from 26.04, which is not covered yet.
+
+Verified locally the same day:
+
+- `ft workspace build` produced `ubuntu-full` on Ubuntu 26.04.1 LTS and
+  `ubuntu-full-rolling` on Ubuntu 26.10
+- `ft workspace validate` passed all 16 checks on both
+- replacing the 24.04 `ubuntu-full` container with the 26.04 one kept the
+  persisted zsh history
+- the 171 tests passed inside the 26.10 workspace
+- the installer's `--mode cli` passed on stock `ubuntu:26.04` and `ubuntu:26.10`

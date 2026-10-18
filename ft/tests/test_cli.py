@@ -2735,10 +2735,13 @@ def test_workspace_profile_manifest_includes_named_profiles() -> None:
         "ubuntu-cloud-aws",
         "ubuntu-cloud-azure",
         "ubuntu-full",
+        "ubuntu-full-rolling",
         "ubuntu-gitforge",
         "ubuntu-secrets",
     ]
     manifest = _load_workspace_profile_manifest()
+    assert manifest.profiles["ubuntu-full-rolling"].os_release == "rolling"
+    assert manifest.profiles["ubuntu-full"].os_release is None
     assert sorted(manifest.tool_layers) == ["aws", "azure", "gitforge", "secrets"]
     assert manifest.tool_layers["gitforge"].mode == "image_build"
     assert manifest.tool_layers["gitforge"].build_arg == "WORKSPACE_TOOL_LAYER_GITFORGE"
@@ -2909,6 +2912,64 @@ def test_build_workspace_profile_forwards_image_build_layer_args(
         is True
     )
     assert calls[0]["extra_build_args"] == ["WORKSPACE_TOOL_LAYER_GITFORGE=1"]
+
+
+def test_build_workspace_profile_forwards_os_release(monkeypatch: object) -> None:
+    """A profile os_release should select the base image release at build time."""
+    from ft.cli import _build_workspace_profile
+    from ft.models import WorkspaceProfileDefinition
+
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "ft.cli._load_workspace_profile_manifest",
+        lambda: WorkspaceProfileManifest.model_validate(
+            {
+                "profiles": {
+                    "ubuntu-rolling": {
+                        "description": "rolling",
+                        "os_release": "rolling",
+                    }
+                }
+            }
+        ),
+    )
+
+    def fake_build(target: str, **kwargs: object) -> bool:
+        calls.append({"target": target, **kwargs})
+        return True
+
+    monkeypatch.setattr("ft.cli._build_single_container_target", fake_build)
+
+    profile = WorkspaceProfileDefinition(
+        description="rolling", container_target="ubuntu", os_release="rolling"
+    )
+
+    assert (
+        _build_workspace_profile(
+            "ubuntu-rolling",
+            profile,
+            shell_config_source="github",
+            shell_config_repo_url="https://github.com/GrndZero101/shell-config.git",
+            shell_config_branch="main",
+            shell_config_local_dir=None,
+            shell_config_stage_from=None,
+            no_cache=False,
+        )
+        is True
+    )
+    assert calls[0]["extra_build_args"] == ["UBUNTU_RELEASE=rolling"]
+    assert calls[0]["image_tag"] == "dev-container-fortress:workspace-ubuntu-rolling"
+
+
+def test_workspace_profile_rejects_os_release_without_release_support() -> None:
+    """Targets without a release build arg should refuse an os_release."""
+    from ft.models import WorkspaceProfileDefinition
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="does not support os_release"):
+        WorkspaceProfileDefinition(
+            description="alpine", container_target="alpine", os_release="3.22"
+        )
 
 
 def test_workspace_up_passes_shell_config_checkout(

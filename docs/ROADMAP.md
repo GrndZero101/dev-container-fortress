@@ -366,7 +366,7 @@ host or workspace mode, tmux profiles, and the identity step composable.
 
 Exit criteria:
 
-- one command converges a fresh Ubuntu 24.04 host, WSL2 Ubuntu, or Ubuntu EC2
+- one command converges a fresh Ubuntu 26.04 host, WSL2 Ubuntu, or Ubuntu EC2
   instance, with `host` mode as the default and a thin `workspace` mode
 - the installer installs its own prerequisites, registers `localhost`, and runs
   the host bootstrap, with at most one `sudo` prompt

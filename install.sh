@@ -15,9 +15,9 @@ INSTALL_MODE="${DEV_CONTAINER_FORTRESS_MODE:-host}"
 INSTALL_DIR_OVERRIDE="${DEV_CONTAINER_FORTRESS_DIR:-}"
 UV_WAS_INSTALLED=0
 
-# Ubuntu releases the one-liner has been verified on. Other Ubuntu releases
-# continue with a warning.
-TESTED_UBUNTU_VERSIONS="24.04"
+# Ubuntu releases the one-liner supports: the current LTS, the newest interim
+# release, and the previous LTS. Other Ubuntu releases continue with a warning.
+SUPPORTED_UBUNTU_VERSIONS="26.04 26.10 24.04"
 # Native packages needed before bootstrap.zsh and the localhost Ansible run.
 # python3-apt backs Ansible's apt module, and sudo backs become for root users.
 UBUNTU_PREREQ_PACKAGES="ca-certificates curl git zsh python3 python3-apt sudo"
@@ -157,9 +157,9 @@ detect_platform() {
   fi
   PLATFORM_SUPPORTED=1
 
-  case " $TESTED_UBUNTU_VERSIONS " in
+  case " $SUPPORTED_UBUNTU_VERSIONS " in
     *" $os_version "*) ;;
-    *) warn_step "Ubuntu $os_version is not a tested release ($TESTED_UBUNTU_VERSIONS); continuing" ;;
+    *) warn_step "Ubuntu $os_version is not a supported release ($SUPPORTED_UBUNTU_VERSIONS); continuing" ;;
   esac
 }
 

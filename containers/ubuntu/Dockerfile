@@ -1,4 +1,7 @@
 ARG UV_DISTROLESS_IMAGE=ghcr.io/astral-sh/uv:latest
+# Ubuntu image tag for the base layer: the current LTS by default. Workspace
+# profiles can set os_release to trial another release, such as rolling.
+ARG UBUNTU_RELEASE=26.04
 ARG CORPORATE_CA_CERT_DIR=""
 ARG SHELL_CONFIG_SOURCE="github"
 ARG SHELL_CONFIG_REPO_URL="https://github.com/GrndZero101/shell-config.git"
@@ -12,7 +15,7 @@ ARG WORKSPACE_TOOL_LAYER_AWS="0"
 
 FROM ${UV_DISTROLESS_IMAGE} AS uv-distroless
 
-FROM ubuntu:24.04 AS ubuntu-base
+FROM ubuntu:${UBUNTU_RELEASE} AS ubuntu-base
 
 ENV DEBIAN_FRONTEND=noninteractive
 

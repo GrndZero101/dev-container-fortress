@@ -248,6 +248,19 @@ Destroy when done:
 terraform destroy
 ```
 
+## Choosing an Ubuntu Release
+
+Ubuntu hosts default to the current LTS, `26.04`. To try another release with
+the same bootstrap and tools, set `ubuntu_release` before `plan` and `apply`:
+
+```zsh
+export TF_VAR_ubuntu_release=26.10
+uv run ft infra aws-disposable-ubuntu plan
+```
+
+The value is any release Canonical publishes under
+`/aws/service/canonical/ubuntu/server/<release>/`, as a version or codename.
+
 ## Arch Hosts
 
 Set `os = "arch"` to boot the private Arch AMI that
@@ -325,6 +338,7 @@ Adding a profile only makes the host reachable. The OS still needs support in
 - AWS credentials are available through the normal Terraform AWS provider chain
 - the AWS account has a default VPC and default subnets in the chosen region
 - Ubuntu cloud images use the `ubuntu` SSH user, and Arch images use `arch`
+- Ubuntu hosts default to the `26.04` LTS AMI; `ubuntu_release` selects another
 - standard Ubuntu AWS images already include the SSM Agent for Session Manager
 - the operator supplies a trusted CIDR for SSH ingress, or allows automatic public-IP detection
 - ARM64 is the default cost-conscious path, with a fixed instance-type fallback
