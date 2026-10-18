@@ -144,7 +144,9 @@ detect_platform() {
   os_version=$(. /etc/os-release && printf '%s' "${VERSION_ID:-}")
   PLATFORM_LABEL="${os_id:-linux} ${os_version}"
 
-  if grep -qi microsoft /proc/sys/kernel/osrelease 2>/dev/null; then
+  # Containers on a WSL2 host share its kernel, so also require a WSL marker.
+  if grep -qi microsoft /proc/sys/kernel/osrelease 2>/dev/null &&
+    { [ -d /run/WSL ] || [ -n "${WSL_DISTRO_NAME:-}" ]; }; then
     PLATFORM_LABEL="${PLATFORM_LABEL} (WSL2)"
   fi
 
