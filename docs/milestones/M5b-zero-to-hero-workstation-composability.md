@@ -122,7 +122,9 @@ timestamp:
    the cached timestamp
 4. nothing in the chain may start a new session (`setsid` or
    `start_new_session`), because Ubuntu's default `tty` timestamp is tied to
-   the terminal
+   the terminal. ansible-core 2.19+ does exactly that for every worker, so
+   `ft` renders `ansible_worker_session_isolation: false` for local-connection
+   targets only
 
 `sudo` reads the password from `/dev/tty`, so the prompt still works under
 `curl | sh`. Hosts with passwordless `sudo`, such as EC2, never prompt. Remote
@@ -184,15 +186,15 @@ otherwise). The two repos share a small contract:
 
 ### M5b-2 Make the installer install its own prerequisites
 
-- [ ] Problem: `install.sh` exits on a fresh Ubuntu because `zsh` is missing
-- [ ] Scope: platform detection, apt prerequisites, and clear failures for macOS and other platforms
-- [ ] Acceptance: `install.sh` succeeds on a stock Ubuntu 24.04 image with only `curl`
+- [x] Problem: `install.sh` exits on a fresh Ubuntu because `zsh` is missing
+- [x] Scope: platform detection, apt prerequisites, and clear failures for macOS and other platforms
+- [x] Acceptance: `install.sh` succeeds on a stock Ubuntu 24.04 image with only `curl` (`--mode cli`, from an image with none of the prerequisites)
 
 ### M5b-3 Chain registration and host bootstrap
 
-- [ ] Problem: `hosts.toml` and `ft host bootstrap` are separate manual steps
-- [ ] Scope: register `localhost` when missing and run the host bootstrap from the installer
-- [ ] Acceptance: one command reaches a converged host
+- [x] Problem: `hosts.toml` and `ft host bootstrap` are separate manual steps
+- [x] Scope: register `localhost` when missing and run the host bootstrap from the installer. No registration is needed: `ft` falls back to `hosts.example.toml`, which defines `localhost`, and merges a user `hosts.toml` over it
+- [ ] Acceptance: one command reaches a converged host (needs a systemd host; see the progress notes)
 
 ### M5b-4 Add the workspace mode
 
@@ -311,3 +313,35 @@ pseudo-terminal for each case:
 `ft` runs `ansible-playbook` through a plain `subprocess.run` that inherits the
 terminal, so it keeps the timestamp. Its only `start_new_session=True` call is
 the workspace browser bridge daemon, which is unrelated.
+
+The spike missed one thing: Ubuntu's ansible-core 2.16 keeps workers on the
+terminal, but the 2.21 that `bootstrap.zsh` installs calls `os.setsid()` in
+every worker (`WORKER_SESSION_ISOLATION`, default on). The first full installer
+run in a container prompted once, installed the prerequisites, and then failed
+at the first `become` task with "sudo: a password is required". Rendering
+`ansible_worker_session_isolation: false` for local targets fixed it.
+
+### `M5b-2` and `M5b-3` installer work, 2026-10-18
+
+`install.sh` gained `--mode host|cli|workspace` (default `host`), matching
+environment variables, platform detection, an early systemd check for host
+mode, the single `sudo` prompt with a keepalive, missing-only `apt`
+prerequisites, and the chained `ft host bootstrap localhost`.
+
+Tested in `ubuntu:24.04` containers, with the branch cloned from a mounted
+checkout:
+
+- `--mode cli` as root from an image with no `curl`, `git`, `zsh`, `sudo`, or
+  `python3`: prerequisites installed, `ft` worked, and a second run reused the
+  packages, checkout, and `uv`
+- default `host` mode as a password-`sudo` user, piped into `sh` on a
+  pseudo-terminal like `curl | sh`: one password prompt, prerequisites
+  installed, and the host roles' `become` tasks ran until the Docker role
+  stopped on the missing systemd, which the new early check now reports before
+  any change
+- found and fixed on the way: re-runs reinstalled `uv` when `~/.local/bin`
+  was not on `PATH`, containers on a WSL2 host were labelled WSL2, and the
+  ansible-core 2.19+ worker session isolation described above
+
+Still needed: a full host-mode converge on a systemd host, which is the fresh
+WSL2 and fresh EC2 rows in the verification notes.

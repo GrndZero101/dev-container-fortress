@@ -23,6 +23,7 @@ TESTED_UBUNTU_VERSIONS="24.04"
 UBUNTU_PREREQ_PACKAGES="ca-certificates curl git zsh python3 python3-apt sudo"
 
 PLATFORM_SUPPORTED=0
+PLATFORM_IS_WSL=0
 PLATFORM_LABEL=""
 SUDO_KEEPALIVE_PID=""
 USE_SUDO=0
@@ -147,6 +148,7 @@ detect_platform() {
   # Containers on a WSL2 host share its kernel, so also require a WSL marker.
   if grep -qi microsoft /proc/sys/kernel/osrelease 2>/dev/null &&
     { [ -d /run/WSL ] || [ -n "${WSL_DISTRO_NAME:-}" ]; }; then
+    PLATFORM_IS_WSL=1
     PLATFORM_LABEL="${PLATFORM_LABEL} (WSL2)"
   fi
 
@@ -159,6 +161,24 @@ detect_platform() {
     *" $os_version "*) ;;
     *) warn_step "Ubuntu $os_version is not a tested release ($TESTED_UBUNTU_VERSIONS); continuing" ;;
   esac
+}
+
+# Purpose: Fail before any changes when host mode cannot converge this machine.
+# Arguments:
+#   None.
+# Returns:
+#   None. Exits when systemd is not the running init system.
+# Side effects:
+#   None. The Docker host role manages the docker service through systemd, so
+#   without this check the install would stop partway through Ansible.
+require_systemd() {
+  if [ -d /run/systemd/system ]; then
+    return
+  fi
+  if [ "$PLATFORM_IS_WSL" = "1" ]; then
+    die "host mode needs systemd, which is off in this WSL2 distro. Add '[boot]' and 'systemd=true' to /etc/wsl.conf, run 'wsl --shutdown' from Windows, then rerun the installer"
+  fi
+  die "host mode needs systemd as the init system; inside a container, use --mode cli"
 }
 
 # Purpose: Exit early when a required command is unavailable.
@@ -422,6 +442,9 @@ main() {
   log_step "Platform: ${PLATFORM_LABEL}; mode: ${INSTALL_MODE}"
 
   if [ "$PLATFORM_SUPPORTED" = "1" ]; then
+    if [ "$INSTALL_MODE" = "host" ]; then
+      require_systemd
+    fi
     missing_packages=$(missing_ubuntu_prereqs)
     if [ -n "$missing_packages" ] || [ "$INSTALL_MODE" = "host" ]; then
       acquire_privilege
