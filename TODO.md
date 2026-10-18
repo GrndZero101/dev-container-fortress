@@ -8,8 +8,8 @@ records the result.
 
 ## Up Next
 
-1. **`M5b-1`:** spike the single-prompt privilege model, then `M5b-2`
-   (installer prerequisites); see the
+1. **`M5b-2` and `M5b-3`:** make `install.sh` install its own prerequisites
+   behind one `sudo` prompt, then chain the `localhost` bootstrap; see the
    [M5b file](docs/milestones/M5b-zero-to-hero-workstation-composability.md).
 2. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
    the devcontainer and CLI terminal-mode flows; see the

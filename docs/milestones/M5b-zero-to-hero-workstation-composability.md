@@ -110,9 +110,24 @@ prefer flags.
 ### Privilege
 
 The installer needs `sudo` for native packages and Ansible needs `become` for
-host roles. Aim for one password prompt. Whether a cached `sudo` timestamp
-carries into Ansible's local `become`, or whether the installer passes `-K`,
-needs a spike before committing to a design.
+host roles. The `M5b-1` spike settled on one prompt, from a cached `sudo`
+timestamp:
+
+1. running as root skips `sudo` entirely; otherwise the installer runs
+   `sudo -v` once and fails clearly when the user cannot use `sudo`
+2. a background `sudo -n -v` loop refreshes the timestamp until the installer
+   exits, because a fresh Homebrew converge can outlast the 15-minute default
+3. the installer runs the `apt` prerequisites and then the `localhost` host
+   bootstrap without `-K`. Ansible's `sudo` plugin passes `-n`, so it reuses
+   the cached timestamp
+4. nothing in the chain may start a new session (`setsid` or
+   `start_new_session`), because Ubuntu's default `tty` timestamp is tied to
+   the terminal
+
+`sudo` reads the password from `/dev/tty`, so the prompt still works under
+`curl | sh`. Hosts with passwordless `sudo`, such as EC2, never prompt. Remote
+SSH targets keep `ft host bootstrap -K`, because a local timestamp does not
+reach them.
 
 ### Brownfield Safety
 
@@ -149,9 +164,9 @@ in `dotfiles`.
 
 ### M5b-1 Spike the single-prompt privilege model
 
-- [ ] Problem: native packages and Ansible `become` both need root, and two password prompts break the one-command promise
-- [ ] Scope: test whether a cached `sudo` timestamp reaches Ansible local `become`, compared with passing `-K`, on WSL2 and a password-protected Ubuntu host
-- [ ] Acceptance: one documented privilege model with at most one prompt
+- [x] Problem: native packages and Ansible `become` both need root, and two password prompts break the one-command promise
+- [x] Scope: test whether a cached `sudo` timestamp reaches Ansible local `become`, compared with passing `-K`, on WSL2 and a password-protected Ubuntu host
+- [x] Acceptance: one documented privilege model with at most one prompt (see Privilege above; the real WSL2 run is still in the verification list)
 
 ### M5b-2 Make the installer install its own prerequisites
 
@@ -262,3 +277,22 @@ Findings from the `M5a` rerun to fold into the issues above:
   Windows reads the Windows one. It should detect WSL and point to `--windows`,
   and fall back to the single `/mnt/c/Users/*` profile with a `.ssh` directory
   when interop is off (relevant to `M5b-8`)
+
+### `M5b-1` privilege spike, 2026-10-18
+
+Run in a throwaway `ubuntu:24.04` container (sudo 1.9.15p5, ansible-core
+2.16.3) with a password-protected sudo user, and `script` providing a real
+pseudo-terminal for each case:
+
+| Case | Result |
+| --- | --- |
+| `sudo -v`, then `ansible -b` without `-K`, same terminal | ✅ `uid=0(root)` |
+| no cached timestamp, `ansible -b` without `-K` (control) | ❌ fails |
+| cached timestamp, Ansible started under `setsid` | ❌ "password is required" |
+| cached timestamp, full playbook with fact gathering | ✅ `uid=0(root)` |
+| `timestamp_timeout=1`, 75 s idle, no keepalive | ❌ "password is required" |
+| `timestamp_timeout=1`, 75 s idle, `sudo -n -v` keepalive | ✅ `uid=0(root)` |
+
+`ft` runs `ansible-playbook` through a plain `subprocess.run` that inherits the
+terminal, so it keeps the timestamp. Its only `start_new_session=True` call is
+the workspace browser bridge daemon, which is unrelated.
