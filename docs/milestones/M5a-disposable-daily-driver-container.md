@@ -175,11 +175,11 @@ opt-in and do not become mandatory weight for all users and all targets.
 
 ## Verification Notes
 
-- [ ] A fresh Ubuntu EC2 host can be provisioned through the repo-owned infra path
-- [ ] `ft host bootstrap` prepares the host without requiring workstation-only snowflake state
+- [x] A fresh Ubuntu EC2 host can be provisioned through the repo-owned infra path
+- [x] `ft host bootstrap` prepares the host without requiring workstation-only snowflake state
 - [x] The daily-driver container can start against bind-mounted `dev-container-fortress` and `shell-config` checkouts
 - [ ] Normal development tasks work from inside the container, including editing, git operations, shell-config iteration, and Fortress self-hosting checks
-- [ ] Replacing the container does not lose intentionally persisted state
+- [x] Replacing the container does not lose intentionally persisted state
 - [ ] Destroying and recreating the EC2 host does not require undocumented operator recovery steps
 
 ## Progress Notes
@@ -220,10 +220,45 @@ Fixed on 2026-10-18 on `feat/m0005a-disposable-daily-driver-container`:
 > plugins, so remove it by hand:
 > `rm -rf ~/.local/state/dev-container-fortress/workspaces/*/share`
 
+### EC2 loop run on 2026-10-18
+
+Followed `docs/ec2-development-loop.md` on a t4g.medium arm64 Spot host in
+`ap-southeast-1` (tboss-mgmt). This note was written and committed from inside
+the `ubuntu-full` workspace on that host.
+
+- `capacity select`, `plan`, and `apply` provisioned the host and imported it
+  into `hosts.toml`
+- `ft host validate` failed on the first converge: Homebrew poured seven
+  formulae twice in one run and the second pour deleted the first ("Bottle
+  destination already exists"). A rerun converged, and the idempotency pass
+  reported `changed=0`
+- `ft deploy init --dev-branch` cloned both repos; `ft doctor` and the 168
+  tests passed on the host
+- the first arm64 `ubuntu-full` build failed: `install-aws-cli` always fetched
+  the x86_64 bundle (fixed in `f5fcd9a`, pulled onto the host with Git)
+- after the fix, `ft workspace validate ubuntu-full` passed every check, the
+  tests passed inside the workspace, and zoxide and `state` contents survived
+  `ft workspace up` replacing the container
+
+Gaps found while dogfooding the loop:
+
+- the role tracks the Homebrew development branch (the host ran
+  `7.0.9-157-g013821d`) rather than the latest stable tag, which makes host
+  bootstrap non-deterministic and may explain the duplicate pour
+- convergence needs two passes: the second pass still changed the Linuxbrew
+  formulae and `neovim_kickstart` tasks
+- host and workspace share one `.venv` in the bind-mounted checkout, so each
+  side's `uv run` recreates it for its own interpreter
+- `--shell-config-stage-from` copies into `.local/sources/`, which was not
+  ignored by Git (fixed in this commit)
+- the workspace has no Git identity and no forge login on first use, and
+  nothing gives the EC2 host push access; the runbook does not cover either
+- `ft host ssh <target> -- <command>` is still missing (already an `M6` gap),
+  and `ft host show` truncates the managed key path
+
 Open, in suggested order:
 
-1. Prove `M5a-6`: provision EC2, bootstrap, run the workspace with mounted
-   checkouts, develop, and destroy, following `docs/ec2-development-loop.md`.
+1. Finish `M5a-6`: push from the EC2 workspace, then destroy the host.
 2. The separate `tboss-workspace` devcontainers persist cache and auth paths but
    not `state`, `zoxide`, or `atuin`; aligning them is tracked in that repo's
    `TODO.md`.
