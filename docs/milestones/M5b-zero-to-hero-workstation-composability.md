@@ -245,7 +245,7 @@ otherwise). The two repos share a small contract:
 - [x] Fresh WSL2 Ubuntu instance, default command (Ubuntu 26.04.1 LTS store image, 2026-10-18)
 - [ ] Fresh Ubuntu EC2 instance, the one-liner run on the box itself (the `localhost` path, which `M5a` did not exercise)
 - [ ] Ubuntu desktop or server, if one is available
-- [ ] Brownfield: re-run on an already converged host, then on a hand-built host with existing dotfiles
+- [ ] Brownfield: re-run on an already converged host (operator's `dev-fortress` WSL2 workstation, 2026-10-18: `changed=12`, then `changed=0`), then on a hand-built host with existing dotfiles
 - [ ] `workspace` mode on a fresh host
 - [ ] A stock `ubuntu:26.04` container as a fast CI check of the installer prerequisites
 
@@ -305,7 +305,7 @@ Next, in suggested order:
 6. pin `ansible_python_interpreter: /usr/bin/python3` for local targets, which
    the WSL2 run warned about
 7. verification still open: the one-liner on a fresh EC2 box, a hand-built
-   brownfield host, and `workspace` mode
+   brownfield host with existing dotfiles, and `workspace` mode
 8. `M5b-8`: the consolidated quickstart, then open the PR
 
 Working notes for the next session:
@@ -478,3 +478,9 @@ or the fresh WSL2 run. It tracks the kickstart `master` branch, so it changes
 only when upstream moves. The duplicate-pour race also has not recurred, and
 pinning a tag removes one moving part, so no further fix is planned unless it
 reproduces.
+
+Then `ft host bootstrap localhost -K` ran twice on the operator's `dev-fortress`
+WSL2 workstation, which had last been bootstrapped before this branch. The first
+pass reported `changed=12`, including the managed `/etc/docker/daemon.json` and a
+Docker restart. The second reported `changed=0`, with the Homebrew checkout
+still at `7.0.9`.
