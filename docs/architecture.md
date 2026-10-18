@@ -42,6 +42,12 @@ Host-side policy should stay explicit:
   logic when a Homebrew-backed steady state exists
 
 > [!NOTE]
+> Claude Code is a deliberate exception. Its native installer is the supported
+> path that keeps it updating itself between bootstrap runs, so the host role
+> runs that installer once and then leaves updates to Claude Code. Containers
+> follow the same rule in `M5c`.
+
+> [!NOTE]
 > Arch Linux hosts are a deliberate exception. The official Arch repositories
 > already ship the steady-state toolchain, so Arch hosts use pacman and skip
 > Linuxbrew rather than running two package managers side by side. Arch host

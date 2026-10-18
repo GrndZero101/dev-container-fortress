@@ -76,7 +76,8 @@ Modes:
 Every flag has an environment variable: DEV_CONTAINER_FORTRESS_MODE,
 DEV_CONTAINER_FORTRESS_DIR, DEV_CONTAINER_FORTRESS_REF, and
 DEV_CONTAINER_FORTRESS_REPO. Host mode makes zsh the login shell; set
-DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL=0 to keep the current shell.
+DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL=0 to keep the current shell. It also
+installs Claude Code; set DEV_CONTAINER_FORTRESS_CLAUDE_CODE=0 to skip it.
 
 Git identity: DEV_CONTAINER_FORTRESS_GIT_NAME and DEV_CONTAINER_FORTRESS_GIT_EMAIL
 set it without a prompt; otherwise a terminal is asked for a missing identity.

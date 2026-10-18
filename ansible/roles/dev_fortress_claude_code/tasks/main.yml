@@ -1,0 +1,23 @@
+---
+# The native installer refuses to run under sudo and installs into the
+# operator's home, so every task here runs as the connection user. After the
+# first install Claude Code updates itself, so a present launcher is left alone.
+- name: Install Claude Code with its native installer
+  ansible.builtin.shell:
+    cmd: set -o pipefail && curl -fsSL {{ dev_container_fortress_claude_code_installer_url_effective }} | bash
+    executable: /bin/bash
+    creates: "{{ dev_container_fortress_claude_code_launcher_effective }}"
+
+- name: Check the Claude Code launcher
+  ansible.builtin.command:
+    argv:
+      - "{{ dev_container_fortress_claude_code_launcher_effective }}"
+      - --version
+  register: dev_fortress_claude_code_version
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Report the Claude Code version
+  ansible.builtin.debug:
+    msg: "{{ dev_fortress_claude_code_version.stdout }} at {{ dev_container_fortress_claude_code_launcher_effective }}"
+  when: not ansible_check_mode

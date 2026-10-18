@@ -50,6 +50,7 @@ Expected early role candidates:
 - `dev_fortress_login_shell`
 - `dev_fortress_linuxbrew`
 - `dev_fortress_neovim_kickstart`
+- `dev_fortress_claude_code`
 - `dev_fortress_shell_config_ready`
 - future `uv_prereqs`
 
@@ -71,6 +72,7 @@ to the declared baseline, so do not hand-edit them.
 | Homebrew shellenv | the marked `DEV FORTRESS HOMEBREW` blocks in `~/.zprofile` and `~/.profile` | Dev Fortress owns only the text between the markers |
 | Kickstart Neovim | `${XDG_CONFIG_HOME}/nvim-kickstart` and `~/.local/bin/nvim-kickstart` | Dev Fortress |
 | Docker daemon config | `/etc/docker/daemon.json` | Dev Fortress owns the whole file on `workstation` and `cloud` targets |
+| Claude Code | `~/.local/bin/claude` and `${XDG_DATA_HOME}/claude` | Dev Fortress installs it when the launcher is missing; Claude Code updates itself after that |
 
 Dotfile linking is delegated to `shell-config` itself. Its `csm bootstrap`
 links the profile's dotfiles and moves a pre-existing file aside instead of
@@ -177,6 +179,21 @@ Clones `kickstart.nvim` into a parallel XDG config directory and installs a
 repo-managed `nvim-kickstart` wrapper that launches Neovim with
 `NVIM_APPNAME=nvim-kickstart`. This keeps the IDE-style starter config
 available without overwriting an existing user-owned `~/.config/nvim`.
+
+### `dev_fortress_claude_code`
+
+Installs Claude Code with its native installer (`https://claude.ai/install.sh`)
+as the target user, without `become`, because the installer refuses to run
+under `sudo` and installs into the user's home. The task is skipped when
+`~/.local/bin/claude` already exists, so a re-run reports no change and never
+fights Claude Code's own background updates.
+
+It runs by default on `workstation` and `cloud` targets other than Alpine,
+whose baseline lacks the `bash` the installer needs. Precedence: the
+`dev_container_fortress_claude_code_manage` inventory variable, then the
+`DEV_CONTAINER_FORTRESS_CLAUDE_CODE` environment variable (`0` opts out), then
+that default. `dev_container_fortress_claude_code_installer_url` points at an
+alternate installer, such as an internal mirror.
 
 ### `dev_fortress_shell_config_ready`
 
