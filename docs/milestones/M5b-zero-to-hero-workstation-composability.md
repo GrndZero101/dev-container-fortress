@@ -265,7 +265,7 @@ otherwise). The two repos share a small contract:
 - [x] Fresh WSL2 Ubuntu instance, default command (Ubuntu 26.04.1 LTS store image, 2026-10-18)
 - [x] Fresh Ubuntu EC2 instance, the one-liner run on the box itself (the `localhost` path, which `M5a` did not exercise; `m8g.large` arm64, 2026-10-18)
 - [ ] Ubuntu desktop or server, if one is available
-- [ ] Brownfield: re-run on an already converged host (operator's `dev-fortress` WSL2 workstation, 2026-10-18: `changed=12`, then `changed=0`), then on a hand-built host with existing dotfiles
+- [x] Brownfield: re-run on an already converged host (operator's `dev-fortress` WSL2 workstation, 2026-10-18: `changed=12`, then `changed=0`), then on a hand-built host with existing dotfiles (WSL2 Ubuntu 26.04 store image, 2026-10-19)
 - [x] `workspace` mode on a fresh host (fresh WSL2 Ubuntu 26.04 store image, 2026-10-18; a fresh EC2 run is still open)
 - [x] A fresh-host one-liner with `--options tmux-full`, then `csm tmux-profile raidboss` and a re-run that keeps it (fresh WSL2 Ubuntu 26.04 store image, 2026-10-19)
 - [ ] A stock `ubuntu:26.04` container as a fast CI check of the installer prerequisites
@@ -332,8 +332,8 @@ Recorded while building `M5b-7` (2026-10-18):
 
 ## Resume Here
 
-State at the end of 2026-10-18, on `feat/m0005b-zero-to-hero` (pushed, no PR
-yet):
+State at the end of 2026-10-19, on `feat/m0005b-zero-to-hero` (no PR yet;
+the 2026-10-19 commits are not pushed):
 
 - done: `M5b-1` (one `sudo` prompt), `M5b-2` (installer prerequisites),
   `M5b-3` (chained `localhost` bootstrap), `M5b-6` (`ft identity`), `M5b-10`
@@ -350,20 +350,20 @@ yet):
   `--workspace-image published`), accepted on a fresh WSL2 Ubuntu 26.04 distro
 - decided: stock tmux by default with `csm` switching, local workspace builds
   by default, and Homebrew in containers in `M5c`
+- also done (2026-10-19): Dev Fortress code runs only on the uv-managed
+  Python. The repo-root `.python-version` is the one pin (bump it alone, after
+  checking `ansible-core` supports the version; 3.15 waits), local targets run
+  Ansible modules on that Python, and `python-preference = "only-managed"`
+  keeps `uv run` off distro and Homebrew Pythons
+- also done (2026-10-19): the fresh-host `--options tmux-full` run and the
+  hand-built brownfield host, which added end-of-run notices and kept uv's
+  installer out of user dotfiles in host mode
 
 Next, in suggested order:
 
-1. confirm on the next fresh-host run that the interpreter-discovery warning
-   is gone: local targets now run modules on the uv-managed Python
-   (`{{ ansible_playbook_python }}`), and `python-preference = "only-managed"`
-   in `pyproject.toml` stops `uv run` from picking a distro or Homebrew Python.
-   Checked on the WSL2 workstation with ad hoc `setup`, `apt --check`, and
-   `package_facts`; a `become` run is still unverified
-2. verification still open: a hand-built brownfield host with existing
-   dotfiles, a fresh-host `--options tmux-full` run, and optionally
-   `workspace` mode on a fresh arm64 EC2 host (local build only; the published
-   images are amd64)
-3. `M5b-8`: the consolidated quickstart, then open the PR
+1. `M5b-8`: the consolidated quickstart, then open the PR
+2. optional: `workspace` mode on a fresh arm64 EC2 host (local build only; the
+   published images are amd64)
 
 Working notes for the next session:
 
@@ -374,6 +374,12 @@ Working notes for the next session:
   with a background `sleep infinity` while testing
 - stopping any sibling WSL2 distro wipes `WSLInterop`; restore it with
   `wsl-restore-interop` in a normal terminal
+- `wsl.exe -d <distro> -- <cmd>` expands `$` in `<cmd>` before the target
+  shell sees it; put anything with variables in a script under `/mnt/wsl` and
+  run that
+- the brownfield seed script used on 2026-10-19 writes one marker line per
+  dotfile and records checksums, so a `sha256sum -c` after the run shows
+  exactly which files changed
 - container recipe for installer checks: `ubuntu:26.04` with `/src` mounted and
   `[safe] directory = *` in `~/.gitconfig`, then
   `sh /src/install.sh --repo /src --ref <branch>`
@@ -401,6 +407,35 @@ Findings from the `M5a` rerun to fold into the issues above:
   Windows reads the Windows one. It should detect WSL and point to `--windows`,
   and fall back to the single `/mnt/c/Users/*` profile with a `.ssh` directory
   when interop is off (relevant to `M5b-8`)
+
+### Brownfield hand-built host, 2026-10-19
+
+Throwaway distros (Ubuntu 26.04.1 LTS store image) seeded as a hand-built
+host: custom `~/.bashrc`, `~/.profile`, `~/.zshrc`, `~/.zshenv`, `~/.zprofile`,
+and `~/.tmux.conf`, a `~/.gitconfig` with an identity and an alias, plus
+`~/.config/nvim/init.lua`, `~/.config/starship.toml`, and `~/.ssh/config`. The
+one-liner ran with `--options tmux-full` and no Git identity variables.
+
+| Run | Result |
+| --- | --- |
+| `m5b-brown`, 1 | ✅ `changed=30 failed=0`; identity kept (`Brownfield User`); tmux link held back by `~/.tmux.conf`; Neovim, starship, SSH, and Git configs byte-identical |
+| `m5b-brown2`, 1, after the fixes | ✅ `changed=30`; only `~/.profile` and `~/.zprofile` (marked blocks) and `~/.zshenv` (moved to a backup) changed; the run ended with all three notices |
+| `m5b-brown2`, 2 | ✅ 31 s, `changed=0`; the two notices that still applied repeated, the one-off backup notice did not |
+| `m5b-brown2`, 3, after moving `~/.tmux.conf` aside and removing `~/.zshrc` | ✅ `changed=3`: `tmux-full` linked, no notices |
+
+A new zsh login found `uv`, `ft`, `brew`, `tmux`, and `nvim`, and an alias
+moved into `shell-config.local/<profile>/aliases.zsh` loaded.
+
+Found and fixed:
+
+- uv's standalone installer appended `. "$HOME/.local/bin/env"` to
+  `~/.profile`, `~/.bashrc`, and `~/.zshrc`. Host mode now sets
+  `UV_NO_MODIFY_PATH=1`, since shell-config owns `PATH` there
+- the `~/.zshenv` backup, the now-unread `~/.zshrc`, and the blocked tmux link
+  were buried in, or missing from, the Ansible output. They are now end-of-run
+  notices above the play recap; the profile's existing `shell-config.local`
+  overrides (`env.zsh`, `aliases.zsh`) are where the notice sends old zsh
+  settings, so `shell-config` needed no change
 
 ### Fresh WSL2 `--options tmux-full` run, 2026-10-19
 

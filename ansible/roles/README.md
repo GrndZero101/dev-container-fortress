@@ -88,8 +88,16 @@ to the declared baseline, so do not hand-edit them.
 
 Dotfile linking is delegated to `shell-config` itself. Its `csm bootstrap`
 links the profile's dotfiles and moves a pre-existing file aside instead of
-deleting it, so check for moved files after the first bootstrap of a hand-built
-host.
+deleting it.
+
+> [!TIP]
+> Anything a run leaves for you to act on is printed once more at the end,
+> just above the play recap: each file `csm` moved aside, an existing
+> `~/.zshrc` that the managed zsh no longer reads, and a tmux profile link held
+> back by an existing config. Roles queue these in a `<role>_notices` list, and
+> the `host.yml` post task joins them. Carry personal zsh settings into
+> `env.zsh` or `aliases.zsh` under
+> `${XDG_CONFIG_HOME}/shell-config.local/<profile>/`.
 
 Everything else stays user-owned. That includes `~/.config/nvim`, content
 outside the marked blocks in `~/.zprofile` and `~/.profile`, and any

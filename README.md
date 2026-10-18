@@ -116,6 +116,12 @@ last.
 > and links no profile while `~/.tmux.conf` exists, because tmux would load
 > both. The bootstrap reports the conflict; move the file aside and re-run.
 
+On a host with existing dotfiles, `shell-config` moves a conflicting
+`~/.zshenv` aside, and the managed zsh stops reading `~/.zshrc`. The run ends
+by listing those changes, with where to carry your own zsh settings: `env.zsh`
+or `aliases.zsh` under
+`${XDG_CONFIG_HOME:-~/.config}/shell-config.local/zsh-tll-citadel-dev-fortress/`.
+
 The installer finishes with `ft identity`, which sets the global Git
 `user.name` and `user.email`. It keeps an existing identity, uses the
 `DEV_CONTAINER_FORTRESS_GIT_*` variables when they are set, and otherwise
