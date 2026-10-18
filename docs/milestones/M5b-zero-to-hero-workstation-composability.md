@@ -367,11 +367,16 @@ Next, in suggested order:
 
 Working notes for the next session:
 
-- the throwaway WSL2 test recipe: `wsl.exe --install Ubuntu-26.04 --name
-  m5b-test --no-launch`, add a password-`sudo` user as root with
-  `wsl.exe -e`, share the branch as a git bundle in `/mnt/wsl`, and run the
-  one-liner under `script` to answer the single prompt. Keep the distro awake
-  with a background `sleep infinity` while testing
+- testing strategy from 2026-10-19: verify on the operator's `dev-fortress`
+  WSL2 host as the brownfield case, and on disposable EC2 hosts for fresh
+  runs, not throwaway WSL2 distros. Running several EC2 hosts at once needs
+  per-name Terraform state (see `TODO.md`)
+- the retired throwaway WSL2 recipe, for reference: `wsl.exe --install
+  Ubuntu-26.04 --name m5b-test --no-launch`, a password-`sudo` user added as
+  root, the branch shared as a git bundle in `/mnt/wsl`, and the one-liner run
+  under `script` with a background `sleep infinity` keepalive. Unregister all
+  test distros in one `cmd.exe /c "wsl --unregister a & wsl --unregister b"`
+  call, because the first one wipes `WSLInterop`
 - stopping any sibling WSL2 distro wipes `WSLInterop`; restore it with
   `wsl-restore-interop` in a normal terminal
 - `wsl.exe -d <distro> -- <cmd>` expands `$` in `<cmd>` before the target

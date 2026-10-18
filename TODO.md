@@ -12,7 +12,11 @@ records the result.
    [M5b file](docs/milestones/M5b-zero-to-hero-workstation-composability.md);
    next is the quickstart (`M5b-8`), then the PR; the brownfield and
    `tmux-full` runs passed.
-2. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
+2. **Parallel EC2 test hosts:** verification now runs on the `dev-fortress`
+   host (brownfield) and disposable EC2. Give each `ft` disposable-Ubuntu host
+   name its own Terraform workspace so several cheap hosts can run and tear
+   down independently; today a second name replaces the first host.
+3. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
    the devcontainer and CLI terminal-mode flows; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 
