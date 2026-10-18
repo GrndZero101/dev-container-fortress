@@ -42,7 +42,7 @@ EC2 over SSH (`M5a`), but the onramp around them is manual and spread across
 
 ## Exit Criteria
 
-- [ ] One documented command takes a fresh Ubuntu 26.04 LTS machine to a converged host workstation: `curl -fsSL …/install.sh | sh`
+- [x] One documented command takes a fresh Ubuntu 26.04 LTS machine to a converged host workstation: `curl -fsSL …/install.sh | sh` (fresh WSL2, 2026-10-18; EC2 still to run)
 - [ ] Ubuntu 26.04 LTS is the default release for container images and EC2 hosts, and the newest release (26.10 today) is one setting away on each, so a new release can be tried with the full toolchain
 - [ ] The installer detects the platform, installs its own native prerequisites with one `sudo` step, and fails clearly on unsupported platforms such as macOS
 - [ ] The installer registers `localhost` in `hosts.toml` when it is missing and runs the host bootstrap without a separate operator step
@@ -195,7 +195,7 @@ otherwise). The two repos share a small contract:
 
 - [x] Problem: `hosts.toml` and `ft host bootstrap` are separate manual steps
 - [x] Scope: register `localhost` when missing and run the host bootstrap from the installer. No registration is needed: `ft` falls back to `hosts.example.toml`, which defines `localhost`, and merges a user `hosts.toml` over it
-- [ ] Acceptance: one command reaches a converged host (needs a systemd host; see the progress notes)
+- [x] Acceptance: one command reaches a converged host (fresh Ubuntu 26.04 WSL2, 2026-10-18)
 
 ### M5b-4 Add the workspace mode
 
@@ -238,11 +238,11 @@ otherwise). The two repos share a small contract:
 
 - [x] Problem: everything defaulted to 24.04, and trying a new Ubuntu release with the full toolchain meant hand-editing Dockerfiles and Terraform
 - [x] Scope: 26.04 as the default for the Ubuntu image, EC2 AMI, and installer support list; a profile-level `os_release` with an `ubuntu-full-rolling` profile; `TF_VAR_ubuntu_release` for EC2
-- [ ] Acceptance: `ubuntu-full` builds and validates on 26.04, `ubuntu-full-rolling` builds and validates on 26.10 (both done), and the host roles converge on a 26.04 host (open)
+- [x] Acceptance: `ubuntu-full` builds and validates on 26.04, `ubuntu-full-rolling` builds and validates on 26.10, and the host roles converge on a 26.04 host
 
 ## Verification Notes
 
-- [ ] Fresh WSL2 Ubuntu instance, default command
+- [x] Fresh WSL2 Ubuntu instance, default command (Ubuntu 26.04.1 LTS store image, 2026-10-18)
 - [ ] Fresh Ubuntu EC2 instance, the one-liner run on the box itself (the `localhost` path, which `M5a` did not exercise)
 - [ ] Ubuntu desktop or server, if one is available
 - [ ] Brownfield: re-run on an already converged host, then on a hand-built host with existing dotfiles
@@ -374,3 +374,42 @@ Verified locally the same day:
   persisted zsh history
 - the 171 tests passed inside the 26.10 workspace
 - the installer's `--mode cli` passed on stock `ubuntu:26.04` and `ubuntu:26.10`
+
+### Fresh WSL2 Ubuntu 26.04 run, 2026-10-18
+
+A throwaway `m5b-test` distro from the store's `Ubuntu-26.04` image (26.04.1
+LTS, systemd on, `zsh` absent) with a password-`sudo` user. The one-liner was
+piped into `sh` on a pseudo-terminal, cloning the branch from a git bundle in
+`/mnt/wsl`.
+
+| Run | Result |
+| --- | --- |
+| 1, fresh | one `sudo-rs` prompt, installed `zsh`, converged in 5 min 19 s: `ok=74 changed=26 failed=0` |
+| 2, re-run | `changed=0`, but it was still on the old commit: a `--ref` branch never fast-forwarded (fixed) |
+| 3, re-run | fast-forwarded, `changed=1`: the login shell, after the host-mode login shell fix |
+| 4, re-run | `changed=0` |
+
+A new login session then opened zsh 5.9 with the
+`zsh-tll-citadel-dev-fortress` profile. `brew`, `ft`, `uv`, `nvim`,
+`starship`, `zoxide`, `atuin`, `fzf`, `rg`, `docker`, and `csm` were all on
+`PATH`, `docker run hello-world` worked, and zinit installed its plugins on the
+first interactive start.
+
+Found and fixed:
+
+- the login shell stayed `bash`, because the role manages only remote targets
+  by default; host mode now sets `DEV_CONTAINER_FORTRESS_MANAGE_LOGIN_SHELL=1`
+- `--ref <branch>` re-runs fetched without fast-forwarding
+
+Observed, not fixed yet:
+
+- Ubuntu 26.04 ships `sudo-rs`; its timestamp and `-n -v` keepalive behave like
+  `sudo` for this flow
+- stopping `m5b-test`, a pristine store image, also wiped `WSLInterop` in
+  `dev-fortress`. The wipe is a general sibling-distro problem, not one
+  misconfigured distro, and it now reproduces on demand
+- Ansible discovered `.venv/bin/python3.14` as the `localhost` interpreter and
+  warned that this may change; pinning `/usr/bin/python3` for local targets is
+  worth considering
+- WSL warns "Failed to start the systemd user session" for a user created with
+  `useradd` after first boot; nothing in the run depended on it
