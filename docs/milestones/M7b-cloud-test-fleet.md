@@ -2,8 +2,8 @@
 
 ## Status
 
-- [ ] Milestone complete
-- [x] Active milestone, on `feat/m0007b-cloud-test-fleet` (started 2026-10-19, after `M5b` merged)
+- [x] Milestone complete (squash-merged in PR #6, `d13837a`, 2026-10-19)
+- [ ] Active milestone
 
 ## Objective
 
@@ -237,4 +237,4 @@ Found, not fixed:
 ## Branch and Merge Plan
 
 - [x] Start after the `M5b` PR is open: `feat/m0007b-cloud-test-fleet`
-- [ ] Squash-merge once the exit criteria are met
+- [x] Squash-merge once the exit criteria are met (PR #6)

@@ -522,7 +522,7 @@ Details:
 
 ### `M7b` Cloud Test Fleet
 
-Status: `now`, before `M5c`
+Status: `done` (squash-merged in PR #6, 2026-10-19)
 
 Objective:
 Verify Dev Fortress on several fresh supported OS targets at once with one

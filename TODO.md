@@ -8,10 +8,7 @@ records the result.
 
 ## Up Next
 
-1. **`M7b`:** done and destroyed; the PR is open, waiting for green CI and the
-   operator's squash merge; see the
-   [M7b file](docs/milestones/M7b-cloud-test-fleet.md).
-2. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
+1. **`M5c`:** Homebrew in the containers, Claude Code everywhere, and
    the devcontainer and CLI terminal-mode flows; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 
