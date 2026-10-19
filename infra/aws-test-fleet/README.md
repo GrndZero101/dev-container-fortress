@@ -57,15 +57,32 @@ uv run ft host list
 uv run ft host doctor 'dev-fortress-fleet-*' --probe
 ```
 
-Then run each target's check:
+Then check every host at once:
 
-| Target | Check |
-| --- | --- |
-| Ubuntu hosts | `uv run ft host ssh <host>`, run the one-liner from the [quickstart](../../docs/quickstart.md) on the box, then run it again for `changed=0` |
-| Arch and Alpine | `uv run ft host validate <host>`, which bootstraps over SSH and expects a second pass with `changed=0` |
+```zsh
+uv run ft infra aws-test-fleet check                      # installs main
+uv run ft infra aws-test-fleet check --ref <branch>       # tests a pushed branch
+uv run ft infra aws-test-fleet check --only '*2604*' --markdown
+```
+
+Each host gets the check its OS supports, and all of them run in parallel:
+
+| Target | Check | Passes when |
+| --- | --- | --- |
+| Ubuntu | the one-liner on the box over SSH, then again | both exit 0, and the re-run reports `changed=0` |
+| Arch and Alpine | `ft host validate` from this machine | it exits 0, which needs a converged second pass |
 
 The one-liner supports Ubuntu only, so Arch and Alpine use the SSH bootstrap
-from the operator's machine.
+from the operator's machine. `--ref` installs a branch, tag, or commit, fetched
+by its commit SHA so a stale cached copy of the branch is never used; push the
+branch first.
+
+A live table shows each host's phase and time, and the run ends with a summary,
+plus a markdown table with `--markdown` for milestone notes. Every step logs
+to `${XDG_STATE_HOME:-~/.local/state}/dev-container-fortress/fleet-runs/<time>/`,
+and the command exits non-zero when any host fails. Each step stops after
+`--timeout` minutes (25 by default). To look at one host by hand, run a
+command on it with `uv run ft host ssh <host> -- <command>`.
 
 > [!NOTE]
 > Alpine's cloud image grants root through `doas`, not `sudo`. The host
@@ -73,9 +90,6 @@ from the operator's machine.
 > extra is needed. On Alpine the bootstrap converges the base packages,
 > `shell-config`, and the login shell; Docker and Homebrew are skipped there by
 > design.
->
-> To start several `ft host validate` runs at once from one shell, detach
-> stdin (`< /dev/null`); Ansible refuses to run on a shared non-blocking stdin.
 
 ## :broom: Tear Down
 

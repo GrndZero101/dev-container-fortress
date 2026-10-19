@@ -349,6 +349,40 @@ def test_host_show_renders_one_target(tmp_path: Path) -> None:
     assert "ssh_private_key" in result.stdout
 
 
+def test_host_ssh_runs_a_remote_command(tmp_path: Path, monkeypatch: object) -> None:
+    """Arguments after -- run on the target as one quoted command line."""
+    config_path = _write_host_config(tmp_path)
+    calls: list[list[str]] = []
+    monkeypatch.setattr(
+        "ft.cli._host_ssh_command", lambda target: ["ssh", f"{target.user}@host"]
+    )
+    monkeypatch.setattr("ft.cli._ensure_host_target_runtime_ready", lambda target: True)
+    monkeypatch.setattr(
+        "ft.cli._run_streaming_command",
+        lambda command, env=None: (
+            calls.append(command)
+            or subprocess.CompletedProcess(command, 7, stdout="", stderr="")
+        ),
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "host",
+            "ssh",
+            "dev-fortress-ubuntu",
+            "--config",
+            str(config_path),
+            "--",
+            "echo",
+            "two words",
+        ],
+    )
+
+    assert result.exit_code == 7
+    assert calls == [["ssh", "vscode@host", "echo 'two words'"]]
+
+
 def test_host_inventory_renders_yaml(tmp_path: Path) -> None:
     """Host inventory should render a minimal YAML inventory by default."""
     config_path = _write_host_config(tmp_path)
@@ -2393,7 +2427,9 @@ def test_host_ssh_interactive_uses_selected_target(
         lambda targets, command_name: targets[0],
     )
 
-    def fake_ssh_single_host_target(target: object) -> int:
+    def fake_ssh_single_host_target(
+        target: object, remote_command: list[str] | None = None
+    ) -> int:
         calls.append(target.name)
         return 0
 

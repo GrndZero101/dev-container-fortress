@@ -427,8 +427,8 @@ Exit criteria:
 
 Known gaps found while dogfooding:
 
-- `ft host ssh <target> -- <command>` for one-off remote commands; today only an
-  interactive session works, so scripts fall back to raw `ssh`
+- ~~`ft host ssh <target> -- <command>` for one-off remote commands~~: done
+  in `M7b`, where the fleet checks needed it
 - an OS or workspace option on `ft infra aws-disposable-ubuntu`, so Arch hosts
   do not need `TF_WORKSPACE`, `TF_VAR_*`, and a shared capacity file swap
 

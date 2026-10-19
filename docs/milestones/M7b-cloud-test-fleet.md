@@ -143,6 +143,25 @@ both, and `m8g.large` and `m8i.large` are both offered.
   the old names from `hosts.toml`; every check passed after one Arch fix
   (2026-10-19, below). The `lts` names are shared with `full` by design
 
+### `M7b-6` `ft infra aws-test-fleet check`
+
+- [x] Problem: every fleet run needed hand-written shell scripts for SSH,
+  parallelism, logs, and judging results, which is exactly the tribal
+  knowledge this milestone exists to remove
+- [x] Scope: one command that plans each host's check from the fleet outputs
+  (the one-liner twice on Ubuntu, `ft host validate` elsewhere), runs them in
+  parallel with stdin detached, shows live progress, logs every step under
+  `${XDG_STATE_HOME}/dev-container-fortress/fleet-runs/<time>/`, judges each
+  step from its exit code and Ansible recaps, and prints a summary and an
+  optional markdown table. `--ref` tests a pushed branch, fetched by commit
+  SHA. `ft host ssh <target> -- <command>` came with it. The recap parser moved
+  to `ft/recap.py` so both paths share it
+- [x] Acceptance: one command checks the whole fleet and exits non-zero on any
+  failure. Verified 2026-10-19 on the nine live `full` hosts with
+  `--ref feat/m0007b-cloud-test-fleet`: all nine passed in 84 s on the
+  already-converged hosts, and the Ubuntu hosts checked out the branch head
+  `fcb6d01`
+
 ## Verification Notes
 
 - [ ] Fleet created and destroyed with one command each

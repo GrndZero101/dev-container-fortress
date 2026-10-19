@@ -14,6 +14,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import tomllib
 from pathlib import Path
@@ -21,10 +22,21 @@ from typing import Annotated
 
 import typer
 from rich.console import Console
+from rich.live import Live
 from rich.markup import escape
 from rich.table import Table
 
 from ft.container_targets import CONTAINER_TARGETS, KNOWN_CONTAINER_TARGETS
+from ft.fleet_check import (
+    FAILED,
+    PASSED,
+    CheckStep,
+    HostCheck,
+    check_kind,
+    format_duration,
+    markdown_summary,
+    run_fleet_checks,
+)
 from ft.identity import (
     FORGE_LOGIN_ENV,
     FORGE_LOGINS,
@@ -61,6 +73,7 @@ from ft.options import (
     save_options,
 )
 from ft.platforms import detect_architecture, detect_system
+from ft.recap import parse_play_recaps
 from ft.secrets import run_secret_readiness_checks
 from ft.settings import FtSettings
 from ft.tool_pool import default_tool_pool_manifest_path, load_tool_pool_manifest
@@ -218,17 +231,6 @@ WORKSPACE_TOOLCHAIN_CHECKS = (
     ("uv", "uv --version"),
     ("python", f"python{sys.version_info.major}.{sys.version_info.minor} --version"),
     ("nvim", "setopt pipefail; nvim --version | head -n 1"),
-)
-ANSIBLE_PLAY_RECAP_PATTERN = re.compile(
-    r"^(?:.*\|\s*)?(?P<target>[^\n:|]+?)\s*:\s*"
-    r"ok=(?P<ok>\d+)\s+"
-    r"changed=(?P<changed>\d+)\s+"
-    r"unreachable=(?P<unreachable>\d+)\s+"
-    r"failed=(?P<failed>\d+)\s+"
-    r"skipped=(?P<skipped>\d+)\s+"
-    r"rescued=(?P<rescued>\d+)\s+"
-    r"ignored=(?P<ignored>\d+)\s*$",
-    re.MULTILINE,
 )
 
 
@@ -3216,12 +3218,27 @@ def _deploy_exec_command(
     return _run_deploy_remote_command(target, shell_command)
 
 
-def _ssh_single_host_target(target: HostTargetDefinition) -> int:
-    """Open one interactive SSH session for one configured host target."""
+def _ssh_single_host_target(
+    target: HostTargetDefinition, remote_command: list[str] | None = None
+) -> int:
+    """Open an SSH session, or run one remote command, on one host target.
+
+    Args:
+        target: The configured SSH host target.
+        remote_command: Optional command and arguments to run instead of an
+            interactive shell. They are quoted into one remote command line,
+            so arguments with spaces survive the remote shell.
+
+    Returns:
+        The SSH exit code, which is the remote command's when one ran.
+    """
     if not _ensure_host_target_runtime_ready(target):
         console.print(f"failed to prepare runtime for {target.name} before SSH")
         return 1
-    return _run_streaming_command(_host_ssh_command(target)).returncode
+    command = _host_ssh_command(target)
+    if remote_command:
+        command.append(shlex.join(remote_command))
+    return _run_streaming_command(command).returncode
 
 
 def _ensure_host_target_runtime_ready(target: HostTargetDefinition) -> bool:
@@ -4136,18 +4153,8 @@ def _parse_ansible_play_recap(log_text: str) -> dict[str, dict[str, int]]:
     Returns:
         Mapping of inventory host name to recap counters.
     """
-    recaps: dict[str, dict[str, int]] = {}
-    for match in ANSIBLE_PLAY_RECAP_PATTERN.finditer(log_text):
-        recaps[match.group("target").strip()] = {
-            "ok": int(match.group("ok")),
-            "changed": int(match.group("changed")),
-            "unreachable": int(match.group("unreachable")),
-            "failed": int(match.group("failed")),
-            "skipped": int(match.group("skipped")),
-            "rescued": int(match.group("rescued")),
-            "ignored": int(match.group("ignored")),
-        }
-    return recaps
+    # A later recap for the same target replaces an earlier one.
+    return dict(parse_play_recaps(log_text))
 
 
 def _resolve_single_container_target(selector: str, *, command_name: str) -> str:
@@ -6962,6 +6969,249 @@ def infra_aws_test_fleet_destroy(
         console.print(f"removed fleet targets: {', '.join(removed)}")
 
 
+FLEET_INSTALLER_RAW_BASE = (
+    "https://raw.githubusercontent.com/GrndZero101/dev-container-fortress"
+)
+FULL_COMMIT_SHA_PATTERN = re.compile(r"[0-9a-f]{40}")
+
+
+def _fleet_installer(ref: str | None) -> tuple[str, list[str]]:
+    """Return the installer URL and arguments that fleet one-liner checks run.
+
+    Args:
+        ref: Branch, tag, or full commit SHA to test, or ``None`` for ``main``.
+
+    Returns:
+        The ``install.sh`` URL and the installer arguments. A named ref is
+        resolved to its commit SHA for the URL, because
+        ``raw.githubusercontent.com`` can serve a stale branch copy for minutes
+        after a push.
+    """
+    if ref is None:
+        return f"{FLEET_INSTALLER_RAW_BASE}/main/install.sh", []
+    sha = ref if FULL_COMMIT_SHA_PATTERN.fullmatch(ref) else None
+    if sha is None:
+        result = _run_command(
+            ["git", "ls-remote", DEFAULT_DEV_CONTAINER_FORTRESS_REPO_URL, ref]
+        )
+        fields = (result.stdout or "").split()
+        if result.returncode != 0 or not fields:
+            raise typer.BadParameter(
+                f"ref {ref!r} was not found in {DEFAULT_DEV_CONTAINER_FORTRESS_REPO_URL}; "
+                "push it first, or pass a full commit SHA",
+                param_hint="--ref",
+            )
+        sha = fields[0]
+    return f"{FLEET_INSTALLER_RAW_BASE}/{sha}/install.sh", ["--ref", ref]
+
+
+def _fleet_host_checks(
+    selector: str,
+    *,
+    ref: str | None,
+    config: Path | None,
+    log_dir: Path,
+) -> list[HostCheck]:
+    """Plan one check per deployed fleet host that matches the selector.
+
+    Args:
+        selector: Shell-style pattern over fleet host names.
+        ref: The ref the one-liner checks install, or ``None`` for ``main``.
+        config: Optional host-target config path.
+        log_dir: Directory for this run's step logs.
+
+    Returns:
+        The planned checks, sorted by host name.
+    """
+    payload = _terraform_output_payload(_default_test_fleet_terraform_dir())
+    fleet_hosts = payload.get("hosts", {}).get("value") or {}
+    if not isinstance(fleet_hosts, dict) or not fleet_hosts:
+        console.print("no fleet hosts found; run `ft infra aws-test-fleet apply` first")
+        raise typer.Exit(code=1)
+    _, manifest = _load_host_target_manifest(config)
+    targets = manifest.by_name()
+    installer_url, installer_args = _fleet_installer(ref)
+    remote_command = f"curl -fsSL {shlex.quote(installer_url)} | sh"
+    if installer_args:
+        remote_command += " -s -- " + shlex.join(installer_args)
+
+    checks: list[HostCheck] = []
+    for name in sorted(fleet_hosts):
+        if not fnmatch.fnmatch(name, selector):
+            continue
+        facts = fleet_hosts[name]
+        if name not in targets:
+            console.print(
+                f"{name} is not in hosts.toml; rerun `ft infra aws-test-fleet apply` "
+                "to import it"
+            )
+            raise typer.Exit(code=1)
+        kind = check_kind(str(facts["os"]))
+        if kind == "one-liner":
+            ssh_command = _host_ssh_command(targets[name])
+            # Fail fast instead of prompting, and keep long quiet installs alive.
+            ssh_command[-1:-1] = [
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "ServerAliveInterval=30",
+            ]
+            steps = [
+                CheckStep(
+                    label=label,
+                    command=[*ssh_command, remote_command],
+                    log_path=log_dir / f"{name}-{label.replace(' ', '')}.log",
+                    expect_converged=label == "pass 2",
+                )
+                for label in ("pass 1", "pass 2")
+            ]
+        else:
+            validate_command = [sys.executable, "-m", "ft", "host", "validate", name]
+            if config is not None:
+                validate_command.extend(["--config", str(config)])
+            steps = [
+                CheckStep(
+                    label="validate",
+                    command=validate_command,
+                    log_path=log_dir / f"{name}-validate.log",
+                )
+            ]
+        checks.append(
+            HostCheck(
+                host=name,
+                os=str(facts["os"]),
+                architecture=str(facts["architecture"]),
+                check=kind,
+                steps=steps,
+            )
+        )
+    if not checks:
+        console.print(f"no fleet hosts match {selector!r}")
+        raise typer.Exit(code=1)
+    return checks
+
+
+def _fleet_check_table(checks: list[HostCheck]) -> Table:
+    """Render the live or final fleet check table.
+
+    Args:
+        checks: The host checks, in display order.
+
+    Returns:
+        A table with one row per host.
+    """
+    styles = {PASSED: "green", FAILED: "red"}
+    table = Table(title="Fleet checks")
+    # Keep host names whole; let the results column wrap instead.
+    table.add_column("host", no_wrap=True)
+    for column in ("arch", "check", "status", "phase", "time"):
+        table.add_column(column, no_wrap=True)
+    table.add_column("results", overflow="fold")
+    now = time.monotonic()
+    for check in checks:
+        style = styles.get(check.status, "yellow")
+        table.add_row(
+            check.host.removeprefix(f"{TEST_FLEET_NAME}-"),
+            check.architecture,
+            check.check,
+            f"[{style}]{check.status}[/{style}]",
+            check.phase,
+            format_duration(check.elapsed(now)),
+            escape("; ".join(check.results)),
+        )
+    return table
+
+
+@aws_test_fleet_app.command("check")
+def infra_aws_test_fleet_check(
+    selector: Annotated[
+        str,
+        typer.Option(
+            "--only",
+            help="Shell-style pattern over fleet host names, such as '*ubuntu-2604*'.",
+        ),
+    ] = "*",
+    ref: Annotated[
+        str | None,
+        typer.Option(
+            "--ref",
+            help=(
+                "Branch, tag, or commit for the Ubuntu one-liner checks to install. "
+                "Defaults to main; push a branch before testing it."
+            ),
+        ),
+    ] = None,
+    timeout_minutes: Annotated[
+        int,
+        typer.Option("--timeout", min=1, help="Limit for each check step, in minutes."),
+    ] = 25,
+    markdown: Annotated[
+        bool,
+        typer.Option("--markdown", help="Also print the results as a markdown table."),
+    ] = False,
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            file_okay=True,
+            dir_okay=False,
+            resolve_path=True,
+            help=(
+                "Optional host target config path. Defaults to FT_HOST_CONFIG "
+                "or the XDG-managed hosts.toml path."
+            ),
+        ),
+    ] = None,
+) -> None:
+    """Run every fleet host's check in parallel and report the results.
+
+    Ubuntu hosts run the one-liner on the box, then again, which must report
+    changed=0. Other OSes run `ft host validate` from this machine. Each step
+    is logged under the XDG state directory.
+    """
+    started_at = time.strftime("%Y%m%d-%H%M%S")
+    log_dir = _dev_fortress_state_root() / "fleet-runs" / started_at
+    checks = _fleet_host_checks(selector, ref=ref, config=config, log_dir=log_dir)
+    console.print(
+        f"checking {len(checks)} fleet host(s) against "
+        f"{ref or 'main'}; logs in {log_dir}"
+    )
+
+    lock = threading.Lock()
+    if console.is_terminal:
+        with Live(
+            get_renderable=lambda: _fleet_check_table(checks),
+            console=console,
+            refresh_per_second=2,
+        ):
+            run_fleet_checks(
+                checks, timeout_seconds=timeout_minutes * 60, on_update=lambda _: None
+            )
+    else:
+
+        def report(check: HostCheck) -> None:
+            """Print one progress line per phase start and per finish."""
+            if not check.phase:
+                return
+            with lock:
+                console.print(
+                    f"{check.host}: {check.status} {check.phase} "
+                    f"{format_duration(check.elapsed())}"
+                )
+
+        run_fleet_checks(checks, timeout_seconds=timeout_minutes * 60, on_update=report)
+        console.print(_fleet_check_table(checks))
+
+    if markdown:
+        # Plain output: Rich would wrap the rows and break the table.
+        typer.echo(markdown_summary(checks))
+    failed = [check.host for check in checks if check.status != PASSED]
+    if failed:
+        console.print(f"[red]failed:[/red] {', '.join(failed)}; logs in {log_dir}")
+        raise typer.Exit(code=1)
+    console.print(f"[green]all {len(checks)} fleet checks passed[/green]")
+
+
 @aws_disposable_ubuntu_capacity_app.command("select")
 def infra_aws_disposable_ubuntu_capacity_select(
     context: typer.Context,
@@ -7951,6 +8201,12 @@ def host_ssh(
             help="Path to the host target TOML config.",
         ),
     ] = None,
+    remote_command: Annotated[
+        list[str] | None,
+        typer.Argument(
+            help="Optional command to run on the target instead of a shell; put it after --.",
+        ),
+    ] = None,
     interactive: Annotated[
         bool,
         typer.Option(
@@ -7960,7 +8216,11 @@ def host_ssh(
         ),
     ] = False,
 ) -> None:
-    """Open one interactive SSH session using the configured Dev Fortress target."""
+    """Open an SSH session on one target, or run one command there.
+
+    For example, `ft host ssh dev-fortress-ec2-dev -- uname -a` runs `uname -a`
+    and exits with its status.
+    """
     _, manifest = _load_host_target_manifest(config)
     if interactive:
         candidate_targets = (
@@ -7982,7 +8242,7 @@ def host_ssh(
         resolved_target = _resolve_single_host_target(
             target, manifest, command_name="ssh"
         )
-    raise typer.Exit(code=_ssh_single_host_target(resolved_target))
+    raise typer.Exit(code=_ssh_single_host_target(resolved_target, remote_command))
 
 
 @host_app.command("doctor")
