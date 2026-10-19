@@ -288,9 +288,9 @@ Found along the way:
 
 ### M5c-6 Keep the image cache across commits
 
-- [ ] Problem: every commit or doc edit rebuilds the Homebrew floor, about 3.5 minutes, and the `ft` and devcontainer builds never share layers
-- [ ] Scope: add a `.dockerignore`, narrow the bind-mounted build steps to the paths they read, and order the layers so that changes under `ft/` do not invalidate the floor where practical
-- [ ] Acceptance: a rebuild after a doc-only commit reuses the floor layer, and a devcontainer build after `ft workspace build` with default settings reuses it too
+- [x] Problem: every commit or doc edit rebuilds the Homebrew floor, about 3.5 minutes, and the `ft` and devcontainer builds never share layers
+- [x] Scope: add a `.dockerignore`, narrow the bind-mounted build steps to the paths they read, and order the layers so that changes under `ft/` do not invalidate the floor where practical
+- [x] Acceptance: a rebuild after a doc-only commit reuses the floor layer, and a devcontainer build after `ft workspace build` with default settings reuses it too
 
 ## Verification Notes
 
@@ -422,3 +422,35 @@ A was 7x slower to replace a workspace, 2.6x slower per exec, and needs Node on
 every host; B's prototype reproduced all four committed definitions byte for
 byte. The spike also found that the image cache busts on every commit and that
 the devcontainer build args blank the Dockerfile defaults, now M5c-6.
+
+M5c-6 done on 2026-10-19. `.dockerignore` is now an allowlist:
+`.python-version`, `containers/`, `ft/` (without tests, caches, and
+Markdown), and `.local/` for operator inputs, so `ft` rejects a local
+`shell-config` staging path outside `.local/`. The context fell from 8.1 MB to
+330 kB, and local Terraform state and `.claude/` no longer reach the builder.
+On Ubuntu and Arch, two new stages feed the runtime through `COPY --from`,
+which BuildKit keys on content: `corporate-ca-source` copies only the requested
+CA directory, and `brew-floor-list` writes the floor list with
+`uv tool run --from ./ft`. The CA install moved into a shared `<distro>-trusted`
+stage that both use. The floor now comes before the `shell-config` build args
+and `COPY ft`. `SHELL_CONFIG_PROFILE` falls back to the default when a
+devcontainer passes an empty build arg. Alpine keeps its layout; it has no
+floor, and it builds unchanged under the new `.dockerignore`.
+
+Verified on amd64:
+
+| Change before rebuilding | Before | After |
+| --- | --- | --- |
+| Commit plus doc edits, Ubuntu | 215 s, floor rebuilt | 12 s, floor cached |
+| Doc edit inside the context (`containers/README.md`), Ubuntu | floor rebuilt | 1 s, every step cached |
+| Same doc edit, Arch | floor rebuilt | 1 s, every step cached |
+| Source change under `ft/`, Ubuntu | 215 s, floor rebuilt | 26 s, floor cached |
+| `.devcontainer/ubuntu` build right after `ft workspace build` | 231 s, its own floor | 12 s, floor shared |
+| Staged local `shell-config` | floor rebuilt | 12 s, floor cached, copied from `.local/sources` |
+
+Also checked: a probe CA under `.local/certs` installs into the trust store,
+and a missing directory still fails with `requested certificate directory not
+found`; the devcontainer image now has
+`SHELL_CONFIG_PROFILE=zsh-tll-citadel-dev-fortress`; `ft container validate`
+passes 27 of 27 checks on Arch and on Alpine; `ft workspace validate
+ubuntu-base` passes.

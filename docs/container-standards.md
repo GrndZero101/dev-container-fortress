@@ -129,6 +129,19 @@ That means they should:
 - When enabled, corporate CA material should come from an explicitly provided directory of PEM-formatted `.crt` files.
 - The build should validate those `.crt` files before installation and install them into the distro trust store before repo-managed network fetches such as the Astral installer or downloader-managed tool downloads.
 
+## Build Cache Contract
+
+- `.dockerignore` is an allowlist: `.python-version`, `containers/`, `ft/`
+  (without tests and caches), and `.local/` for operator inputs such as
+  corporate CA certificates and a staged `shell-config`. Commits, docs, and
+  local Terraform state never enter the build context.
+- No step before the Homebrew floor bind-mounts the whole build context. On
+  the glibc targets, the requested CA directory and the floor list each come
+  from their own stage through `COPY --from`, which BuildKit keys on content.
+- The floor comes before the `shell-config` build args and `COPY ft`, so a
+  devcontainer build and an `ft workspace build` with default settings share
+  it, and an `ft` change that leaves the floor list alone keeps it cached.
+
 ## Tool Installation Contract
 
 - On the glibc targets (Ubuntu, Arch), userland tools come from Homebrew. The

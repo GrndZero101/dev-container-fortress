@@ -568,16 +568,32 @@ def _require_supported_shell_config_source(source: str) -> str:
 
 
 def _relative_build_context_path(path: Path) -> str:
-    """Return one repo-relative path suitable for the Docker build-context mount."""
+    """Return one repo-relative path suitable for the Docker build-context mount.
+
+    The repo's ``.dockerignore`` admits only ``.local/`` for operator-supplied
+    build inputs, so the path must live there.
+
+    Args:
+        path: The staging path, absolute or relative to the working directory.
+
+    Returns:
+        The path relative to the repo root, in POSIX form.
+
+    Raises:
+        typer.BadParameter: If the path is outside the repo's ``.local/``.
+    """
     resolved_path = path.resolve()
-    repo_root = _repo_root().resolve()
+    build_inputs_root = (_repo_root() / ".local").resolve()
     try:
-        return resolved_path.relative_to(repo_root).as_posix()
+        resolved_path.relative_to(build_inputs_root)
     except ValueError as error:
         raise typer.BadParameter(
-            "local shell-config staging path must live inside the dev-container-fortress repo",
+            "local shell-config staging path must live under the "
+            "dev-container-fortress repo's .local/ directory, the only build "
+            "input path that .dockerignore admits",
             param_hint="--shell-config-local-dir",
         ) from error
+    return resolved_path.relative_to(_repo_root().resolve()).as_posix()
 
 
 def _stage_local_shell_config(source_path: Path, destination_path: Path) -> Path:

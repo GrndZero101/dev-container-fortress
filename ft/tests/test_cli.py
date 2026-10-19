@@ -5536,6 +5536,17 @@ def test_container_build_forwards_shell_config_options(monkeypatch: object) -> N
     ]
 
 
+def test_build_context_path_must_live_under_local() -> None:
+    """Staged build inputs must sit under .local/, which .dockerignore admits."""
+    import typer
+    from ft.cli import _relative_build_context_path, _repo_root
+
+    staged = _repo_root() / ".local" / "sources" / "shell-config"
+    assert _relative_build_context_path(staged) == ".local/sources/shell-config"
+    with pytest.raises(typer.BadParameter, match=r"\.local/"):
+        _relative_build_context_path(_repo_root() / "sources" / "shell-config")
+
+
 def test_container_status_defaults_to_all_targets(monkeypatch: object) -> None:
     """Status should render both known targets when no selector is provided."""
     calls: list[list[str]] = []

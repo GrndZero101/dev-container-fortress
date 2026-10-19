@@ -391,7 +391,8 @@ The same pattern works for Alpine.
 If `CORPORATE_CA_CERT_DIR` is unset or empty, the CA step is skipped.
 If it is set, the build requires:
 
-- the directory to exist
+- the directory to exist under `.local/`, the only operator path that the
+  repo's `.dockerignore` lets into the build context
 - at least one `.crt` file
 - each `.crt` file to parse as a valid PEM certificate
 

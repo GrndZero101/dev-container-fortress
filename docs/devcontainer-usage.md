@@ -238,7 +238,7 @@ export DEV_CONTAINER_FORTRESS_CA_CERT_DIR=.local/certs
 After that, rebuild and reopen the devcontainer.
 
 If the variable is unset or empty, the CA step is skipped and the build behaves normally.
-If it is set, the directory must exist inside the repo and contain valid `.crt` files.
+If it is set, the directory must exist under the repo's `.local/` and contain valid `.crt` files; `.dockerignore` keeps every other operator path out of the build context.
 
 > [!TIP]
 > If you change `DEV_CONTAINER_FORTRESS_CA_CERT_DIR`, use `Dev Containers: Rebuild and Reopen in Container` so the build arg is applied again.

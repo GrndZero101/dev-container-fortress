@@ -163,14 +163,14 @@ export DEV_CONTAINER_FORTRESS_CA_CERT_DIR=.local/certs
 If the variable is unset or empty, the CA installation step is skipped and the build behaves exactly as before. If the variable is set, the build requires the directory to exist and to contain at least one valid PEM `.crt` file.
 
 > [!IMPORTANT]
-> This feature is active only when you opt in. Certificates are loaded as individual `.crt` files and copied into the distro trust setup. On Ubuntu this matches Canonical's documented `/usr/local/share/ca-certificates` plus `update-ca-certificates` flow. On Alpine we use the same `update-ca-certificates` integration as an implementation choice based on Alpine examples. On Arch the installer uses the p11-kit anchors directory `/etc/ca-certificates/trust-source/anchors` plus `update-ca-trust`. Keep the directory inside the Docker build context, and do not commit private cert material. Add it under an ignored path such as `.local/certs/`.
+> This feature is active only when you opt in. Certificates are loaded as individual `.crt` files and copied into the distro trust setup. On Ubuntu this matches Canonical's documented `/usr/local/share/ca-certificates` plus `update-ca-certificates` flow. On Alpine we use the same `update-ca-certificates` integration as an implementation choice based on Alpine examples. On Arch the installer uses the p11-kit anchors directory `/etc/ca-certificates/trust-source/anchors` plus `update-ca-trust`. Keep the directory under `.local/`, such as `.local/certs/`: the repo's `.dockerignore` admits no other operator path into the build context, and `.local/` is not committed.
 
 ## Shell-Config Source Options
 
 Container builds now support two `shell-config` source modes:
 
 - `github` (default): clone from `SHELL_CONFIG_REPO_URL` and `SHELL_CONFIG_BRANCH`
-- `local`: copy from a repo-relative directory inside the Docker build context via `SHELL_CONFIG_LOCAL_DIR`
+- `local`: copy from a repo-relative directory under `.local/` via `SHELL_CONFIG_LOCAL_DIR`
 
 Build args:
 
