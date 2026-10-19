@@ -530,8 +530,9 @@ cheap, short-lived EC2 fleet.
 
 Exit criteria:
 
-- one apply creates, and one destroy removes, a five-host fleet: Ubuntu 24.04,
-  26.04, and 26.10, Arch, and Alpine, across amd64 and arm64
+- one apply creates, and one destroy removes, a fleet set: `lts` (Ubuntu LTS
+  on amd64 and arm64, the everyday default) or `full` (Ubuntu 24.04, 26.04,
+  and 26.10, Arch, and Alpine on both architectures, for major milestones)
 - `ft` imports every fleet host as a host target without hand edits
 - each target runs its documented check, and re-runs converge
 - the single-host disposable stack keeps working for one-off hosts

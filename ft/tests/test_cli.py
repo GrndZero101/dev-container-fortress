@@ -738,6 +738,17 @@ def test_infra_aws_test_fleet_apply_targets_the_fleet_stack(
     monkeypatch.setattr("ft.cli._ensure_managed_ssh_public_key_for_name", fake_key)
     monkeypatch.setattr("ft.cli._run_streaming_command", fake_stream)
     monkeypatch.setattr("ft.cli._import_terraform_host_targets", fake_import)
+    prune_calls: list[set[str]] = []
+    monkeypatch.setattr(
+        "ft.cli._terraform_host_target_manifest",
+        lambda terraform_dir_arg: HostTargetManifest.model_validate(
+            tomllib.loads(_fleet_target_block("dev-fortress-fleet-alpine-324-arm64"))
+        ),
+    )
+    monkeypatch.setattr(
+        "ft.cli._prune_test_fleet_targets",
+        lambda config_path, keep: prune_calls.append(keep) or [],
+    )
 
     result = runner.invoke(app, ["infra", "aws-test-fleet", "apply", "--auto-approve"])
 
@@ -752,6 +763,92 @@ def test_infra_aws_test_fleet_apply_targets_the_fleet_stack(
     assert all(env and env["TF_VAR_name"] == "dev-fortress-fleet" for _, env in calls)
     assert {seed for _, seed in key_calls} == {fleet_dir / "hosts.seed.toml"}
     assert import_calls == [fleet_dir]
+    assert prune_calls == [{"dev-fortress-fleet-alpine-324-arm64"}]
+
+
+def test_infra_aws_test_fleet_set_is_saved_for_later_runs(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """--set should persist the fleet set in the fleet's auto tfvars file."""
+    calls: list[list[str]] = []
+    monkeypatch.setattr("ft.cli._default_test_fleet_terraform_dir", lambda: tmp_path)
+    monkeypatch.setattr(
+        "ft.cli.infra_aws_disposable_ubuntu_plan",
+        lambda **kwargs: calls.append([str(kwargs["terraform_dir"])]),
+    )
+
+    first = runner.invoke(app, ["infra", "aws-test-fleet", "plan", "--set", "full"])
+    second = runner.invoke(app, ["infra", "aws-test-fleet", "plan"])
+
+    assert first.exit_code == 0
+    assert second.exit_code == 0
+    assert json.loads((tmp_path / "fleet.auto.tfvars.json").read_text()) == {
+        "fleet_set": "full"
+    }
+    assert len(calls) == 2
+
+
+def _fleet_target_block(name: str, key: str = "dev-fortress-fleet") -> str:
+    """Return one host-target TOML block for fleet pruning tests."""
+    return f"""[[targets]]
+name = "{name}"
+kind = "cloud"
+connection = "ssh"
+host = "{name}.example.internal"
+user = "ubuntu"
+auth_method = "ssh_key"
+ssh_key_name = "{key}"
+tags = ["ssh", "cloud"]
+"""
+
+
+def test_infra_aws_test_fleet_destroy_drops_only_fleet_targets(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Fleet destroy should remove fleet targets and keep everything else."""
+    config_path = tmp_path / "hosts.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                _fleet_target_block("dev-fortress-fleet-ubuntu-2604-arm64"),
+                _fleet_target_block("dev-fortress-fleet-mine", key="my-own-key"),
+                _fleet_target_block("dev-fortress-ec2-dev", key="dev-fortress-ec2-dev"),
+            ]
+        )
+    )
+    monkeypatch.setattr(
+        "ft.cli.infra_aws_disposable_ubuntu_destroy", lambda **kwargs: None
+    )
+
+    result = runner.invoke(
+        app,
+        ["infra", "aws-test-fleet", "destroy", "--config", str(config_path)],
+    )
+
+    assert result.exit_code == 0
+    remaining = HostTargetManifest.model_validate(
+        tomllib.loads(config_path.read_text(encoding="utf-8"))
+    ).by_name()
+    assert set(remaining) == {"dev-fortress-fleet-mine", "dev-fortress-ec2-dev"}
+
+
+def test_infra_aws_test_fleet_destroy_removes_an_all_fleet_config(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """A hosts.toml holding only fleet targets should be removed, not left empty."""
+    config_path = tmp_path / "hosts.toml"
+    config_path.write_text(_fleet_target_block("dev-fortress-fleet-arch-amd64"))
+    monkeypatch.setattr(
+        "ft.cli.infra_aws_disposable_ubuntu_destroy", lambda **kwargs: None
+    )
+
+    result = runner.invoke(
+        app,
+        ["infra", "aws-test-fleet", "destroy", "--config", str(config_path)],
+    )
+
+    assert result.exit_code == 0
+    assert not config_path.exists()
 
 
 def test_test_fleet_seed_names_the_shared_fleet_key() -> None:

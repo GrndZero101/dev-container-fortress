@@ -53,6 +53,10 @@ locals {
   ssh_user   = local.os_profile.ssh_user
   ami_id     = one(concat(data.aws_ssm_parameter.os_ami[*].value, [for lookup in data.aws_ami_ids.os_ami : lookup.ids[0]]))
 
+  # IAM caps name_prefix at 38 characters, so long fleet host names are cut to
+  # fit. AWS appends a unique suffix, and the Name tag keeps the full name.
+  iam_name_prefix = "${substr(var.name, 0, 33)}-ssm-"
+
   # Skip the Session Manager role for images without the agent; it cannot work.
   session_manager_enabled = var.enable_session_manager && local.os_profile.ssm_agent
 

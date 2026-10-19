@@ -15,14 +15,15 @@ locals {
 
 module "host" {
   source   = "../modules/disposable-host"
-  for_each = var.hosts
+  for_each = local.selected_hosts
 
-  name           = "${var.name}-${each.key}"
-  os             = each.value.os
-  architecture   = each.value.architecture
-  instance_type  = each.value.instance_type
-  ubuntu_release = each.value.ubuntu_release
-  alpine_release = each.value.alpine_release
+  name          = "${var.name}-${each.key}"
+  os            = each.value.os
+  architecture  = each.value.architecture
+  instance_type = each.value.instance_type
+  # Each OS profile reads only its own release input.
+  ubuntu_release = each.value.release
+  alpine_release = each.value.release
 
   ssh_public_key               = var.ssh_public_key
   ssh_key_name                 = var.name

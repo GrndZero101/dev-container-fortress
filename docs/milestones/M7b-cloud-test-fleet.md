@@ -15,11 +15,15 @@ cheap, short-lived EC2 fleet: one apply to create it, one destroy to remove it.
 > WSL2 host (the brownfield case) and on disposable EC2 hosts (fresh hosts).
 > Throwaway WSL2 distros are retired: they load the workstation, and stopping
 > one wipes `WSLInterop` for every distro.
+>
+> Decided 2026-10-19: everyday spot checks use the `lts` set, the current
+> Ubuntu LTS on amd64 and arm64, the most common use case. The `full` set,
+> every OS target on both architectures, runs at major milestones.
 
 ## Exit Criteria
 
-- [ ] One `terraform apply` creates the five-host fleet below, and one
-  `terraform destroy` removes all of it (the apply created all five on
+- [ ] One `terraform apply` creates a fleet set below, and one
+  `terraform destroy` removes all of it (the first five-host apply ran on
   2026-10-19; the destroy is still to run)
 - [x] `ft` imports every fleet host as a host target, with its SSH user, key,
   and trust state, without hand-editing `hosts.toml`
@@ -34,22 +38,30 @@ cheap, short-lived EC2 fleet: one apply to create it, one destroy to remove it.
 
 ## Fleet
 
-| Target | AMI source | Instance | Check |
-| --- | --- | --- | --- |
-| Ubuntu 24.04 | Canonical SSM parameter | `m8i.large` (amd64) | the one-liner on the box, then a re-run |
-| Ubuntu 26.04 | Canonical SSM parameter | `m8g.large` (arm64) | the one-liner on the box, then a re-run |
-| Ubuntu 26.10 | Canonical SSM parameter | `m8g.large` (arm64) | the one-liner on the box, then a re-run |
-| Arch Linux | private AMI from `infra/aws-arch-ami/` | `m8i.large` (amd64 only) | `ft host bootstrap` over SSH, then a re-run |
-| Alpine 3.24 | official Alpine cloud-init AMI (owner `538276064493`) | `m8g.large` (arm64) | `ft host bootstrap` over SSH, then a re-run |
+The fleet comes in named sets (`infra/aws-test-fleet/locals.tf`), chosen with
+`ft infra aws-test-fleet plan|apply --set <name>` and saved for later runs:
 
-The mix covers both CPU architectures. Arch and Alpine use the SSH path
-because the one-liner's host mode supports Ubuntu only; checking that it fails
-clearly there is part of the run.
+| Set | Hosts | Use |
+| --- | --- | --- |
+| `lts` (default) | Ubuntu 26.04 on amd64 and arm64 | everyday spot checks |
+| `full` | Ubuntu 24.04, 26.04, and 26.10, and Alpine 3.24, each on amd64 and arm64, plus Arch on amd64 | major milestones |
+
+amd64 hosts run on `m8i.large` and arm64 hosts on `m8g.large`, matched shapes
+(2 vCPU, 8 GiB), so each architecture mirrors the other. Arch Linux publishes
+no arm64 image, so Arch has no arm64 mirror.
+
+| Target | AMI source | Check |
+| --- | --- | --- |
+| Ubuntu | Canonical SSM parameter | the one-liner on the box, then a re-run |
+| Arch Linux | private AMI from `infra/aws-arch-ami/` | `ft host validate` over SSH, then a re-run |
+| Alpine 3.24 | official Alpine cloud-init AMI (owner `538276064493`) | `ft host validate` over SSH, then a re-run |
+
+Arch and Alpine use the SSH path because the one-liner's host mode supports
+Ubuntu only.
 
 Checked on 2026-10-19 in `ap-southeast-1`: Canonical publishes 24.04, 26.04,
 and 26.10 for both architectures, Alpine publishes 3.24.2 cloud-init AMIs for
-both, `m8g.large` and `m8i.large` are offered, and no private Arch AMI exists
-any more, so the importer stack has to run again first.
+both, and `m8g.large` and `m8i.large` are both offered.
 
 ## Non-Goals
 
@@ -115,6 +127,20 @@ any more, so the importer stack has to run again first.
   waits for the operator)
 - [x] Acceptance: every row has a recorded result; Alpine host-role gaps found
   on its first real VM become issues or fixes
+
+### `M7b-5` Fleet sets and amd64 mirrors
+
+- [x] Problem: the first fleet had each OS on one architecture only, and every
+  run used the whole fleet
+- [x] Scope: named `lts` and `full` sets, one instance type per architecture
+  as matched shapes, names that carry the architecture, a saved `--set`
+  choice, and pruning of fleet targets the fleet no longer has on apply and
+  destroy. IAM name prefixes are cut to AWS's 38-character limit for the
+  longer names
+- [ ] Acceptance: `full` creates nine hosts, every check passes on both
+  architectures, and `lts` keeps the two Ubuntu 26.04 hosts. The plan from
+  the five-host fleet showed 45 resources to add and 24 to destroy on
+  2026-10-19; the apply is the operator's step
 
 ## Verification Notes
 

@@ -1,4 +1,4 @@
-# Inputs for the short-lived verification fleet. Each hosts entry becomes one
+# Inputs for the short-lived verification fleet. Each selected host becomes one
 # ../modules/disposable-host instance named "<name>-<key>".
 variable "aws_region" {
   description = "AWS region where the fleet should be created."
@@ -12,21 +12,34 @@ variable "name" {
   default     = "dev-fortress-fleet"
 }
 
+variable "fleet_set" {
+  description = "Named host set from local.fleet_sets: lts (default) spot-checks the current Ubuntu LTS on amd64 and arm64; full covers every OS target on both architectures, for major milestones. ft infra aws-test-fleet --set saves the choice."
+  type        = string
+  default     = "lts"
+
+  validation {
+    condition     = contains(keys(local.fleet_sets), var.fleet_set)
+    error_message = "fleet_set must be one of: ${join(", ", keys(local.fleet_sets))}."
+  }
+}
+
 variable "hosts" {
-  description = "Fleet hosts keyed by a short suffix. Drop an entry to skip that target, for example arch before infra/aws-arch-ami has registered an AMI."
+  description = "Optional custom host map that replaces fleet_set, keyed by a short suffix. release defaults per OS, and instance_type defaults from instance_types by architecture."
   type = map(object({
-    os             = string
-    architecture   = string
-    instance_type  = string
-    ubuntu_release = optional(string, "26.04")
-    alpine_release = optional(string, "3.24")
+    os            = string
+    architecture  = string
+    release       = optional(string)
+    instance_type = optional(string)
   }))
+  default = null
+}
+
+variable "instance_types" {
+  description = "Instance type per architecture. The defaults are matched shapes (2 vCPU, 8 GiB), so amd64 and arm64 hosts mirror each other."
+  type        = map(string)
   default = {
-    ubuntu-2404 = { os = "ubuntu", ubuntu_release = "24.04", architecture = "amd64", instance_type = "m8i.large" }
-    ubuntu-2604 = { os = "ubuntu", ubuntu_release = "26.04", architecture = "arm64", instance_type = "m8g.large" }
-    ubuntu-2610 = { os = "ubuntu", ubuntu_release = "26.10", architecture = "arm64", instance_type = "m8g.large" }
-    arch        = { os = "arch", architecture = "amd64", instance_type = "m8i.large" }
-    alpine      = { os = "alpine", alpine_release = "3.24", architecture = "arm64", instance_type = "m8g.large" }
+    amd64 = "m8i.large"
+    arm64 = "m8g.large"
   }
 }
 

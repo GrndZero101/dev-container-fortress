@@ -8,9 +8,9 @@ records the result.
 
 ## Up Next
 
-1. **`M7b`:** the fleet root, Alpine profile, and `ft infra aws-test-fleet`
-   are built and planned; next the operator rebuilds the Arch AMI, applies the
-   fleet, and the first fleet run (`M7b-4`) follows; see the
+1. **`M7b`:** the first five-host run passed; next the operator applies the
+   nine-host `full` set (amd64 and arm64 mirrors), its checks run, then the
+   destroy and the PR; see the
    [M7b file](docs/milestones/M7b-cloud-test-fleet.md).
 2. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
    the devcontainer and CLI terminal-mode flows; see the

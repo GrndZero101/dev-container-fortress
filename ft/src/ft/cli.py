@@ -1961,6 +1961,27 @@ def _default_test_fleet_seed_config_path() -> Path:
     return _default_test_fleet_terraform_dir() / "hosts.seed.toml"
 
 
+def _save_test_fleet_set(fleet_set: str | None) -> None:
+    """Persist the chosen fleet set for every later fleet Terraform run.
+
+    Args:
+        fleet_set: A ``local.fleet_sets`` key such as ``lts`` or ``full``, or
+            ``None`` to keep the saved choice. Terraform validates the name.
+
+    Side effects:
+        Writes ``fleet.auto.tfvars.json`` in the fleet directory. Keeping the
+        choice there, rather than per run, stops a later plan or apply from
+        silently dropping hosts that an earlier ``--set`` created.
+    """
+    if fleet_set is None:
+        return
+    tfvars_path = _default_test_fleet_terraform_dir() / "fleet.auto.tfvars.json"
+    tfvars_path.write_text(
+        json.dumps({"fleet_set": fleet_set}, indent=2) + "\n", encoding="utf-8"
+    )
+    console.print(f"fleet set: {fleet_set} (saved to {tfvars_path.name})")
+
+
 def _default_disposable_ubuntu_capacity_tfvars_path() -> Path:
     """Return the local generated capacity tfvars path for the Ubuntu stack."""
     return _default_disposable_ubuntu_terraform_dir() / "capacity.auto.tfvars.json"
@@ -6788,9 +6809,60 @@ def infra_aws_disposable_ubuntu_destroy(
 TEST_FLEET_NAME = "dev-fortress-fleet"
 
 
+def _prune_test_fleet_targets(config_path: Path | None, keep: set[str]) -> list[str]:
+    """Drop fleet host targets that the current fleet no longer has.
+
+    Args:
+        config_path: Optional host-target config path; defaults like other
+            host commands.
+        keep: Fleet target names to keep, such as the ones just imported.
+
+    Returns:
+        The names removed, sorted.
+
+    Side effects:
+        Rewrites ``hosts.toml`` without the removed targets, or deletes it when
+        no target would remain, since a manifest needs at least one target.
+        Only targets named ``<fleet>-*`` that use the fleet's shared SSH key are
+        touched.
+    """
+    resolved_path, manifest = _load_optional_host_target_manifest(config_path)
+    if manifest is None:
+        return []
+    removed = sorted(
+        target.name
+        for target in manifest.targets
+        if target.name.startswith(f"{TEST_FLEET_NAME}-")
+        and target.resolved_ssh_key_name() == TEST_FLEET_NAME
+        and target.name not in keep
+    )
+    if not removed:
+        return []
+    remaining = [target for target in manifest.targets if target.name not in removed]
+    if remaining:
+        resolved_path.write_text(
+            _host_target_manifest_toml(HostTargetManifest(targets=remaining)),
+            encoding="utf-8",
+        )
+    else:
+        resolved_path.unlink()
+    return removed
+
+
+TEST_FLEET_SET_HELP = (
+    "Host set to use from now on: lts (Ubuntu LTS on amd64 and arm64, the "
+    "default) or full (every OS target on both architectures). Saved for later runs."
+)
+
+
 @aws_test_fleet_app.command("plan")
-def infra_aws_test_fleet_plan() -> None:
+def infra_aws_test_fleet_plan(
+    fleet_set: Annotated[
+        str | None, typer.Option("--set", help=TEST_FLEET_SET_HELP)
+    ] = None,
+) -> None:
     """Run terraform init, validate, and plan for the EC2 test fleet."""
+    _save_test_fleet_set(fleet_set)
     infra_aws_disposable_ubuntu_plan(
         terraform_dir=_default_test_fleet_terraform_dir(),
         seed_config=_default_test_fleet_seed_config_path(),
@@ -6800,6 +6872,9 @@ def infra_aws_test_fleet_plan() -> None:
 
 @aws_test_fleet_app.command("apply")
 def infra_aws_test_fleet_apply(
+    fleet_set: Annotated[
+        str | None, typer.Option("--set", help=TEST_FLEET_SET_HELP)
+    ] = None,
     config: Annotated[
         Path | None,
         typer.Option(
@@ -6829,6 +6904,7 @@ def infra_aws_test_fleet_apply(
     ] = False,
 ) -> None:
     """Apply the EC2 test fleet, then import every host into hosts.toml."""
+    _save_test_fleet_set(fleet_set)
     infra_aws_disposable_ubuntu_apply(
         terraform_dir=_default_test_fleet_terraform_dir(),
         seed_config=_default_test_fleet_seed_config_path(),
@@ -6838,10 +6914,34 @@ def infra_aws_test_fleet_apply(
         auto_approve=auto_approve,
         json_output=json_output,
     )
+    current = {
+        target.name
+        for target in _terraform_host_target_manifest(
+            _default_test_fleet_terraform_dir()
+        ).targets
+    }
+    removed = _prune_test_fleet_targets(config, keep=current)
+    if removed and not json_output:
+        console.print(
+            f"removed fleet targets no longer in the fleet: {', '.join(removed)}"
+        )
 
 
 @aws_test_fleet_app.command("destroy")
 def infra_aws_test_fleet_destroy(
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            file_okay=True,
+            dir_okay=False,
+            resolve_path=True,
+            help=(
+                "Optional host target config path. Defaults to FT_HOST_CONFIG "
+                "or the XDG-managed hosts.toml path."
+            ),
+        ),
+    ] = None,
     auto_approve: Annotated[
         bool,
         typer.Option(
@@ -6850,13 +6950,16 @@ def infra_aws_test_fleet_destroy(
         ),
     ] = False,
 ) -> None:
-    """Destroy every host in the EC2 test fleet."""
+    """Destroy every host in the EC2 test fleet and drop them from hosts.toml."""
     infra_aws_disposable_ubuntu_destroy(
         terraform_dir=_default_test_fleet_terraform_dir(),
         seed_config=_default_test_fleet_seed_config_path(),
         target_name=TEST_FLEET_NAME,
         auto_approve=auto_approve,
     )
+    removed = _prune_test_fleet_targets(config, keep=set())
+    if removed:
+        console.print(f"removed fleet targets: {', '.join(removed)}")
 
 
 @aws_disposable_ubuntu_capacity_app.command("select")

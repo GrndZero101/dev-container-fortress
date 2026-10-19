@@ -13,7 +13,7 @@ data "aws_iam_policy_document" "ec2_assume_role" {
 resource "aws_iam_role" "session_manager" {
   count = local.session_manager_enabled ? 1 : 0
 
-  name_prefix        = "${var.name}-ssm-"
+  name_prefix        = local.iam_name_prefix
   description        = "Instance role for Dev Fortress disposable hosts using AWS Systems Manager Session Manager"
   assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
 
@@ -30,7 +30,7 @@ resource "aws_iam_role_policy_attachment" "session_manager_core" {
 resource "aws_iam_instance_profile" "session_manager" {
   count = local.session_manager_enabled ? 1 : 0
 
-  name_prefix = "${var.name}-ssm-"
+  name_prefix = local.iam_name_prefix
   role        = aws_iam_role.session_manager[0].name
 
   tags = merge(local.resource_tags, { Name = "${var.name}-ssm-profile" })
