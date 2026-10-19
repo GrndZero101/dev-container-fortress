@@ -8,9 +8,9 @@ records the result.
 
 ## Up Next
 
-1. **`M5c-2`:** move the Ubuntu and Arch images to Homebrew, with the floor
-   baked in and a per-workspace named volume; see the
-   [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
+1. **`M5c`:** decide the Alpine target's future (retiring it would remove the
+   `ft install` downloader), then `M5c-4` (getting code into a devcontainer);
+   see the [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 
 ## Parked
 

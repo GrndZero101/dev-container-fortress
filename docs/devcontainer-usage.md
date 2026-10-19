@@ -36,7 +36,8 @@ After the container opens:
 - the image should already contain `uv`, `ft`, `tenv`, `starship`, `zoxide`, `atuin`, and `fzf`
 - `shell-config` should already be cloned and bootstrapped
 - the default shell profile should be `zsh-tll-citadel-dev-fortress` unless you changed the build args
-- `postCreate` should run a lightweight `ft plan` validation for the selected target
+- on Ubuntu and Arch, `postStartCommand` runs `ft-brew-floor`, which installs any missing Homebrew floor formulae into the brew volume; the first start seeds the volume from the image, so it is quick
+- on Alpine, `postCreate` runs a lightweight `ft plan` validation
 
 ## Persisted State
 
@@ -50,6 +51,7 @@ state, and Claude Code survive `Rebuild Container`:
 | `dev-fortress-atuin-<id>` | `~/.local/share/atuin` | atuin history database |
 | `dev-fortress-claude-<id>` | `~/.claude` | Claude Code config and login |
 | `dev-fortress-claude-versions-<id>` | `~/.local/share/claude` | Claude Code versions, including self-updates |
+| `dev-fortress-brew-<id>` | `/home/linuxbrew/.linuxbrew` | Homebrew prefix (Ubuntu and Arch only) |
 
 `<id>` is the `${devcontainerId}` that VS Code computes per dev container, so the
 Ubuntu, Alpine, and Arch definitions keep separate state.
@@ -98,7 +100,9 @@ starship --version
 zoxide --version
 atuin --version
 fzf --version
-ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/tools.toml --target ubuntu
+ft-brew-floor
+gh --version
+glab --version
 tenv --version
 ```
 
@@ -118,7 +122,7 @@ ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/too
 tenv --version
 ```
 
-Arch: run the Ubuntu checks with `--target arch` in the `ft plan` command.
+Arch: run the Ubuntu checks.
 
 ## Optional Corporate CA Support
 

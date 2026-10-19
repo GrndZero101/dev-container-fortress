@@ -240,6 +240,7 @@ WORKSPACE_OPTION_MOUNTS: dict[str, tuple[str, ...]] = {
     "claude-code": ("claude", "claude-versions"),
 }
 WORKSPACE_CLAUDE_CONFIG_DIR = "/home/vscode/.claude"
+WORKSPACE_HOMEBREW_PREFIX = "/home/linuxbrew/.linuxbrew"
 
 
 @app.callback(invoke_without_command=True)
@@ -1050,6 +1051,22 @@ def _workspace_mount_plan(
     return mounts
 
 
+def _workspace_brew_volume(profile_name: str) -> str:
+    """Return the named Docker volume that holds one workspace's Homebrew prefix.
+
+    A named volume, unlike the bind mounts used for other persisted state, is
+    seeded from the image on first use, so a warm image's floor arrives in
+    seconds. Each profile gets its own, never shared between workspaces.
+
+    Args:
+        profile_name: The workspace profile name.
+
+    Returns:
+        The volume name, for example ``dev-fortress-brew-ubuntu-base``.
+    """
+    return f"dev-fortress-brew-{profile_name}"
+
+
 def _workspace_mount_plan_payload(
     profile_name: str,
     profile: WorkspaceProfileDefinition,
@@ -1087,6 +1104,16 @@ def _workspace_mount_plan_payload(
         ],
         "shell_config": shell_config,
         "shell_config_checkout": shell_config["resolved_path"],
+        "named_volumes": (
+            [
+                {
+                    "volume": _workspace_brew_volume(profile_name),
+                    "container_path": WORKSPACE_HOMEBREW_PREFIX,
+                }
+            ]
+            if CONTAINER_TARGETS[profile.container_target].homebrew
+            else []
+        ),
         "mounts": [
             {
                 "host_path": str(host_path),
@@ -5291,6 +5318,14 @@ def _up_workspace_profile(
                 f"{host_path}:{container_path}",
             ]
         )
+    homebrew = CONTAINER_TARGETS[profile.container_target].homebrew
+    if homebrew:
+        run_command.extend(
+            [
+                "--volume",
+                f"{_workspace_brew_volume(profile_name)}:{WORKSPACE_HOMEBREW_PREFIX}",
+            ]
+        )
 
     run_command.extend([image_tag, "sleep", "infinity"])
     run_result = _run_command(run_command)
@@ -5305,6 +5340,16 @@ def _up_workspace_profile(
         return False
 
     console.print(f"started {container_name}")
+    if homebrew:
+        floor_result = _run_streaming_command(
+            ["docker", "exec", container_name, "ft-brew-floor"]
+        )
+        if floor_result.returncode != 0:
+            console.print(
+                f"[red]Homebrew floor failed[/red] in {container_name}; images "
+                "built before M5c-2 lack ft-brew-floor, so rebuild or pull the image"
+            )
+            return False
     if "claude-code" in option_names:
         install_result = _run_streaming_command(
             ["docker", "exec", container_name, "ft-ensure-claude-code"]
@@ -5342,10 +5387,28 @@ def _down_workspace_profile(profile_name: str) -> bool:
     return False
 
 
-def _reset_workspace_profile(profile_name: str) -> bool:
-    """Remove one managed workspace container profile and its tagged image."""
+def _reset_workspace_profile(profile_name: str, *, brew: bool = False) -> bool:
+    """Remove one managed workspace container profile and its tagged image.
+
+    Args:
+        profile_name: The workspace profile name.
+        brew: Also remove the workspace's Homebrew volume, so the next start
+            re-seeds it from the image and drops ad hoc installs.
+
+    Returns:
+        Whether everything requested was removed or already absent.
+    """
     image_tag = _workspace_image_tag(profile_name)
     success = _down_workspace_profile(profile_name)
+    if brew:
+        volume = _workspace_brew_volume(profile_name)
+        if _run_command(["docker", "volume", "inspect", volume]).returncode != 0:
+            console.print(f"Homebrew volume already absent: {volume}")
+        elif _run_command(["docker", "volume", "rm", volume]).returncode == 0:
+            console.print(f"removed Homebrew volume {volume}")
+        else:
+            console.print(f"[red]failed to remove Homebrew volume:[/red] {volume}")
+            success = False
 
     image_result = _run_command(["docker", "image", "inspect", image_tag])
     if image_result.returncode != 0:
@@ -5554,6 +5617,37 @@ def tool_install(
             healthcheck=bool(runtime["healthcheck"]),
         )
         console.print(f"Installed {name} to {installed_path}")
+
+
+@tool_app.command("formulae")
+def tool_formulae(
+    manifest: Annotated[
+        Path | None,
+        typer.Option(
+            help=(
+                "Path to the tool-pool TOML file. Defaults to the repo's "
+                "ft/tools/tool-pool.toml."
+            ),
+        ),
+    ] = None,
+    platform: Annotated[
+        str,
+        typer.Option(help="Tool-pool platform: linux, wsl, or macos."),
+    ] = "linux",
+) -> None:
+    """Print the Homebrew formulae for one platform, one per line.
+
+    The container images write this list at build time, and
+    ``ft-brew-floor`` installs whatever is missing from it at start.
+    """
+    manifest_path = manifest or _tool_pool_manifest_path()
+    try:
+        formulae = load_tool_pool_manifest(manifest_path).homebrew.formulae_for(
+            platform
+        )
+    except ValueError as error:
+        raise typer.BadParameter(str(error), param_hint="--platform") from error
+    typer.echo("\n".join(formulae))
 
 
 @container_app.command("validate")
@@ -6145,10 +6239,21 @@ def workspace_reset(
             help="One named workspace profile from the repo-owned workspace manifest."
         ),
     ],
+    brew: Annotated[
+        bool,
+        typer.Option(
+            "--brew",
+            help=(
+                "Also remove the workspace's Homebrew volume. The next `up` "
+                "re-seeds it from the image; rebuild the image without cache "
+                "first for a completely fresh Homebrew."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Remove one managed workspace container profile and its tagged image."""
     resolved_profile_name, _ = _resolve_workspace_profile(profile)
-    if not _reset_workspace_profile(resolved_profile_name):
+    if not _reset_workspace_profile(resolved_profile_name, brew=brew):
         raise typer.Exit(code=1)
 
 

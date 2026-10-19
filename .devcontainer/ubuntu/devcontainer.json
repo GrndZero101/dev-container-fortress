@@ -44,6 +44,11 @@
       "source": "dev-fortress-claude-versions-${devcontainerId}",
       "target": "/home/vscode/.local/share/claude",
       "type": "volume"
+    },
+    {
+      "source": "dev-fortress-brew-${devcontainerId}",
+      "target": "/home/linuxbrew/.linuxbrew",
+      "type": "volume"
     }
   ],
   "customizations": {
@@ -59,6 +64,5 @@
       ]
     }
   },
-  "postCreateCommand": "ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/tools.toml --target ubuntu",
-  "postStartCommand": "ft-ensure-claude-code --if-selected"
+  "postStartCommand": "ft-brew-floor && ft-ensure-claude-code --if-selected"
 }

@@ -66,9 +66,14 @@ That means they should:
   | `atuin` | `$XDG_DATA_HOME/atuin` | atuin history database |
   | `claude` | `$HOME/.claude` | Claude Code config and login, with `CLAUDE_CONFIG_DIR` pointing here |
   | `claude-versions` | `$XDG_DATA_HOME/claude` | Claude Code versions, including self-updates |
+  | `brew` | `/home/linuxbrew/.linuxbrew` | the Homebrew prefix, on the glibc targets only |
 
 - `ft workspace` bind-mounts these from host-owned XDG state directories. The
   devcontainer definitions use named Docker volumes for the same paths.
+- The `brew` path is always a named Docker volume, in `ft workspace`
+  (`dev-fortress-brew-<profile>`) as well as in the devcontainers, because only
+  a named volume seeds from the image. It is never shared between workspaces.
+  `ft workspace reset --brew` removes it, so the next start re-seeds it.
 - `ft workspace` mounts the `claude` paths only when the `claude-code` option
   is selected. The devcontainers always mount them, since they cannot read the
   host's option selection.
@@ -100,25 +105,38 @@ That means they should:
 
 ## Tool Installation Contract
 
+- On the glibc targets (Ubuntu, Arch), userland tools come from Homebrew. The
+  floor is the tool-pool Linux set (`[homebrew.common]` plus
+  `[homebrew.linux]` in `ft/tools/tool-pool.toml`), which the image writes to
+  `$XDG_DATA_HOME/dev-container-fortress/brew-floor.txt` with
+  `ft tool formulae`. Tool layers that come from Homebrew, such as `aws`,
+  append their formulae to that list.
+- The `vscode` user owns the prefix at `/home/linuxbrew/.linuxbrew`, so
+  `brew install` needs no `sudo`. The prefix must stay there for bottles to
+  pour.
+- `ft-brew-floor` installs Homebrew when the prefix is empty, then any missing
+  floor formulae. `ft workspace up` and the devcontainers run it on every
+  start; with nothing missing it takes under a second. It never upgrades.
+- The `HOMEBREW_FLOOR` build arg chooses `warm` (the default: the floor is in
+  the image and seeds a fresh volume in seconds) or `cold` (an empty prefix,
+  about 2 GB smaller, filled on first start in a few minutes). CI publishes
+  cold images; local builds, devcontainers, and `ft container` test targets
+  are warm.
+- `uv` and Claude Code keep their native installers so they can update
+  themselves; neither comes from Homebrew.
+- The Alpine target keeps the repo-owned `ft install` downloader
+  (`ft/tools/tools.toml`), because Homebrew does not support musl. Its
+  external downloads prefer pinned versions and checksum verification.
 - User-facing Python CLI tools should prefer `uv tool install` in the final
   runtime image.
-- Tool executables should land in the user's XDG-aligned bin directory through
-  `uv` defaults.
-- Repo-owned runtime tool configuration should be explicit and data-driven.
-- External binary downloads should prefer pinned versions and checksum
-  verification.
 - The base image package manager should normally be limited to bootstrap
   substrate and OS-integrated dependencies.
 - GPG-class cryptographic substrate is a documented exception for now:
   containers may install `gnupg`, `pinentry-curses`, and equivalent distro
   packages through `apt`, `apk`, or the target base package manager when that is
   safer and simpler than source-building a crypto stack.
-- This exception is not a precedent for ordinary userland tools. Tools such as
-  `rustic`, `lazygit`, `yazi`, and similar standalone CLIs should continue to
-  prefer the repo-owned downloader or image-managed installer path.
-- Host targets that support Homebrew should prefer Homebrew for newer GPG,
-  password-store, backup, and daily-driver tooling after native bootstrap is
-  complete.
+- This exception is not a precedent for ordinary userland tools, which come
+  from Homebrew on the glibc targets.
 
 ## Shell Contract
 
@@ -133,7 +151,7 @@ That means they should:
 - The repository may expose multiple devcontainer definitions when it supports multiple container targets.
 - The current standard definitions are `.devcontainer/ubuntu/devcontainer.json`, `.devcontainer/alpine/devcontainer.json`, and `.devcontainer/arch/devcontainer.json`.
 - Each devcontainer should use the same runtime user as its container image.
-- Post-create behavior should validate or lightly bootstrap the environment, not duplicate the core image provisioning logic.
+- Post-start behavior should validate or lightly bootstrap the environment, not duplicate the core image provisioning logic. The glibc definitions run `ft-brew-floor` and `ft-ensure-claude-code --if-selected` on every start.
 - Devcontainer build args may expose opt-in environment hooks such as `DEV_CONTAINER_FORTRESS_CA_CERT_DIR` when they are needed for corporate networks.
 - Devcontainer `mounts` persist only the paths in the persisted state contract, as named volumes keyed by `${devcontainerId}`.
 

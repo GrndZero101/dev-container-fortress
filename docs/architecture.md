@@ -123,28 +123,25 @@ Use:
 
 Container-side policy should stay separate from the host story:
 
-- container userland tools should be installed through repo-owned Dev Fortress
-  mechanisms such as `ft`, shared installer scripts, and image-managed build
-  logic
-- vendor installers may still be used inside that repo-owned path when they are
-  the cleanest supported source for a given container target
+- the glibc container targets (Ubuntu, Arch) install userland tools from
+  Homebrew, using the same tool-pool set as the hosts, so hosts and containers
+  share one toolchain
+- the Homebrew prefix lives on a per-workspace named Docker volume, which
+  `ft-brew-floor` brings up to the tool-pool floor on every start; ad hoc
+  `brew install`s survive container replacement
+- images are built warm (floor baked in, seeding a fresh volume in seconds) or
+  cold (empty prefix, installed on first start); CI publishes cold images
+- `uv` and Claude Code stay on their native installers everywhere
+- the Alpine target keeps the `ft install` downloader, because Homebrew does
+  not support musl; the `M5c` spike found no workable glibc compatibility path
 - complex cryptographic substrate such as GnuPG and pinentry may use the base
-  image package manager for now when upstream binary distribution is not a
-  clean fit and distro integration matters
+  image package manager for now when distro integration matters
 - that exception should stay narrow, documented, and validated by command
   checks; it should not become a general escape hatch for normal userland tools
-- Homebrew should not become the default package substrate inside the Dev
-  Fortress container images
 
-> [!NOTE]
-> This is the current contract, not the direction. `M5c` moves the container
-> userland onto Homebrew so hosts and containers share one toolchain. See the
-> [M5c draft](milestones/M5c-composable-container-workspaces.md).
-
-For host targets, Homebrew remains the preferred path for newer steady-state
-tooling where it is supported. For container targets, the base image package
-manager is acceptable for GPG-class substrate until a stronger repo-owned
-installer proves worth the added build and maintenance cost.
+Homebrew is the preferred path for steady-state tooling on hosts and on the
+glibc container targets. For container targets, the base image package manager
+stays acceptable for GPG-class substrate.
 
 See [Container Standards](./container-standards.md) for the current runtime
 contract and design rules that Ubuntu, Alpine, and Arch should follow.

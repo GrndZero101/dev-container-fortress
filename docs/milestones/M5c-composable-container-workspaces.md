@@ -32,8 +32,8 @@ milestone owns the last two:
 
 ## Exit Criteria
 
-- [ ] The container images install their userland tools through Homebrew, with the same bundle model as the host targets, and the decision is recorded in `docs/architecture.md` and `docs/container-standards.md`
-- [ ] Tools added inside a running container with `brew install` persist across container replacement where that is intended, or the docs state clearly that they do not
+- [x] The container images install their userland tools through Homebrew, with the same bundle model as the host targets, and the decision is recorded in `docs/architecture.md` and `docs/container-standards.md` (Ubuntu and Arch; Alpine keeps the downloader, recorded as a no-go)
+- [x] Tools added inside a running container with `brew install` persist across container replacement where that is intended, or the docs state clearly that they do not
 - [ ] Claude Code can be selected for every container target through the `M5b` option model, installs through its native installer, and updates itself in place
 - [ ] The devcontainer documents and supports one recommended way to get code in, either a bind mount of the host checkout or a clone into a volume, and the other way works as a documented variant
 - [ ] A devcontainer CLI terminal mode works end to end: `up`, enter a shell, develop, commit, push, and come back later to the same state
@@ -208,8 +208,8 @@ profiles. Spike this before building more. Confirmed as in scope on
 ### M5c-2 Move container userland tools to Homebrew
 
 - [ ] Problem: the `ft` tool-pool downloads duplicate what the host Brewfile already declares
-- [ ] Scope: on Ubuntu and Arch, replace the tool pool with the shared Homebrew bundle and keep `uv` on Astral's installer; bake the floor into the image and mount the prefix as a per-workspace named volume (`ft workspace` and the devcontainers); run the floor check on start and add a clean-rebuild option; drop `uv` from the tool-pool Homebrew set, `host.yml`, and the Brewfiles; Alpine keeps its current installers; update the container standards and architecture docs
-- [ ] Acceptance: `ft workspace validate` passes on the Homebrew-based images, an ad hoc `brew install` survives container replacement, and the clean rebuild restores the floor
+- [x] Scope: on Ubuntu and Arch, replace the tool pool with the shared Homebrew bundle and keep `uv` on Astral's installer; bake the floor into the image and mount the prefix as a per-workspace named volume (`ft workspace` and the devcontainers); run the floor check on start and add a clean-rebuild option; drop `uv` from the tool-pool Homebrew set, `host.yml`, and the Brewfiles; Alpine keeps its current installers; update the container standards and architecture docs
+- [x] Acceptance: `ft workspace validate` passes on the Homebrew-based images, an ad hoc `brew install` survives container replacement, and the clean rebuild restores the floor
 
 ### M5c-3 Offer Claude Code in every container target
 
@@ -274,3 +274,35 @@ baked into the image and seeding a per-workspace named volume (13.5 s first
 start, 0.4 s floor check). No-go on Alpine, which keeps its current
 installers. Numbers and reasoning are in the spike results above; arm64 times
 are still to measure on a Graviton host.
+
+M5c-2 built on 2026-10-19. The Ubuntu and Arch images write the tool-pool
+Linux set to `brew-floor.txt` with the new `ft tool formulae`, and
+`ft-brew-floor` installs Homebrew and any missing formulae. The
+`HOMEBREW_FLOOR` build arg picks `warm` (the default) or `cold`, and CI
+publishes cold images and smoke-tests their first start. `ft workspace up`
+mounts the per-profile `dev-fortress-brew-<profile>` named volume and runs the
+floor before the Claude Code check; `ft workspace reset --brew` removes it.
+The Ubuntu and Arch devcontainers mount `dev-fortress-brew-<id>` and run the
+floor from `postStartCommand`. Several custom installers went with it: the
+`ft install` step in both images, the apt and pacman `gh`/`glab` installs
+(both now in the floor), and `install-aws-cli.sh` and pacman's `aws-cli-v2`
+(the `aws` layer now appends `awscli` to the floor). `uv` left the tool-pool
+Homebrew set, `host.yml`, and the Brewfile; hosts that already have the
+Homebrew `uv` keep it, behind the Astral one on `PATH`. A new `bash-syntax`
+pre-commit hook covers the two bash container helpers.
+
+Verified on amd64:
+
+| Check | Result |
+| --- | --- |
+| Warm Ubuntu build, `ubuntu-base` | 254 s, 3.2 GB |
+| Cold Ubuntu build, with the `aws` layer | 1.1 GB |
+| `ft workspace up` on a fresh volume, warm image | 11 s, all 44 formulae present, `validate` all OK |
+| Replace the container after `brew install hello` | 0.9 s, `hello` still runs |
+| `ft workspace reset --brew` | removes the volume; the next start re-seeds |
+| Cold image first start | 169 s for Homebrew 7.0.9 and 45 formulae, including `awscli` |
+| Warm Arch test target, `ft container validate arch` | 27 of 27 checks OK, every tool from Homebrew |
+| `nvim`, `rg`, `gh` on `PATH` | from the Homebrew prefix; `uv` and `ft` from `~/.local/bin` |
+
+Still to verify: arm64 on a Graviton host, a devcontainer opened in VS Code,
+and the first CI run with cold images.

@@ -44,3 +44,10 @@ repos:
         entry: sh -n
         language: system
         files: ^(install\.sh|containers/common/.*\.sh)$
+        exclude: ^containers/common/(brew-floor|ensure-claude-code)\.sh$
+      # Container helpers that run under bash in every image.
+      - id: bash-syntax
+        name: bash syntax
+        entry: bash -n
+        language: system
+        files: ^containers/common/(brew-floor|ensure-claude-code)\.sh$

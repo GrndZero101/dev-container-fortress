@@ -16,29 +16,26 @@ Works today:
 - runtime `uv`
 - installed `ft` CLI
 - installed `ft` zsh completion artifact in the XDG data tree
-- installed managed interaction baseline: `atuin`, `bat`, `bats`, `fd`, `glow`, `gum`, `jq`, `lazygit`, `nvim`, `oh-my-posh`, `rg`, `starship`, `tenv`, and `zoxide`
+- Ubuntu and Arch: the tool-pool Homebrew floor, including `gh`, `glab`, `nvim`, `rg`, `starship`, `tenv`, and `zoxide`, in `/home/linuxbrew/.linuxbrew`
+- Alpine: the downloader-managed baseline (`atuin`, `bat`, `bats`, `fd`, `glow`, `gum`, `jq`, `lazygit`, `oh-my-posh`, `starship`, `tenv`, and `zoxide`) plus `apk` packages for `nvim` and `rg`
 - installed distro baseline: `fzf`
 - cloned and bootstrapped `shell-config`
 - default fortress shell profile
 - optional opt-in corporate CA support for builds
 
-For downloader-managed tools backed by GitHub releases, `ft install` resolves
+Ubuntu and Arch build warm by default: the Homebrew floor is in the image.
+Pass `--build-arg HOMEBREW_FLOOR=cold` for the smaller image CI publishes,
+whose first start installs the floor with `ft-brew-floor` (a few minutes).
+
+On Alpine, for downloader-managed tools backed by GitHub releases, `ft install` resolves
 the current upstream release by default. Use `--use-manifest-version` only when
 you intentionally want the repo fallback version instead of a live release lookup.
 Downloaded assets are now reused from `${XDG_CACHE_HOME:-$HOME/.cache}/dev-container-fortress/tools`
 and the Dockerfiles mount that cache path during `ft install` so rebuilds can
 reuse previously verified artifacts even when the install layer reruns.
 
-`ripgrep` is hybrid today: Ubuntu installs it through the downloader, while
-Alpine uses the native `apk` package so `rg` is still available on musl targets
-where upstream release assets are incomplete.
-
-`neovim` is hybrid for the same reason: Ubuntu installs it through the
-downloader, while Alpine uses the native `apk` package because the upstream
-Linux tarballs are not musl builds.
-
-Arch is glibc-based and installs both `rg` and `nvim` through the downloader,
-like Ubuntu.
+Alpine installs `rg` and `nvim` from `apk`, because the upstream release
+assets are not musl builds.
 
 > [!IMPORTANT]
 > The Arch image is amd64 only. Its pacman packages come from one
@@ -332,11 +329,12 @@ uv --version
 readlink ~/.zshenv
 cat ${XDG_CONFIG_HOME:-$HOME/.config}/shell-config/active-profile
 command -v csm
-ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/tools.toml --target ubuntu
+ft-brew-floor
 tenv --version
 ```
 
-For the Alpine or Arch image, change `--target ubuntu` to `--target alpine` or `--target arch`.
+For the Alpine image, replace `ft-brew-floor` with
+`ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/tools.toml --target alpine`.
 
 Expected baseline behavior:
 

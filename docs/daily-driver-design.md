@@ -316,9 +316,10 @@ The base image should remain lean.
 Recommended first-pass layer split:
 
 - `base`: current shell and operator baseline
-- `gitforge`: add `gh` and `glab`
+- `gitforge`: persist `gh` and `glab` state (both are in the Homebrew floor on
+  Ubuntu and Arch, so every profile has the commands)
 - `secrets`: add GPG-backed `pass`
-- `aws`: add AWS CLI
+- `aws`: add AWS CLI, as the `awscli` formula appended to the Homebrew floor
 - `azure`: add Azure CLI
 
 Recommended rule:

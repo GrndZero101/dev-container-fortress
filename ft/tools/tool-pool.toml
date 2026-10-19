@@ -36,7 +36,6 @@ formulae = [
   "tmux",
   "tree",
   "tree-sitter-cli",
-  "uv",
   "yazi",
   "yq",
   "zoxide",
