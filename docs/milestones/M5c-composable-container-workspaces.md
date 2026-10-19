@@ -306,3 +306,8 @@ Verified on amd64:
 
 Still to verify: arm64 on a Graviton host, a devcontainer opened in VS Code,
 and the first CI run with cold images.
+
+Decided on 2026-10-19: Alpine stays a supported container target, on the
+`ft install` downloader with its pinned, checksummed tools. The downloader
+stays for Alpine alone; Alpine's own repositories lack `tenv`, `glow`, and
+`oh-my-posh`, so `apk` alone could not replace it.
