@@ -21,5 +21,9 @@ records the result.
   `wsl-restore-interop` restores it meanwhile.
 - Align the `tboss-workspace` devcontainers with the persisted state contract;
   tracked in that repo's `TODO.md`.
+- Decide Alpine's long-term future: it is the only consumer of the `ft install`
+  downloader (`installer.py`, `tools.toml`). Retire it, slim it to `apk`
+  without `tenv`, `glow`, and `oh-my-posh`, or keep both toolchains; see the
+  [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 - Optional: turn off build-record artifacts in CI with
   `DOCKER_BUILD_RECORD_UPLOAD: false`.
