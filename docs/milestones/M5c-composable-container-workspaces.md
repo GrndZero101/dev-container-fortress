@@ -197,6 +197,62 @@ devcontainer CLI, or the devcontainer files are generated from the workspace
 profiles. Spike this before building more. Confirmed as in scope on
 2026-10-19, after the Homebrew work.
 
+### M5c-5 Spike Results
+
+Measured on 2026-10-19 on amd64 (WSL2) with the warm `ubuntu-base` image.
+Two candidates for one definition:
+
+- **A, `ft workspace` drives the devcontainer CLI:** `ft` writes an override
+  `devcontainer.json` from the mount plan and runs `devcontainer up` and
+  `exec`
+- **B, generate the devcontainer files:** `ft` renders the `.devcontainer/`
+  definitions and the volume definition from its own data, and `ft workspace`
+  keeps its `docker run`
+
+| Measure | A | Today, and B |
+| --- | --- | --- |
+| Replace a running workspace | 7.4 s | 1.0 s |
+| Run one command | 0.85 s per `devcontainer exec` | 0.32 s per `ft workspace exec` (0.08 s raw `docker exec`) |
+| Host dependency | Node plus `@devcontainers/cli` on every host; neither is in the Brewfile or tool pool | none new |
+| Prototype | works: 11 bind mounts, `--name` through `runArgs`, `init`, `updateRemoteUserUID: false` | about 70 lines reproduce all four committed files byte for byte |
+
+Decision: **B**. Generate the devcontainer files from the same data that
+`ft workspace` uses, and keep two runtimes for documented reasons:
+
+- `ft workspace` is several times faster to replace and exec, and needs no
+  Node toolchain on hosts or the EC2 fleet
+- it computes host integrations at start: the browser bridge broker, WSL
+  interop mounts, the SSH agent socket, and option-dependent mounts. VS Code
+  supplies its own browser, agent, and credential forwarding, and static JSON
+  cannot branch on the host
+- its state is host-owned bind mounts that `ft workspace auth` and `doctor`
+  inspect, while devcontainer state is named volumes keyed per definition
+
+What B shares: the persisted-mount table (names and container paths), which
+mounts apply to glibc targets only, the start steps (`ft-brew-floor`,
+`ft-ensure-claude-code`), the option and Claude Code environment, and the
+build-arg names. M5c-4 had to add the same `gh`, `glab`, and brew mounts in
+four JSON files plus `cli.py`; under B that is one edit.
+
+Found along the way:
+
+- **The image cache busts on every commit.** There is no `.dockerignore`, and
+  two `RUN --mount=type=bind,source=.` steps (the corporate CA and
+  `shell-config` installers) see the whole context, `.git` included. After
+  only doc edits and a commit, `ft workspace build ubuntu-base` re-ran
+  everything from layer 11, the Homebrew floor included: 215 s
+- **The devcontainer build args blank the Dockerfile defaults.** An unset
+  `${localEnv:...}` passes an empty string, so the devcontainer image has
+  `SHELL_CONFIG_PROFILE=""` where the `ft` image has
+  `zsh-tll-citadel-dev-fortress`. The active-profile file still resolves,
+  because the installer falls back. It also gives the two builds different
+  cache keys, so each keeps its own 3.2 GB image
+- **`${localEnv:VAR:default}` cannot hold a `:`.** The default is cut at the
+  first colon, so a URL default arrives as `https`. The renderer must leave
+  such arguments to the Dockerfile default
+- the devcontainer CLI does not expand `${devcontainerId}` in
+  `workspaceMount` (already worked around in M5c-4)
+
 ## Issue Drafts
 
 ### M5c-1 Spike Homebrew in the container images
@@ -226,8 +282,15 @@ profiles. Spike this before building more. Confirmed as in scope on
 ### M5c-5 Unify the workspace and devcontainer definitions
 
 - [ ] Problem: `ft workspace` profiles and `.devcontainer/` describe overlapping container setups
-- [ ] Scope: spike `ft workspace` driving the devcontainer CLI, compared with generating the devcontainer files from profiles
-- [ ] Acceptance: one source of truth, or a documented reason for two
+- [x] Scope: spike `ft workspace` driving the devcontainer CLI, compared with generating the devcontainer files from profiles (decision: generate; see the spike results)
+- [ ] Scope: add `ft devcontainer render`, which writes the four definitions from the shared mount table and target data, plus `--check` in pre-commit and CI; render build-arg defaults where they hold no `:`
+- [ ] Acceptance: one source of truth for mounts, start steps, and environment, with the reasons for two runtimes recorded in `docs/architecture.md`
+
+### M5c-6 Keep the image cache across commits
+
+- [ ] Problem: every commit or doc edit rebuilds the Homebrew floor, about 3.5 minutes, and the `ft` and devcontainer builds never share layers
+- [ ] Scope: add a `.dockerignore`, narrow the bind-mounted build steps to the paths they read, and order the layers so that changes under `ft/` do not invalidate the floor where practical
+- [ ] Acceptance: a rebuild after a doc-only commit reuses the floor layer, and a devcontainer build after `ft workspace build` with default settings reuses it too
 
 ## Verification Notes
 
@@ -352,3 +415,10 @@ Still to verify: both flows opened in VS Code, a real login and push from
 terminal mode, and Arch. The CLI volume flow needs the published image to
 carry `ft-brew-floor`, so it works from GHCR only after this branch merges;
 use `DEV_FORTRESS_IMAGE` with a local build until then.
+
+M5c-5 spike done on 2026-10-19: generate the devcontainer files from `ft`'s
+data (B) rather than have `ft workspace` drive the devcontainer CLI (A).
+A was 7x slower to replace a workspace, 2.6x slower per exec, and needs Node on
+every host; B's prototype reproduced all four committed definitions byte for
+byte. The spike also found that the image cache busts on every commit and that
+the devcontainer build args blank the Dockerfile defaults, now M5c-6.

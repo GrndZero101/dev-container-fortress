@@ -11,8 +11,11 @@ records the result.
 1. **`M5c-4`:** open both code-in flows in VS Code, and log in and push from
    CLI terminal mode; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
-2. **`M5c-5`:** spike one definition for `ft workspace` and the devcontainers;
-   see the [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
+2. **`M5c-6`:** keep the image cache across commits, so a doc edit stops
+   rebuilding the Homebrew floor; see the
+   [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
+3. **`M5c-5`:** add `ft devcontainer render` and its `--check`; see the
+   [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 
 ## Parked
 
