@@ -22,9 +22,10 @@ cheap, short-lived EC2 fleet: one apply to create it, one destroy to remove it.
 
 ## Exit Criteria
 
-- [ ] One `terraform apply` creates a fleet set below, and one
-  `terraform destroy` removes all of it (the first five-host apply ran on
-  2026-10-19; the destroy is still to run)
+- [x] One `terraform apply` creates a fleet set below, and one
+  `terraform destroy` removes all of it (2026-10-19: the nine-host `full`
+  destroy left no instances, key pairs, security groups, or IAM roles, and
+  removed the fleet targets from `hosts.toml`)
 - [x] `ft` imports every fleet host as a host target, with its SSH user, key,
   and trust state, without hand-editing `hosts.toml`
 - [x] Each target runs its documented check and a second run reports
@@ -122,9 +123,8 @@ both, and `m8g.large` and `m8i.large` are both offered.
 ### `M7b-4` First fleet run
 
 - [x] Problem: `M5b` was verified on WSL2 and one arm64 EC2 host only
-- [ ] Scope: run each target's check from the fleet table, record results and
-  findings here, then destroy the fleet (results recorded below; the destroy
-  waits for the operator)
+- [x] Scope: run each target's check from the fleet table, record results and
+  findings here, then destroy the fleet
 - [x] Acceptance: every row has a recorded result; Alpine host-role gaps found
   on its first real VM become issues or fixes
 
@@ -164,7 +164,7 @@ both, and `m8g.large` and `m8i.large` are both offered.
 
 ## Verification Notes
 
-- [ ] Fleet created and destroyed with one command each
+- [x] Fleet created and destroyed with one command each
 - [x] Every target's check recorded
 
 ### First fleet run, 2026-10-19
@@ -236,5 +236,5 @@ Found, not fixed:
 
 ## Branch and Merge Plan
 
-- [ ] Start after the `M5b` PR is open: `feat/m0007b-cloud-test-fleet`
+- [x] Start after the `M5b` PR is open: `feat/m0007b-cloud-test-fleet`
 - [ ] Squash-merge once the exit criteria are met

@@ -8,9 +8,9 @@ records the result.
 
 ## Up Next
 
-1. **`M7b`:** the nine-host `full` set passed, and `ft infra aws-test-fleet
-   check` now runs the whole loop; next the operator destroys the fleet, then
-   the PR; see the [M7b file](docs/milestones/M7b-cloud-test-fleet.md).
+1. **`M7b`:** done and destroyed; the PR is open, waiting for green CI and the
+   operator's squash merge; see the
+   [M7b file](docs/milestones/M7b-cloud-test-fleet.md).
 2. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
    the devcontainer and CLI terminal-mode flows; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
