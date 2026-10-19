@@ -70,7 +70,8 @@ Decided on 2026-10-19:
   `uv self update`. Homebrew replaces the `ft` tool-pool downloads (`tenv`,
   `starship`, `zoxide`, `atuin`, and the rest), not `uv`
 - Alpine tries glibc compatibility first, so it can stay on the Homebrew
-  path. If that fails, record why and fall back to its current installers
+  path. If that fails, record why and fall back to its current installers.
+  The M5c-1 spike found it fails; see the results below
 - the Homebrew prefix and its cache live on a persisted volume per
   workspace, never shared between containers, so ad hoc `brew install`s
   survive container replacement. Bootstrap brings the volume up to the
@@ -84,11 +85,70 @@ Decided on 2026-10-19:
 
 To work out:
 
-- arm64 Linux bottle coverage, and the build time and first-start cost
 - the prefix must stay at `/home/linuxbrew/.linuxbrew` for bottles to pour,
   so the volume mounts there rather than under XDG paths
 - `brew/Brewfile` lists `uv`, which puts a second `uv` beside the Astral
   install on hosts. Drop it so there is one `uv`
+
+### M5c-1 Spike Results
+
+Measured on 2026-10-19 on amd64 (WSL2, 32 cores) against the tool-pool
+Homebrew set: `[homebrew.common]` plus `[homebrew.linux]` from
+`ft/tools/tool-pool.toml`, minus `uv`. That is 44 formulae, which resolve to
+112 installed formulae once their dependencies are included. The spike
+extended the `workspace-ubuntu-base` image with Homebrew's prerequisites
+(`build-essential`, `procps`, `file`) and the `vscode`-owned prefix.
+
+| Measure | Result |
+| --- | --- |
+| Bottle coverage, `x86_64_linux` and `arm64_linux` | complete for the whole dependency closure (96 formulae); three are architecture-independent `all` bottles; nothing builds from source |
+| Prerequisite layer | 27 s build, +0.40 GB image |
+| Homebrew baked into the image | 209 s build, +2.05 GB image |
+| Prefix size on a volume | 1.5 GB |
+| Model A first start: baked image seeds a fresh named volume | 13.5 s |
+| Model B first start: prerequisites only, install into an empty volume | 151 s |
+| Later starts, and the floor check with nothing missing | 0.4 s |
+| `brew install hello`, then replace the container | `hello` still runs |
+| Toolchain | Homebrew used the host glibc (2.43) and pulled no brewed gcc or glibc |
+
+Decision: **go** for the glibc targets, with model A.
+
+- Bake the floor into the image, and mount the prefix as a per-workspace
+  **named Docker volume**, `dev-fortress-brew-<profile>`. Docker copies the
+  image's prefix into a fresh named volume, so a new workspace has the full
+  floor in about 13 s. A bind mount from host state, which `ft workspace`
+  uses for every other path, does not seed, so it would always pay model B's
+  151 s.
+- Run the floor check on every start. It costs 0.4 s and installs only what is
+  missing, so a newer image's additions reach existing volumes. It does not
+  upgrade what is already there; that stays with `brew upgrade`.
+- Clean rebuild: remove the volume, and it re-seeds from the image. For a
+  completely fresh Homebrew, rebuild the image without cache first.
+- `~/.local/bin` comes before the Homebrew prefix on `PATH`, so the old
+  downloaded tools shadow the Homebrew ones until M5c-2 removes them. In the
+  spike, `nvim` still resolved to `~/.local/bin`.
+- `python@3.15` arrives as a dependency. It is only a library for other
+  formulae; Dev Fortress code keeps running on the uv-managed Python.
+- The image grows by about 2.4 GB in total. The published GHCR images grow by
+  the same amount, which buys a first start under a minute without network
+  installs.
+
+Not measured: arm64 build and start times, because this machine has no arm64
+builder. Bottle coverage is complete, so arm64 should behave like amd64;
+confirm it on a Graviton host from the EC2 test fleet. Arch is untested.
+It is glibc-based and rolling, so expect it to behave like Ubuntu.
+
+Alpine: **no-go**, so it keeps its current installers.
+
+- `gcompat` fails. It shims musl, so Homebrew cannot detect a glibc version
+  and refuses to install its portable Ruby.
+- The community `sgerrand/alpine-pkg-glibc` package (glibc 2.35, unmaintained
+  since 2023) gets bottles pouring only after replacing Alpine's
+  `/usr/bin/ldd`, which Homebrew hardcodes. Even then, 2.35 is below
+  Homebrew's minimum, so it installs its own glibc 2.39, gcc 16, and binutils
+  (about 600 MB) before the first formula.
+- That package has no arm64 build, so this path cannot cover arm64 Alpine at
+  all.
 
 ### Claude Code
 
@@ -142,13 +202,13 @@ profiles. Spike this before building more. Confirmed as in scope on
 ### M5c-1 Spike Homebrew in the container images
 
 - [ ] Problem: the images and hosts use different userland toolchains
-- [ ] Scope: install Homebrew as the `vscode` user into a per-workspace volume for `ubuntu`, measure build time, first-start time, and size on amd64 and arm64, and try Alpine with glibc compatibility
-- [ ] Acceptance: a recorded go or no-go with numbers, plus the Alpine result
+- [x] Scope: install Homebrew as the `vscode` user into a per-workspace volume for `ubuntu`, measure build time, first-start time, and size on amd64 and arm64, and try Alpine with glibc compatibility (arm64 covered by bottle coverage only; times pending a Graviton host)
+- [x] Acceptance: a recorded go or no-go with numbers, plus the Alpine result
 
 ### M5c-2 Move container userland tools to Homebrew
 
 - [ ] Problem: the `ft` tool-pool downloads duplicate what the host Brewfile already declares
-- [ ] Scope: replace the tool pool with the shared Homebrew bundle and keep `uv` on Astral's installer; bring the brew volume up to the floor on start and add a clean-rebuild option; drop `uv` from `brew/Brewfile`; update the container standards and architecture docs
+- [ ] Scope: on Ubuntu and Arch, replace the tool pool with the shared Homebrew bundle and keep `uv` on Astral's installer; bake the floor into the image and mount the prefix as a per-workspace named volume (`ft workspace` and the devcontainers); run the floor check on start and add a clean-rebuild option; drop `uv` from the tool-pool Homebrew set, `host.yml`, and the Brewfiles; Alpine keeps its current installers; update the container standards and architecture docs
 - [ ] Acceptance: `ft workspace validate` passes on the Homebrew-based images, an ad hoc `brew install` survives container replacement, and the clean rebuild restores the floor
 
 ### M5c-3 Offer Claude Code in every container target
@@ -208,3 +268,9 @@ Verified on `ubuntu-base`: the first start ran the native installer (2.1.303,
 with no download, and `--options none` left Claude out. The Alpine image
 installs the musl build through the same helper. Still to verify: Arch, a
 devcontainer opened in VS Code, and a self-update that survives replacement.
+
+M5c-1 done on 2026-10-19: go for Homebrew on the glibc targets, with the floor
+baked into the image and seeding a per-workspace named volume (13.5 s first
+start, 0.4 s floor check). No-go on Alpine, which keeps its current
+installers. Numbers and reasoning are in the spike results above; arm64 times
+are still to measure on a Graviton host.

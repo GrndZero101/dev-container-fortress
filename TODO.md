@@ -8,8 +8,8 @@ records the result.
 
 ## Up Next
 
-1. **`M5c-1`:** spike Homebrew on a per-workspace volume in the `ubuntu`
-   image, and try Alpine with glibc compatibility; see the
+1. **`M5c-2`:** move the Ubuntu and Arch images to Homebrew, with the floor
+   baked in and a per-workspace named volume; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 
 ## Parked
