@@ -66,6 +66,8 @@ That means they should:
   | `atuin` | `$XDG_DATA_HOME/atuin` | atuin history database |
   | `claude` | `$HOME/.claude` | Claude Code config and login, with `CLAUDE_CONFIG_DIR` pointing here |
   | `claude-versions` | `$XDG_DATA_HOME/claude` | Claude Code versions, including self-updates |
+  | `gh` | `$XDG_CONFIG_HOME/gh` | GitHub CLI login, on the glibc targets only |
+  | `glab` | `$XDG_CONFIG_HOME/glab-cli` | GitLab CLI login, on the glibc targets only |
   | `brew` | `/home/linuxbrew/.linuxbrew` | the Homebrew prefix, on the glibc targets only |
 
 - `ft workspace` bind-mounts these from host-owned XDG state directories. The
@@ -85,6 +87,30 @@ That means they should:
   volume inherits it instead of mounting as root.
 - Add a new persisted path only when it holds runtime state that is worth keeping
   across container replacement, and add it to both consumers.
+- `~/.gitconfig` is not persisted. On the glibc targets, `/etc/gitconfig`
+  (with `GIT_CONFIG_SYSTEM` pointing at it, since Homebrew's `git` otherwise
+  reads its system config from the prefix) sends
+  HTTPS credentials for `github.com` and `gitlab.com` through
+  `gh auth git-credential` and `glab auth git-credential`, so a persisted
+  forge login is enough to push after the container is replaced. Keep the Git
+  author identity in the checkout with `ft identity --local`, since the
+  checkout persists with the code.
+
+## Workspace Code Contract
+
+- Code reaches a container in one of two ways, and both are supported:
+  - **bind mount** of a host checkout, the default for the `.devcontainer/`
+    definitions and `ft workspace`
+  - **named volume** that holds clones made inside the container: VS Code's
+    "Clone Repository in Container Volume", or the devcontainer CLI with
+    `devcontainer/volume/devcontainer.json`
+- The volume definition mounts `dev-fortress-src-<folder>` at `/workspaces`,
+  keyed on the host folder's name because the devcontainer CLI does not
+  substitute `${devcontainerId}` in `workspaceMount`. It uses the published
+  image unless `DEV_FORTRESS_IMAGE` overrides it. The glibc images pre-create `/workspaces` with runtime-user
+  ownership, so a fresh volume is writable without `sudo`.
+- Code in a volume exists only there. Push to back it up; removing the volume
+  deletes any unpushed work.
 
 ## Bootstrap Contract
 
@@ -150,6 +176,7 @@ That means they should:
 - `.devcontainer/` should remain a thin wrapper around the container target.
 - The repository may expose multiple devcontainer definitions when it supports multiple container targets.
 - The current standard definitions are `.devcontainer/ubuntu/devcontainer.json`, `.devcontainer/alpine/devcontainer.json`, and `.devcontainer/arch/devcontainer.json`.
+- `devcontainer/volume/devcontainer.json` is the devcontainer CLI's clone-into-volume definition. It lives outside `.devcontainer/` so VS Code does not offer it when reopening a checkout, and it runs the published image rather than building one.
 - Each devcontainer should use the same runtime user as its container image.
 - Post-start behavior should validate or lightly bootstrap the environment, not duplicate the core image provisioning logic. The glibc definitions run `ft-brew-floor` and `ft-ensure-claude-code --if-selected` on every start.
 - Devcontainer build args may expose opt-in environment hooks such as `DEV_CONTAINER_FORTRESS_CA_CERT_DIR` when they are needed for corporate networks.

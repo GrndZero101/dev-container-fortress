@@ -46,6 +46,16 @@
       "type": "volume"
     },
     {
+      "source": "dev-fortress-gh-${devcontainerId}",
+      "target": "/home/vscode/.config/gh",
+      "type": "volume"
+    },
+    {
+      "source": "dev-fortress-glab-${devcontainerId}",
+      "target": "/home/vscode/.config/glab-cli",
+      "type": "volume"
+    },
+    {
       "source": "dev-fortress-brew-${devcontainerId}",
       "target": "/home/linuxbrew/.linuxbrew",
       "type": "volume"

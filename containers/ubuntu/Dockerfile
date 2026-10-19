@@ -76,6 +76,7 @@ COPY containers/common/install-shell-config.sh /usr/local/bin/install-shell-conf
 COPY containers/common/start-test-target.sh /usr/local/bin/start-test-target
 COPY containers/common/ensure-claude-code.sh /usr/local/bin/ft-ensure-claude-code
 COPY containers/common/brew-floor.sh /usr/local/bin/ft-brew-floor
+COPY containers/common/gitconfig /etc/gitconfig
 
 RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
       groupmod --gid ${USER_GID} ${USERNAME}; \
@@ -102,7 +103,10 @@ RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/state \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.cache \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.config \
+  && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.config/gh \
+  && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.config/glab-cli \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/linuxbrew /home/linuxbrew/.linuxbrew \
+  && install -d -o ${USER_UID} -g ${USER_GID} /workspaces \
   && printf '%s\n' '# Managed by dev-container-fortress.' > /home/${USERNAME}/.zshenv \
   && printf '%s\n' '# Managed by dev-container-fortress.' > /home/${USERNAME}/.zshrc \
   && chown ${USER_UID}:${USER_GID} /home/${USERNAME}/.zshenv /home/${USERNAME}/.zshrc \
@@ -126,6 +130,9 @@ ENV UV_PROJECT_ENVIRONMENT=.venv-container
 ENV HOMEBREW_PREFIX=/home/linuxbrew/.linuxbrew
 ENV HOMEBREW_CELLAR=${HOMEBREW_PREFIX}/Cellar
 ENV HOMEBREW_REPOSITORY=${HOMEBREW_PREFIX}/Homebrew
+# Homebrew's git reads its system config from the prefix, which lives on the
+# brew volume; point every git at the image-managed file instead.
+ENV GIT_CONFIG_SYSTEM=/etc/gitconfig
 ENV PATH=${HOME}/.local/bin:${HOMEBREW_PREFIX}/bin:${HOMEBREW_PREFIX}/sbin:${PATH}
 ENV SHELL_CONFIG_PROFILE=${SHELL_CONFIG_PROFILE_DEFAULT}
 

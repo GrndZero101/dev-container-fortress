@@ -217,7 +217,7 @@ Recommended in-container mount targets:
 - `${XDG_DATA_HOME}/zoxide`
 - `${XDG_DATA_HOME}/atuin`
 - `${XDG_CONFIG_HOME}/gh`
-- `${XDG_CONFIG_HOME}/glab`
+- `${XDG_CONFIG_HOME}/glab-cli`
 - `${HOME}/.aws`
 - `${HOME}/.azure`
 - `${HOME}/.gnupg`
@@ -253,7 +253,7 @@ Do not:
 
 Recommended first supported path:
 
-- persist `${XDG_CONFIG_HOME}/gh` and `${XDG_CONFIG_HOME}/glab`
+- persist `${XDG_CONFIG_HOME}/gh` and `${XDG_CONFIG_HOME}/glab-cli`
 - allow normal `gh auth login` and `glab auth login` flows inside the container
 
 That keeps forge login state outside the image and survives container

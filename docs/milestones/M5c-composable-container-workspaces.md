@@ -220,8 +220,8 @@ profiles. Spike this before building more. Confirmed as in scope on
 ### M5c-4 Choose how code gets into a devcontainer
 
 - [ ] Problem: bind mounts need a host checkout and can be slow, while volume clones hide the code from the host
-- [ ] Scope: support and document both, with a recommended default per use case; `gh` and `glab` come from the Homebrew bundle
-- [ ] Acceptance: both flows work from VS Code and the devcontainer CLI
+- [x] Scope: support and document both, with a recommended default per use case; `gh` and `glab` come from the Homebrew bundle
+- [ ] Acceptance: both flows work from VS Code and the devcontainer CLI (CLI verified; VS Code pending)
 
 ### M5c-5 Unify the workspace and devcontainer definitions
 
@@ -311,3 +311,44 @@ Decided on 2026-10-19: Alpine stays a supported container target, on the
 `ft install` downloader with its pinned, checksummed tools. The downloader
 stays for Alpine alone; Alpine's own repositories lack `tenv`, `glow`, and
 `oh-my-posh`, so `apk` alone could not replace it.
+
+M5c-4 built on 2026-10-19. The recommended default is a bind mount for VS Code
+on an existing checkout, and a volume for VS Code without one (or on a slow
+host filesystem) and for devcontainer CLI terminal mode. VS Code's volume flow
+is its own "Clone Repository in Container Volume"; the CLI one is the new
+`devcontainer/volume/devcontainer.json`, which runs the published image with
+`dev-fortress-src-<folder>` at `/workspaces`. It is keyed on the host folder's
+name because the CLI does not expand `${devcontainerId}` in `workspaceMount`.
+It lives outside `.devcontainer/` so VS Code does not offer it on reopen.
+
+Forge login and push:
+
+- the Ubuntu and Arch devcontainers gained `gh` and `glab` config volumes,
+  and the images pre-create those paths and `/workspaces` with `vscode`
+  ownership
+- the `glab` mount moved to `~/.config/glab-cli`, the directory `glab`
+  actually uses; the old `~/.config/glab` target never held the login
+- `ft identity --login gitlab` now runs `glab auth login --device` against
+  `gitlab.com`, so both forges log in with a device code; older self-managed
+  GitLab still runs `glab auth login` directly
+- `/etc/gitconfig` routes HTTPS credentials for `github.com` and `gitlab.com`
+  through `gh` and `glab`, because `~/.gitconfig` does not persist.
+  `GIT_CONFIG_SYSTEM` points at it, since the floor's Homebrew `git` reads its
+  system config from the prefix on the brew volume
+
+Verified on amd64 with a warm `ubuntu-base` image:
+
+| Check | Result |
+| --- | --- |
+| CLI volume flow, first `up` | 24 s; `/workspaces` and the forge dirs owned by `vscode`; HTTPS clone works |
+| `up --remove-existing-container` after an unpushed change, a commit, and `brew install hello` | 8 s; all three still there |
+| `gh auth login --web`, no browser | prints the code and URL, says to open it by hand, keeps polling |
+| `glab auth login --device` | prints the code and URL after a skippable registry prompt; writes to `~/.config/glab-cli` |
+| Credential helpers with no login | Homebrew and distro `git` both run `gh auth git-credential`, which stays silent, and Git falls back |
+| CLI bind flow, `.devcontainer/ubuntu` | 231 s build; the live checkout at `/workspaces/dev-container-fortress` |
+| `ft workspace validate ubuntu-base` | all OK; `glab-cli` mounted from `config-glab` |
+
+Still to verify: both flows opened in VS Code, a real login and push from
+terminal mode, and Arch. The CLI volume flow needs the published image to
+carry `ft-brew-floor`, so it works from GHCR only after this branch merges;
+use `DEV_FORTRESS_IMAGE` with a local build until then.

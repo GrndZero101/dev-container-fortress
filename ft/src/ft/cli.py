@@ -850,7 +850,7 @@ def _workspace_persisted_container_path(mount_name: str) -> str:
         "zoxide": "/home/vscode/.local/share/zoxide",
         "atuin": "/home/vscode/.local/share/atuin",
         "gh": "/home/vscode/.config/gh",
-        "glab": "/home/vscode/.config/glab",
+        "glab": "/home/vscode/.config/glab-cli",
         "aws": "/home/vscode/.aws",
         "azure": "/home/vscode/.azure",
         "gnupg": "/home/vscode/.gnupg",

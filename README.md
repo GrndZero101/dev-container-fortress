@@ -171,6 +171,7 @@ ft container build ubuntu \
 | `ansible/` | Host automation layer | Thin today, expanding during host-role milestones |
 | `containers/` | Disposable target implementation | Use for build/runtime contracts |
 | `.devcontainer/` | VS Code integration | Thin wrapper over the matching container target |
+| `devcontainer/volume/` | Devcontainer CLI terminal mode | Clones code into a named volume on the published image |
 
 ## :world_map: Target Matrix
 
@@ -216,6 +217,7 @@ ft container build ubuntu \
 | `containers/` | Ubuntu, Alpine, and Arch container targets plus shared runtime helpers |
 | `infra/` | Terraform-owned infrastructure layer for disposable and future repeatable host targets |
 | `.devcontainer/` | VS Code wrappers for container targets |
+| `devcontainer/` | Devcontainer CLI definitions that VS Code should not offer on reopen |
 | `docs/` | Usage guides, contracts, roadmap, and milestone drafts |
 
 ## :dart: Design Direction

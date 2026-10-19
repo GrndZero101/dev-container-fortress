@@ -152,6 +152,11 @@ Use:
 
 - the Docker target as the base
 - VS Code metadata as a thin wrapper
+- a bind mount of the host checkout or a named volume for the code, with a
+  recommended default per use case in the
+  [devcontainer usage guide](devcontainer-usage.md#getting-code-in)
+- `gh` and `glab` logins on persisted volumes, with `/etc/gitconfig` routing
+  HTTPS pushes through them, since `~/.gitconfig` does not persist
 
 ## Operator CLI Direction
 

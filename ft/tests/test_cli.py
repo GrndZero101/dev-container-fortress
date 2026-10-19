@@ -3062,6 +3062,16 @@ def test_workspace_persisted_mounts_never_hide_the_image_data_root() -> None:
             assert container_path.rstrip("/") != "/home/vscode/.local"
 
 
+def test_workspace_forge_mounts_target_the_cli_config_dirs() -> None:
+    """The gh and glab mounts cover the directories the CLIs actually use."""
+    from ft.cli import _workspace_persisted_container_path
+
+    assert _workspace_persisted_container_path("gh") == "/home/vscode/.config/gh"
+    assert (
+        _workspace_persisted_container_path("glab") == "/home/vscode/.config/glab-cli"
+    )
+
+
 def test_validate_workspace_profile_fails_when_ft_does_not_run(
     monkeypatch: object,
 ) -> None:

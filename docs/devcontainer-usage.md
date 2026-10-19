@@ -21,11 +21,80 @@ These repo-local definitions are best for changing the Dev Fortress image
 itself. The orchestrator scaffold is best for using Dev Fortress as the
 workspace toolchain while editing multiple child repositories.
 
-## Open in VS Code
+## Getting Code In
+
+Code reaches the container in one of two ways. Both work from VS Code and the
+devcontainer CLI.
+
+| Use case | Recommended | Why |
+| --- | --- | --- |
+| VS Code on a checkout you already have on Linux or WSL2 ext4 | Bind mount | Edits are shared with the host, and nothing is cloned twice |
+| VS Code with no checkout, or one on `/mnt/c` or another slow host filesystem | Volume | Fast everywhere, and it needs only the repository URL |
+| Devcontainer CLI terminal mode, with no editor attached | Volume | The container is the whole environment, so the host needs no checkout |
+
+> [!WARNING]
+> Code in a volume lives only in that volume. Push to back it up. Removing the
+> volume deletes anything you have not pushed.
+
+### Bind Mount From VS Code
 
 1. Open your `dev-container-fortress` checkout in VS Code.
 2. Run `Dev Containers: Reopen in Container` or `Dev Containers: Rebuild and Reopen in Container`.
 3. Choose the Ubuntu, Alpine, or Arch definition when prompted.
+
+### Volume From VS Code
+
+1. Run `Dev Containers: Clone Repository in Container Volume`.
+2. Enter the repository URL, for example
+   `https://github.com/GrndZero101/dev-container-fortress`.
+3. Choose the Ubuntu, Alpine, or Arch definition when prompted.
+
+VS Code clones into a new volume and builds from the definitions inside the
+clone, so the repository must carry them, as this one does.
+
+### Bind Mount From the Devcontainer CLI
+
+From the checkout:
+
+```bash
+devcontainer up --workspace-folder . --config .devcontainer/ubuntu/devcontainer.json
+devcontainer exec --workspace-folder . --config .devcontainer/ubuntu/devcontainer.json zsh -l
+```
+
+### Volume From the Devcontainer CLI
+
+`devcontainer/volume/devcontainer.json` runs the published Ubuntu image with a
+named volume at `/workspaces`. The CLI needs a host folder to key the
+container and its volumes on, but nothing is mounted from it, so an empty
+folder per environment is enough. The code volume is named after that folder,
+so give each environment a distinct folder name:
+
+```bash
+dcf=/path/to/dev-container-fortress/devcontainer/volume/devcontainer.json
+mkdir -p ~/boxes/demo && cd ~/boxes/demo
+devcontainer up --workspace-folder . --config "$dcf"
+devcontainer exec --workspace-folder . --config "$dcf" zsh -l
+```
+
+Inside the container, log in and clone into `/workspaces`:
+
+```zsh
+ft identity --login github
+gh repo clone owner/repo
+cd repo && ft identity --local
+```
+
+Run the same `up` and `exec` later to come back to the same state, including
+after `devcontainer up --remove-existing-container`. Set `DEV_FORTRESS_IMAGE`
+to use another image, such as a local build:
+
+```bash
+DEV_FORTRESS_IMAGE=dev-container-fortress:workspace-ubuntu-base devcontainer up --workspace-folder . --config "$dcf"
+```
+
+> [!NOTE]
+> The published image is cold, so the first start installs the Homebrew floor
+> into the new volume, which takes a few minutes. Later starts take seconds.
 
 ## Expected Behavior
 
@@ -51,10 +120,15 @@ state, and Claude Code survive `Rebuild Container`:
 | `dev-fortress-atuin-<id>` | `~/.local/share/atuin` | atuin history database |
 | `dev-fortress-claude-<id>` | `~/.claude` | Claude Code config and login |
 | `dev-fortress-claude-versions-<id>` | `~/.local/share/claude` | Claude Code versions, including self-updates |
+| `dev-fortress-gh-<id>` | `~/.config/gh` | GitHub CLI login (Ubuntu and Arch only) |
+| `dev-fortress-glab-<id>` | `~/.config/glab-cli` | GitLab CLI login (Ubuntu and Arch only) |
 | `dev-fortress-brew-<id>` | `/home/linuxbrew/.linuxbrew` | Homebrew prefix (Ubuntu and Arch only) |
 
 `<id>` is the `${devcontainerId}` that VS Code computes per dev container, so the
-Ubuntu, Alpine, and Arch definitions keep separate state.
+Ubuntu, Alpine, and Arch definitions keep separate state. The volume definition
+adds `dev-fortress-src-<folder>` at `/workspaces` for the code itself, named
+after the host folder because the devcontainer CLI does not expand
+`${devcontainerId}` there.
 
 > [!IMPORTANT]
 > The image owns the rest of `~/.local/share`, including `uv`, the managed
@@ -68,6 +142,33 @@ To start from clean state, remove the volumes after closing the container:
 docker volume ls --filter name=dev-fortress-
 docker volume rm <volume-name>
 ```
+
+## Forge Login and Pushing
+
+`gh` and `glab` come from the Homebrew floor on Ubuntu and Arch; the Alpine
+image does not include them. Their logins persist in the `gh` and `glab`
+volumes. Both use a device code, so they work in VS Code and in terminal mode:
+
+```zsh
+ft identity --login github   # gh auth login --web, then gh auth setup-git
+ft identity --login gitlab   # glab auth login --device
+```
+
+Each prints a one-time code and a URL. In VS Code the browser opens on the
+host; in terminal mode, open the URL on the host yourself. `glab`'s device flow
+needs GitLab 17.9 or later; for an older self-managed instance, run
+`glab auth login` and choose a token.
+
+The image's `/etc/gitconfig` routes HTTPS credentials for `github.com` and
+`gitlab.com` through `gh` and `glab`, so pushes keep working after a rebuild
+even though `~/.gitconfig` does not persist. Keep the commit identity in the
+checkout with `ft identity --local`.
+
+> [!TIP]
+> VS Code also copies the host's `~/.gitconfig` and forwards the host's Git
+> credentials into the container, so pushing from VS Code can work without a
+> container login. The `gh` and `glab` logins are still needed for their own
+> commands.
 
 ## Optional Claude Code
 

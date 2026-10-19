@@ -8,9 +8,11 @@ records the result.
 
 ## Up Next
 
-1. **`M5c-4`:** support both ways of getting code into a devcontainer, with
-   `gh` and `glab` browser or device login; see the
+1. **`M5c-4`:** open both code-in flows in VS Code, and log in and push from
+   CLI terminal mode; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
+2. **`M5c-5`:** spike one definition for `ft workspace` and the devcontainers;
+   see the [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 
 ## Parked
 
