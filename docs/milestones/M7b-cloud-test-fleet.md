@@ -137,10 +137,11 @@ both, and `m8g.large` and `m8i.large` are both offered.
   choice, and pruning of fleet targets the fleet no longer has on apply and
   destroy. IAM name prefixes are cut to AWS's 38-character limit for the
   longer names
-- [ ] Acceptance: `full` creates nine hosts, every check passes on both
-  architectures, and `lts` keeps the two Ubuntu 26.04 hosts. The plan from
-  the five-host fleet showed 45 resources to add and 24 to destroy on
-  2026-10-19; the apply is the operator's step
+- [x] Acceptance: `full` creates nine hosts, every check passes on both
+  architectures, and `lts` keeps the two Ubuntu 26.04 hosts. The apply from
+  the five-host fleet replaced all five with the nine `full` hosts and pruned
+  the old names from `hosts.toml`; every check passed after one Arch fix
+  (2026-10-19, below). The `lts` names are shared with `full` by design
 
 ## Verification Notes
 
@@ -173,6 +174,29 @@ discovery warning.
 Alpine converges the base packages, `shell-config`, and zsh as the login
 shell. Docker and Homebrew are skipped there by design: the Docker role covers
 Ubuntu and Arch, and Linuxbrew covers Ubuntu.
+
+### Full set run, 2026-10-19
+
+All nine `full` hosts as Spot, checks started together, about 6½ minutes from
+the first check to the last log line:
+
+| Host | Check | Result |
+| --- | --- | --- |
+| Ubuntu 24.04 amd64 / arm64 | one-liner, then again | ✅ 5 min 30 s / 6 min 23 s, `changed=26`; re-run `changed=0` |
+| Ubuntu 26.04 amd64 / arm64 | one-liner, then again | ✅ 5 min 24 s / 5 min 45 s, `changed=26`; re-run `changed=0` |
+| Ubuntu 26.10 amd64 / arm64 | one-liner, then again | ✅ 5 min 33 s / 5 min 38 s, `changed=26`; re-run `changed=0` |
+| Arch amd64 | `ft host validate` | ❌ then ✅: second pass `changed=1`; after the fix, every pass `changed=0` |
+| Alpine 3.24 amd64 / arm64 | `ft host validate` | ✅ 50 s / 59 s: `changed=9`, then `changed=0` |
+
+Found and fixed:
+
+- Arch's full-upgrade task reported changed whenever pacman refreshed its sync
+  database, and on a rolling release the mirror moves every few minutes, so a
+  converged host could not reliably reach `changed=0`; the pacman log showed
+  nothing upgraded on that pass. The task now counts only upgraded packages.
+  The earlier five-host run passed by luck
+
+### First five-host run, details
 
 Found and fixed:
 

@@ -10,11 +10,16 @@
 # Arch does not support partial upgrades, so refreshing the sync database
 # without upgrading can leave installs pointing at packages mirrors no longer
 # carry. Upgrade the whole system unless the operator opts out explicitly.
+# Only upgraded packages count as a change. On a rolling release the mirror's
+# sync database moves every few minutes, so a refreshed cache alone would keep
+# a converged host from ever reporting changed=0.
 - name: Upgrade Arch packages to the current repository state
   become: true
   community.general.pacman:
     update_cache: true
     upgrade: true
+  register: dev_fortress_arch_base_packages_upgrade
+  changed_when: dev_fortress_arch_base_packages_upgrade.packages | default([]) | length > 0
   when: dev_container_fortress_arch_full_upgrade_effective | bool
 
 # A kernel upgrade removes the running kernel's modules, so netfilter and other
