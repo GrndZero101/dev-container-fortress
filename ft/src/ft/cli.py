@@ -65,6 +65,7 @@ from ft.models import (
 )
 from ft.options import (
     CATALOG,
+    OPTIONS_ENV,
     OptionSelection,
     option_ansible_vars,
     options_config_path,
@@ -232,6 +233,13 @@ WORKSPACE_TOOLCHAIN_CHECKS = (
     ("python", f"python{sys.version_info.major}.{sys.version_info.minor} --version"),
     ("nvim", "setopt pipefail; nvim --version | head -n 1"),
 )
+# Optional components a workspace installs when it starts, each with the
+# persisted mounts that keep its state across container replacement. The
+# other options, such as the tmux profiles, are host-only.
+WORKSPACE_OPTION_MOUNTS: dict[str, tuple[str, ...]] = {
+    "claude-code": ("claude", "claude-versions"),
+}
+WORKSPACE_CLAUDE_CONFIG_DIR = "/home/vscode/.claude"
 
 
 @app.callback(invoke_without_command=True)
@@ -820,6 +828,8 @@ def _workspace_persisted_host_path(profile_name: str, mount_name: str) -> Path:
         "azure": _workspace_state_root() / profile_name / "azure",
         "gnupg": _workspace_state_root() / profile_name / "gnupg",
         "password-store": _workspace_state_root() / profile_name / "password-store",
+        "claude": _workspace_state_root() / profile_name / "claude",
+        "claude-versions": _workspace_state_root() / profile_name / "claude-versions",
     }
     if mount_name not in mapping:
         raise ValueError(f"unsupported workspace persisted mount: {mount_name}")
@@ -844,6 +854,8 @@ def _workspace_persisted_container_path(mount_name: str) -> str:
         "azure": "/home/vscode/.azure",
         "gnupg": "/home/vscode/.gnupg",
         "password-store": "/home/vscode/.password-store",
+        "claude": WORKSPACE_CLAUDE_CONFIG_DIR,
+        "claude-versions": "/home/vscode/.local/share/claude",
     }
     if mount_name not in mapping:
         raise ValueError(f"unsupported workspace persisted mount: {mount_name}")
@@ -1006,10 +1018,29 @@ def _workspace_mount_plan(
     profile: WorkspaceProfileDefinition,
     *,
     shell_config_checkout: Path | None = None,
+    option_names: tuple[str, ...] = (),
 ) -> list[tuple[Path, str]]:
-    """Return the complete host-to-container mount plan for one workspace profile."""
+    """Return the complete host-to-container mount plan for one workspace profile.
+
+    Args:
+        profile_name: The workspace profile name.
+        profile: The workspace profile definition.
+        shell_config_checkout: An optional live shell-config checkout.
+        option_names: Selected workspace options, whose persisted mounts are
+            added after the profile's own.
+
+    Returns:
+        Host path and container path pairs.
+    """
     mounts = _workspace_host_checkout_mounts(shell_config_checkout)
-    for mount_name in profile.persisted_mounts:
+    mount_names = list(profile.persisted_mounts)
+    for option_name in option_names:
+        mount_names.extend(
+            mount_name
+            for mount_name in WORKSPACE_OPTION_MOUNTS[option_name]
+            if mount_name not in mount_names
+        )
+    for mount_name in mount_names:
         mounts.append(
             (
                 _workspace_persisted_host_path(profile_name, mount_name),
@@ -1765,6 +1796,17 @@ def _validate_workspace_profile(
             stat="OK" if ok else "FAIL",
             check=command_name,
             detail=normalized_output or "command not found",
+        )
+        success = success and ok
+
+    # `ft workspace up` records the options it installed in the container.
+    _, output = _shell_text(container_name, f'print -r -- "${{{OPTIONS_ENV}:-}}"')
+    if "claude-code" in _last_non_empty_line(output).split(","):
+        ok, output = _shell_text(container_name, "claude --version")
+        add_result(
+            stat="OK" if ok else "FAIL",
+            check="claude_code",
+            detail=_last_non_empty_line(output) if ok else output or "command failed",
         )
         success = success and ok
 
@@ -5044,13 +5086,51 @@ def _run_workspace_doctor(
     return bool(report["success"])
 
 
+def _workspace_option_names(selection: OptionSelection) -> tuple[str, ...]:
+    """Report the option selection and return the part workspaces support.
+
+    Args:
+        selection: The resolved option selection.
+
+    Returns:
+        The selected names that a workspace installs, in catalog order.
+    """
+    supported = tuple(
+        name for name in selection.names if name in WORKSPACE_OPTION_MOUNTS
+    )
+    skipped = [name for name in selection.names if name not in WORKSPACE_OPTION_MOUNTS]
+    console.print(
+        f"options: {', '.join(supported) or 'none'} ({selection.source})",
+        highlight=False,
+    )
+    if skipped:
+        console.print(
+            f"options: skipping host-only {', '.join(skipped)}", highlight=False
+        )
+    return supported
+
+
 def _up_workspace_profile(
     profile_name: str,
     profile: WorkspaceProfileDefinition,
     *,
     shell_config_checkout: Path | None = None,
+    options: OptionSelection | None = None,
 ) -> bool:
-    """Start or replace one managed workspace container profile."""
+    """Start or replace one managed workspace container profile.
+
+    Args:
+        profile_name: The workspace profile name.
+        profile: The workspace profile definition.
+        shell_config_checkout: An optional live shell-config checkout.
+        options: The option selection; resolved from the environment and the
+            saved selection when ``None``.
+
+    Returns:
+        Whether the workspace started and its selected options installed.
+    """
+    selection = options if options is not None else _resolve_bootstrap_options(None)
+    option_names = _workspace_option_names(selection)
     image_tag = _workspace_image_tag(profile_name)
     container_name = _workspace_container_name(profile_name)
 
@@ -5081,6 +5161,7 @@ def _up_workspace_profile(
         profile_name,
         profile,
         shell_config_checkout=shell_config_checkout,
+        option_names=option_names,
     )
     browser_bridge_socket = _ensure_workspace_host_browser_bridge(profile_name)
     for host_path, _ in mount_plan:
@@ -5103,6 +5184,13 @@ def _up_workspace_profile(
     ]
     run_command.extend(["--env", "DEV_FORTRESS_WORKSPACE=1"])
     run_command.extend(["--env", "DEV_FORTRESS_AWS_LOGIN_MODE=device-code"])
+    # Record the selection in the container, where validation reads it back.
+    run_command.extend(["--env", f"{OPTIONS_ENV}={','.join(option_names)}"])
+    if "claude-code" in option_names:
+        # Keeps ~/.claude.json inside the persisted config directory too.
+        run_command.extend(
+            ["--env", f"CLAUDE_CONFIG_DIR={WORKSPACE_CLAUDE_CONFIG_DIR}"]
+        )
 
     ssh_auth_sock = os.environ.get("SSH_AUTH_SOCK")
     if ssh_auth_sock:
@@ -5206,18 +5294,29 @@ def _up_workspace_profile(
 
     run_command.extend([image_tag, "sleep", "infinity"])
     run_result = _run_command(run_command)
-    if run_result.returncode == 0:
-        console.print(f"started {container_name}")
-        return True
+    if run_result.returncode != 0:
+        console.print(
+            (
+                run_result.stderr
+                or run_result.stdout
+                or f"failed to start {container_name}"
+            ).strip()
+        )
+        return False
 
-    console.print(
-        (
-            run_result.stderr
-            or run_result.stdout
-            or f"failed to start {container_name}"
-        ).strip()
-    )
-    return False
+    console.print(f"started {container_name}")
+    if "claude-code" in option_names:
+        install_result = _run_streaming_command(
+            ["docker", "exec", container_name, "ft-ensure-claude-code"]
+        )
+        if install_result.returncode != 0:
+            console.print(
+                "[red]claude-code install failed[/red] in "
+                f"{container_name}; images built before M5c lack "
+                "ft-ensure-claude-code, so rebuild or pull the image"
+            )
+            return False
+    return True
 
 
 def _down_workspace_profile(profile_name: str) -> bool:
@@ -5302,12 +5401,14 @@ def _enter_workspace_profile(
     profile: WorkspaceProfileDefinition,
     *,
     shell_config_checkout: Path | None = None,
+    options: OptionSelection | None = None,
 ) -> int:
     """Ensure one workspace is ready, then open an interactive shell inside it."""
     if not _up_workspace_profile(
         profile_name,
         profile,
         shell_config_checkout=shell_config_checkout,
+        options=options,
     ):
         return 1
     return _shell_workspace_profile(profile_name)
@@ -5997,6 +6098,18 @@ def workspace_up(
             ),
         ),
     ] = None,
+    options: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--options",
+            help=(
+                "Optional components for this run, comma-separated or repeated, "
+                "or 'none'. Overrides DEV_CONTAINER_FORTRESS_OPTIONS and the saved "
+                "selection; workspaces install claude-code and skip host-only "
+                "options. See `ft options`."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Start or replace one managed workspace container profile."""
     resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
@@ -6004,6 +6117,7 @@ def workspace_up(
         resolved_profile_name,
         resolved_profile,
         shell_config_checkout=shell_config_checkout,
+        options=_resolve_bootstrap_options(options),
     ):
         raise typer.Exit(code=1)
 
@@ -6085,6 +6199,18 @@ def workspace_enter(
             ),
         ),
     ] = None,
+    options: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--options",
+            help=(
+                "Optional components for this run, comma-separated or repeated, "
+                "or 'none'. Overrides DEV_CONTAINER_FORTRESS_OPTIONS and the saved "
+                "selection; workspaces install claude-code and skip host-only "
+                "options. See `ft options`."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Ensure one workspace is ready, then open an interactive shell inside it."""
     resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
@@ -6093,6 +6219,7 @@ def workspace_enter(
             resolved_profile_name,
             resolved_profile,
             shell_config_checkout=shell_config_checkout,
+            options=_resolve_bootstrap_options(options),
         )
     )
 

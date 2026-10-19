@@ -40,14 +40,16 @@ After the container opens:
 
 ## Persisted State
 
-Each definition mounts three named Docker volumes so shell history and
-navigation state survive `Rebuild Container`:
+Each definition mounts named Docker volumes so shell history, navigation
+state, and Claude Code survive `Rebuild Container`:
 
 | Volume | Container path | Holds |
 | --- | --- | --- |
 | `dev-fortress-state-<id>` | `~/.local/state` | zsh history, Neovim undo and shada |
 | `dev-fortress-zoxide-<id>` | `~/.local/share/zoxide` | zoxide directory database |
 | `dev-fortress-atuin-<id>` | `~/.local/share/atuin` | atuin history database |
+| `dev-fortress-claude-<id>` | `~/.claude` | Claude Code config and login |
+| `dev-fortress-claude-versions-<id>` | `~/.local/share/claude` | Claude Code versions, including self-updates |
 
 `<id>` is the `${devcontainerId}` that VS Code computes per dev container, so the
 Ubuntu, Alpine, and Arch definitions keep separate state.
@@ -64,6 +66,21 @@ To start from clean state, remove the volumes after closing the container:
 docker volume ls --filter name=dev-fortress-
 docker volume rm <volume-name>
 ```
+
+## Optional Claude Code
+
+The devcontainers install Claude Code on start when the `claude-code` option
+is selected. They read the selection only from `DEV_CONTAINER_FORTRESS_OPTIONS`
+in the environment VS Code starts from, not from the host's `options.toml`:
+
+```bash
+export DEV_CONTAINER_FORTRESS_OPTIONS=claude-code
+code .
+```
+
+`postStartCommand` runs `ft-ensure-claude-code --if-selected`. The first start
+runs the native installer; later starts reuse the persisted version, including
+any self-update, without downloading again.
 
 ## Validate the Devcontainer
 

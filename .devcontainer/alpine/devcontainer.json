@@ -15,6 +15,10 @@
   },
   "remoteUser": "vscode",
   "containerUser": "vscode",
+  "containerEnv": {
+    "DEV_CONTAINER_FORTRESS_OPTIONS": "${localEnv:DEV_CONTAINER_FORTRESS_OPTIONS}",
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+  },
   "mounts": [
     {
       "source": "dev-fortress-state-${devcontainerId}",
@@ -29,6 +33,16 @@
     {
       "source": "dev-fortress-atuin-${devcontainerId}",
       "target": "/home/vscode/.local/share/atuin",
+      "type": "volume"
+    },
+    {
+      "source": "dev-fortress-claude-${devcontainerId}",
+      "target": "/home/vscode/.claude",
+      "type": "volume"
+    },
+    {
+      "source": "dev-fortress-claude-versions-${devcontainerId}",
+      "target": "/home/vscode/.local/share/claude",
       "type": "volume"
     }
   ],
@@ -45,5 +59,6 @@
       ]
     }
   },
-  "postCreateCommand": "ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/tools.toml --target alpine"
+  "postCreateCommand": "ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/tools.toml --target alpine",
+  "postStartCommand": "ft-ensure-claude-code --if-selected"
 }

@@ -8,8 +8,8 @@ records the result.
 
 ## Up Next
 
-1. **`M5c`:** Homebrew in the containers, Claude Code everywhere, and
-   the devcontainer and CLI terminal-mode flows; see the
+1. **`M5c-1`:** spike Homebrew on a per-workspace volume in the `ubuntu`
+   image, and try Alpine with glibc compatibility; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 
 ## Parked

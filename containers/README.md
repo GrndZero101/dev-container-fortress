@@ -37,6 +37,7 @@ The Ubuntu, Alpine, and Arch Dockerfiles now use a shared split bootstrap strate
 - install fortress `zinit` support by default so the richer shell profile is ready on first launch
 - pre-create minimal Zsh startup files so the container shell is non-interactive on first launch
 - install Alpine's split `zsh-vcs` package so native zsh prompt fallback can still use `vcs_info`
+- ship `ft-ensure-claude-code`, which installs Claude Code at container start when the `claude-code` option is selected; Alpine also carries `libgcc` and `libstdc++` and sets `USE_BUILTIN_RIPGREP=0`, which the musl build needs
 - on Alpine, restore user-local bin discovery through `/etc/profile.d` because login shells source `/etc/profile`, which otherwise resets `PATH` to system directories only
 - on Arch, point pacman at one [Arch Linux Archive](https://archive.archlinux.org/) snapshot through the `ARCH_ARCHIVE_DATE` build arg so the rolling release still yields a reproducible package set
 

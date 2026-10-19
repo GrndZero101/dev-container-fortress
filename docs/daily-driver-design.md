@@ -207,6 +207,8 @@ Recommended host-owned persisted roots:
 - `/state/workspace/<profile>/azure`
 - `/state/workspace/<profile>/gnupg`
 - `/state/workspace/<profile>/password-store`
+- `/state/workspace/<profile>/claude` and `claude-versions`, when the
+  `claude-code` option is selected
 
 Recommended in-container mount targets:
 
@@ -220,6 +222,7 @@ Recommended in-container mount targets:
 - `${HOME}/.azure`
 - `${HOME}/.gnupg`
 - `${HOME}/.password-store`
+- `${HOME}/.claude` and `${XDG_DATA_HOME}/claude`
 
 The first supported secrets baseline is GPG plus `pass`; `gopass` remains a
 future alternative rather than the default contract.

@@ -48,7 +48,9 @@ Host-side policy should stay explicit:
 > Claude Code is a deliberate exception. Its native installer is the supported
 > path that keeps it updating itself between bootstrap runs, so the host role
 > runs that installer once and then leaves updates to Claude Code. Containers
-> follow the same rule in `M5c`.
+> follow the same rule: when the option is selected, `ft workspace up` and the
+> devcontainers run the installer through `ft-ensure-claude-code`, and keep its
+> versions on a persisted mount so self-updates survive container replacement.
 
 Large extras such as agentic coding tools are optional components rather than
 baseline. `ft` owns the selection (`--options`, `DEV_CONTAINER_FORTRESS_OPTIONS`,

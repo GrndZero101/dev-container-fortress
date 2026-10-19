@@ -83,6 +83,11 @@ curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/
 `ft options` lists the choices and shows what the next bootstrap installs.
 Removing an option later stops managing it but does not uninstall it.
 
+`ft workspace up` and `ft workspace enter` honour the same selection and also
+take `--options`. A workspace installs `claude-code` when it starts and keeps
+its login and self-updates on persisted mounts. The tmux profiles are
+host-only, so workspaces skip them.
+
 > [!TIP]
 > Selecting any tmux profile installs all three. Switch between them later with
 > `csm tmux-profile <name>`, or back to stock tmux with

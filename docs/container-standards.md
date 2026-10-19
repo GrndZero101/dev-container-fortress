@@ -64,9 +64,18 @@ That means they should:
   | `state` | `$XDG_STATE_HOME` | shell history, Neovim undo and shada |
   | `zoxide` | `$XDG_DATA_HOME/zoxide` | zoxide directory database |
   | `atuin` | `$XDG_DATA_HOME/atuin` | atuin history database |
+  | `claude` | `$HOME/.claude` | Claude Code config and login, with `CLAUDE_CONFIG_DIR` pointing here |
+  | `claude-versions` | `$XDG_DATA_HOME/claude` | Claude Code versions, including self-updates |
 
 - `ft workspace` bind-mounts these from host-owned XDG state directories. The
   devcontainer definitions use named Docker volumes for the same paths.
+- `ft workspace` mounts the `claude` paths only when the `claude-code` option
+  is selected. The devcontainers always mount them, since they cannot read the
+  host's option selection.
+- Optional components install at container start, not at image build, so one
+  published image serves every selection. `ft-ensure-claude-code` runs the
+  native installer once, then relinks the newest persisted version into the
+  image-owned `$HOME/.local/bin` after a container is replaced.
 - The images pre-create each path with runtime-user ownership so a fresh named
   volume inherits it instead of mounting as root.
 - Add a new persisted path only when it holds runtime state that is worth keeping

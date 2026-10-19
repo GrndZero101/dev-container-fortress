@@ -385,7 +385,7 @@ Details:
 
 ### `M5c` Composable Container Workspaces
 
-Status: `planned`
+Status: `active`
 
 Objective:
 Make the container targets long-lived, composable development environments by
