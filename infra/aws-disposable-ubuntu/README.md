@@ -29,7 +29,6 @@ This stack has now been exercised against a real Ubuntu EC2 instance in
 - the generated target flowed into `ft host doctor --probe`
 - `ft host bootstrap --check` and normal bootstrap both succeeded
 - Session Manager console access worked after the instance profile was attached
-
 - `terraform destroy` and `ft infra aws-disposable-ubuntu destroy` tore hosts
   down cleanly, including a disposable Arch host on 2026-10-17
 
@@ -50,15 +49,24 @@ This is intentionally not a full AWS platform layer.
 
 ## Files
 
+This directory is a thin root over the shared
+[`../modules/disposable-host/`](../modules/disposable-host/) module, which the
+[`../aws-test-fleet/`](../aws-test-fleet/) root also uses for several hosts at
+once.
+
 - `versions.tf`: Terraform and provider requirements
 - `providers.tf`: AWS provider setup
-- `variables.tf`: operator-facing inputs
-- `data.tf`: default VPC plus the Ubuntu or Arch AMI lookup
-- `iam.tf`: Session Manager role, policy attachment, and instance profile
-- `main.tf`: key pair, security group, and instance resources
-- `outputs.tf`: connection facts and a convenience TOML fragment
+- `variables.tf`: operator-facing inputs, passed straight to the module
+- `main.tf`: the one `module "host"` call
+- `outputs.tf`: the module's connection facts and TOML fragment, under the
+  names `ft` reads
+- `moved.tf`: maps hosts applied before the module split onto the module
 - `spot_select.py`: stack-local EC2 capacity selector used by `ft`
 - `terraform.tfvars.example`: example local input file
+
+The module holds the resources: `data.tf` (default VPC and AMI lookup),
+`iam.tf` (Session Manager role and instance profile), `main.tf` (key pair,
+security group, and instance), `locals.tf` (the OS profiles), and `outputs.tf`.
 
 ## Expected Operator Flow
 
@@ -294,7 +302,7 @@ unset TF_WORKSPACE TF_VAR_os
 ## Adding an OS Target
 
 Every OS-specific fact lives in one entry of `local.os_profiles` in
-[`locals.tf`](locals.tf). Nothing else in the stack branches on `var.os`, and the
+[`locals.tf`](../modules/disposable-host/locals.tf). Nothing else in the stack branches on `var.os`, and the
 `os` and `architecture` validations read their allowed values from the map.
 
 | Field | Meaning |
@@ -304,9 +312,13 @@ Every OS-specific fact lives in one entry of `local.os_profiles` in
 | `architectures` | supported values of `var.architecture` (`amd64`, `arm64`) |
 | `ami_ssm_parameter` | public SSM parameter path; `%s` becomes the architecture |
 | `ami_owners`, `ami_name_pattern` | newest AMI matching these, filtered by architecture |
+| `ami_name_regex` | optional regex that narrows the name pattern, for variants a glob cannot exclude |
 
 Set either `ami_ssm_parameter`, or both `ami_owners` and `ami_name_pattern`, and
-leave the other fields `null`. For example, a Debian profile would use Debian's
+leave the other fields `null`. A missing image fails the plan with a message
+that names the pattern. The `alpine` profile is the regex example: it keeps
+Alpine's standard cloud-init image and drops the `metal` and x86_64 `uefi`
+variants. For example, a Debian profile would use Debian's
 public SSM parameters, and a Fedora profile would use the Fedora project's AMI
 owner ID with a name pattern.
 
@@ -337,7 +349,7 @@ Adding a profile only makes the host reachable. The OS still needs support in
 
 - AWS credentials are available through the normal Terraform AWS provider chain
 - the AWS account has a default VPC and default subnets in the chosen region
-- Ubuntu cloud images use the `ubuntu` SSH user, and Arch images use `arch`
+- Ubuntu cloud images use the `ubuntu` SSH user, Arch images use `arch`, and Alpine images use `alpine`
 - Ubuntu hosts default to the `26.04` LTS AMI; `ubuntu_release` selects another
 - standard Ubuntu AWS images already include the SSM Agent for Session Manager
 - the operator supplies a trusted CIDR for SSH ingress, or allows automatic public-IP detection

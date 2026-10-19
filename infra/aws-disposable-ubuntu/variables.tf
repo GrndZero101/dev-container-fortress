@@ -1,3 +1,5 @@
+# Operator-facing inputs for the single-host root. They pass straight through to
+# ../modules/disposable-host, which owns the OS-profile validations.
 variable "aws_region" {
   description = "AWS region where the disposable host should be created."
   type        = string
@@ -23,14 +25,9 @@ variable "subnet_id" {
 }
 
 variable "os" {
-  description = "Host operating system; one key of local.os_profiles. ubuntu uses the Canonical SSM-published AMI; arch uses the private AMI from infra/aws-arch-ami."
+  description = "Host operating system; one key of local.os_profiles. ubuntu uses the Canonical SSM-published AMI, arch the private AMI from infra/aws-arch-ami, and alpine the official Alpine cloud-init AMI."
   type        = string
   default     = "ubuntu"
-
-  validation {
-    condition     = contains(keys(local.os_profiles), var.os)
-    error_message = "os must be one of: ${join(", ", keys(local.os_profiles))}."
-  }
 }
 
 variable "arch_ami_name_prefix" {
@@ -48,18 +45,18 @@ variable "architecture" {
     condition     = contains(["amd64", "arm64"], var.architecture)
     error_message = "architecture must be either amd64 or arm64."
   }
-
-  # Checked here rather than on the instance so it fails before any AMI lookup.
-  validation {
-    condition     = contains(try(local.os_profiles[var.os].architectures, [var.architecture]), var.architecture)
-    error_message = "The ${var.os} OS profile supports only ${join(", ", try(local.os_profiles[var.os].architectures, []))}, not ${var.architecture}."
-  }
 }
 
 variable "ubuntu_release" {
   description = "Ubuntu release for the SSM-published AMI path, as a version such as 26.04 or 26.10, or a codename. Defaults to the current LTS."
   type        = string
   default     = "26.04"
+}
+
+variable "alpine_release" {
+  description = "Alpine release series for the official cloud-init AMI, such as 3.24; the newest patch release is used."
+  type        = string
+  default     = "3.24"
 }
 
 variable "root_volume_size_gib" {

@@ -1,0 +1,86 @@
+output "instance_id" {
+  description = "EC2 instance identifier for the disposable host."
+  value       = aws_instance.this.id
+}
+
+output "public_ip" {
+  description = "Public IPv4 address for the disposable host."
+  value       = aws_instance.this.public_ip
+}
+
+output "public_dns" {
+  description = "Public DNS name for the disposable host."
+  value       = aws_instance.this.public_dns
+}
+
+output "subnet_id" {
+  description = "Subnet where the disposable host was provisioned."
+  value       = aws_instance.this.subnet_id
+}
+
+output "availability_zone" {
+  description = "Availability Zone where the disposable host was provisioned."
+  value       = aws_instance.this.availability_zone
+}
+
+output "capacity_market" {
+  description = "Capacity market used by the disposable host."
+  value       = var.enable_spot ? "spot" : "on-demand"
+}
+
+output "ssh_user" {
+  description = "SSH user created by the cloud image."
+  value       = local.ssh_user
+}
+
+output "ssh_port" {
+  description = "SSH port exposed by the disposable host."
+  value       = 22
+}
+
+output "ansible_python_interpreter" {
+  description = "Interpreter path expected by ft host and Ansible."
+  value       = var.ansible_python_interpreter
+}
+
+output "key_pair_name" {
+  description = "EC2 key pair name used by the disposable host."
+  value       = aws_key_pair.this.key_name
+}
+
+output "session_manager_enabled" {
+  description = "Whether the disposable host was provisioned with an IAM instance profile for Session Manager."
+  value       = local.session_manager_enabled
+}
+
+output "session_manager_role_name" {
+  description = "IAM role name attached for Session Manager access, when enabled."
+  value       = local.session_manager_enabled ? aws_iam_role.session_manager[0].name : null
+}
+
+output "session_manager_instance_profile_name" {
+  description = "IAM instance profile attached for Session Manager access, when enabled."
+  value       = local.session_manager_enabled ? aws_iam_instance_profile.session_manager[0].name : null
+}
+
+output "effective_ssh_ingress_cidrs" {
+  description = "CIDR blocks actually used to permit SSH access to the disposable host."
+  value       = local.effective_ssh_ingress_cidrs
+}
+
+output "host_target_toml_fragment" {
+  description = "Convenience TOML fragment that can be copied into hosts.toml."
+  value       = <<-EOT
+    [[targets]]
+    name = "${var.name}"
+    kind = "cloud"
+    connection = "ssh"
+    host = "${aws_instance.this.public_dns != "" ? aws_instance.this.public_dns : aws_instance.this.public_ip}"
+    port = 22
+    user = "${local.ssh_user}"
+    auth_method = "ssh_key"
+    ssh_key_name = "${coalesce(var.ssh_key_name, var.name)}"
+    ansible_python_interpreter = "${var.ansible_python_interpreter}"
+    tags = ["ssh", "${var.os}", "cloud", "disposable"]
+  EOT
+}

@@ -67,12 +67,17 @@ host-target fragment.
 Recommended shape:
 
 - `infra/README.md`: repository-wide infra boundary and rules
-- `infra/aws-disposable-ubuntu/`: first disposable Ubuntu cloud target
-- `infra/aws-arch-ami/`: private Arch AMI imported from the official signed cloud image, consumed by the disposable host stack with `os = "arch"`
+- `infra/modules/disposable-host/`: one disposable EC2 host (Ubuntu, Arch, or
+  Alpine) and its connection-facts outputs; no provider, so roots can reuse it
+- `infra/aws-disposable-ubuntu/`: root for one disposable host, used by
+  `ft infra aws-disposable-ubuntu`
+- `infra/aws-test-fleet/`: root for the short-lived multi-OS verification
+  fleet, used by `ft infra aws-test-fleet`
+- `infra/aws-arch-ami/`: private Arch AMI imported from the official signed cloud image, consumed by the host module with `os = "arch"`
 
-Keep each target directory self-contained and obvious to inspect.
-Do not introduce a shared abstraction layer until at least two real target
-implementations need the same contract.
+Keep each root directory self-contained and obvious to inspect. Share code
+only when at least two real roots need the same contract: the host module
+exists because the single-host root and the fleet both create the same host.
 
 ## Tooling Expectations
 

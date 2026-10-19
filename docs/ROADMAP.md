@@ -357,7 +357,7 @@ Details:
 
 ### `M5b` Zero to Hero: Workstation Composability
 
-Status: `now`
+Status: `done` (squash-merged in PR #5, 2026-10-19)
 
 Objective:
 Take a brand-new or existing Ubuntu machine to a working Dev Fortress
@@ -427,8 +427,8 @@ Exit criteria:
 
 Known gaps found while dogfooding:
 
-- `ft host ssh <target> -- <command>` for one-off remote commands; today only an
-  interactive session works, so scripts fall back to raw `ssh`
+- ~~`ft host ssh <target> -- <command>` for one-off remote commands~~: done
+  in `M7b`, where the fleet checks needed it
 - an OS or workspace option on `ft infra aws-disposable-ubuntu`, so Arch hosts
   do not need `TF_WORKSPACE`, `TF_VAR_*`, and a shared capacity file swap
 
@@ -522,7 +522,7 @@ Details:
 
 ### `M7b` Cloud Test Fleet
 
-Status: `next`, after the `M5b` PR and before `M5c`
+Status: `now`, before `M5c`
 
 Objective:
 Verify Dev Fortress on several fresh supported OS targets at once with one
@@ -530,8 +530,9 @@ cheap, short-lived EC2 fleet.
 
 Exit criteria:
 
-- one apply creates, and one destroy removes, a five-host fleet: Ubuntu 24.04,
-  26.04, and 26.10, Arch, and Alpine, across amd64 and arm64
+- one apply creates, and one destroy removes, a fleet set: `lts` (Ubuntu LTS
+  on amd64 and arm64, the everyday default) or `full` (Ubuntu 24.04, 26.04,
+  and 26.10, Arch, and Alpine on both architectures, for major milestones)
 - `ft` imports every fleet host as a host target without hand edits
 - each target runs its documented check, and re-runs converge
 - the single-host disposable stack keeps working for one-off hosts

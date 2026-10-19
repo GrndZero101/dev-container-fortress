@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 import typer
 from ft.cli import (
+    TEST_FLEET_NAME,
     _container_host_ssh_public_key_path,
     _default_windows_ssh_dir,
     _deploy_rsync_command,
@@ -346,6 +347,40 @@ def test_host_show_renders_one_target(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "dev-fortress-ubuntu host target" in result.stdout
     assert "ssh_private_key" in result.stdout
+
+
+def test_host_ssh_runs_a_remote_command(tmp_path: Path, monkeypatch: object) -> None:
+    """Arguments after -- run on the target as one quoted command line."""
+    config_path = _write_host_config(tmp_path)
+    calls: list[list[str]] = []
+    monkeypatch.setattr(
+        "ft.cli._host_ssh_command", lambda target: ["ssh", f"{target.user}@host"]
+    )
+    monkeypatch.setattr("ft.cli._ensure_host_target_runtime_ready", lambda target: True)
+    monkeypatch.setattr(
+        "ft.cli._run_streaming_command",
+        lambda command, env=None: (
+            calls.append(command)
+            or subprocess.CompletedProcess(command, 7, stdout="", stderr="")
+        ),
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "host",
+            "ssh",
+            "dev-fortress-ubuntu",
+            "--config",
+            str(config_path),
+            "--",
+            "echo",
+            "two words",
+        ],
+    )
+
+    assert result.exit_code == 7
+    assert calls == [["ssh", "vscode@host", "echo 'two words'"]]
 
 
 def test_host_inventory_renders_yaml(tmp_path: Path) -> None:
@@ -698,6 +733,237 @@ def test_infra_aws_disposable_ubuntu_apply_auto_imports_target(
     assert [command[-1] for command in calls] == ["init", "validate", "-auto-approve"]
     assert calls[2][-2] == "apply"
     assert import_calls == [(terraform_dir, None)]
+
+
+def test_infra_aws_test_fleet_apply_targets_the_fleet_stack(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Fleet apply should run the fleet root with its shared key, then import it."""
+    public_key_path = tmp_path / "dev_fortress_ed25519.pub"
+    public_key_path.write_text("ssh-ed25519 AAAATEST dev-fortress-fleet\n")
+    key_calls: list[tuple[str, Path]] = []
+    calls: list[tuple[list[str], dict[str, str] | None]] = []
+    import_calls: list[Path] = []
+
+    def fake_key(target_name: str, seed_config_path: Path) -> Path:
+        key_calls.append((target_name, seed_config_path))
+        return public_key_path
+
+    def fake_stream(
+        command: list[str],
+        *,
+        env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append((command, env))
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    def fake_import(
+        terraform_dir_arg: Path, config_path_arg: Path | None
+    ) -> dict[str, object]:
+        import_calls.append(terraform_dir_arg)
+        return {
+            "config": str(tmp_path / "hosts.toml"),
+            "terraform_dir": str(terraform_dir_arg),
+            "imported_targets": ["dev-fortress-fleet-alpine"],
+            "total_targets": 1,
+        }
+
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: "/usr/bin/terraform")
+    monkeypatch.setattr("ft.cli._ensure_managed_ssh_public_key_for_name", fake_key)
+    monkeypatch.setattr("ft.cli._run_streaming_command", fake_stream)
+    monkeypatch.setattr("ft.cli._import_terraform_host_targets", fake_import)
+    prune_calls: list[set[str]] = []
+    monkeypatch.setattr(
+        "ft.cli._terraform_host_target_manifest",
+        lambda terraform_dir_arg: HostTargetManifest.model_validate(
+            tomllib.loads(_fleet_target_block("dev-fortress-fleet-alpine-324-arm64"))
+        ),
+    )
+    monkeypatch.setattr(
+        "ft.cli._prune_test_fleet_targets",
+        lambda config_path, keep: prune_calls.append(keep) or [],
+    )
+
+    result = runner.invoke(app, ["infra", "aws-test-fleet", "apply", "--auto-approve"])
+
+    fleet_dir = Path(__file__).parents[2] / "infra" / "aws-test-fleet"
+    assert result.exit_code == 0
+    assert {command[1] for command, _ in calls} == {f"-chdir={fleet_dir}"}
+    assert [command[2:] for command, _ in calls] == [
+        ["init"],
+        ["validate"],
+        ["apply", "-auto-approve"],
+    ]
+    assert all(env and env["TF_VAR_name"] == "dev-fortress-fleet" for _, env in calls)
+    assert {seed for _, seed in key_calls} == {fleet_dir / "hosts.seed.toml"}
+    assert import_calls == [fleet_dir]
+    assert prune_calls == [{"dev-fortress-fleet-alpine-324-arm64"}]
+
+
+def test_infra_aws_test_fleet_set_is_saved_for_later_runs(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """--set should persist the fleet set in the fleet's auto tfvars file."""
+    calls: list[list[str]] = []
+    monkeypatch.setattr("ft.cli._default_test_fleet_terraform_dir", lambda: tmp_path)
+    monkeypatch.setattr(
+        "ft.cli.infra_aws_disposable_ubuntu_plan",
+        lambda **kwargs: calls.append([str(kwargs["terraform_dir"])]),
+    )
+
+    first = runner.invoke(app, ["infra", "aws-test-fleet", "plan", "--set", "full"])
+    second = runner.invoke(app, ["infra", "aws-test-fleet", "plan"])
+
+    assert first.exit_code == 0
+    assert second.exit_code == 0
+    assert json.loads((tmp_path / "fleet.auto.tfvars.json").read_text()) == {
+        "fleet_set": "full"
+    }
+    assert len(calls) == 2
+
+
+def _fleet_target_block(name: str, key: str = "dev-fortress-fleet") -> str:
+    """Return one host-target TOML block for fleet pruning tests."""
+    return f"""[[targets]]
+name = "{name}"
+kind = "cloud"
+connection = "ssh"
+host = "{name}.example.internal"
+user = "ubuntu"
+auth_method = "ssh_key"
+ssh_key_name = "{key}"
+tags = ["ssh", "cloud"]
+"""
+
+
+def test_infra_aws_test_fleet_destroy_drops_only_fleet_targets(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """Fleet destroy should remove fleet targets and keep everything else."""
+    config_path = tmp_path / "hosts.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                _fleet_target_block("dev-fortress-fleet-ubuntu-2604-arm64"),
+                _fleet_target_block("dev-fortress-fleet-mine", key="my-own-key"),
+                _fleet_target_block("dev-fortress-ec2-dev", key="dev-fortress-ec2-dev"),
+            ]
+        )
+    )
+    monkeypatch.setattr(
+        "ft.cli.infra_aws_disposable_ubuntu_destroy", lambda **kwargs: None
+    )
+
+    result = runner.invoke(
+        app,
+        ["infra", "aws-test-fleet", "destroy", "--config", str(config_path)],
+    )
+
+    assert result.exit_code == 0
+    remaining = HostTargetManifest.model_validate(
+        tomllib.loads(config_path.read_text(encoding="utf-8"))
+    ).by_name()
+    assert set(remaining) == {"dev-fortress-fleet-mine", "dev-fortress-ec2-dev"}
+
+
+def test_infra_aws_test_fleet_destroy_removes_an_all_fleet_config(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """A hosts.toml holding only fleet targets should be removed, not left empty."""
+    config_path = tmp_path / "hosts.toml"
+    config_path.write_text(_fleet_target_block("dev-fortress-fleet-arch-amd64"))
+    monkeypatch.setattr(
+        "ft.cli.infra_aws_disposable_ubuntu_destroy", lambda **kwargs: None
+    )
+
+    result = runner.invoke(
+        app,
+        ["infra", "aws-test-fleet", "destroy", "--config", str(config_path)],
+    )
+
+    assert result.exit_code == 0
+    assert not config_path.exists()
+
+
+def test_test_fleet_seed_names_the_shared_fleet_key() -> None:
+    """The fleet seed manifest must define the key name ft passes as TF_VAR_name."""
+    seed_path = (
+        Path(__file__).parents[2] / "infra" / "aws-test-fleet" / "hosts.seed.toml"
+    )
+    manifest = HostTargetManifest.model_validate(
+        tomllib.loads(seed_path.read_text(encoding="utf-8"))
+    )
+
+    targets = manifest.by_name()
+    assert TEST_FLEET_NAME in targets
+    assert targets[TEST_FLEET_NAME].resolved_ssh_key_name() == TEST_FLEET_NAME
+
+
+def test_host_import_terraform_imports_every_fleet_host(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    """A fleet fragment with several targets should import each one."""
+    config_path = tmp_path / "hosts.toml"
+    terraform_dir = tmp_path / "terraform"
+    terraform_dir.mkdir()
+    blocks = [
+        f"""[[targets]]
+name = "dev-fortress-fleet-{suffix}"
+kind = "cloud"
+connection = "ssh"
+host = "{suffix}.example.internal"
+port = 22
+user = "{user}"
+auth_method = "ssh_key"
+ssh_key_name = "dev-fortress-fleet"
+ansible_python_interpreter = "/usr/bin/python3"
+tags = ["ssh", "{os}", "cloud", "disposable"]
+"""
+        for suffix, user, os in [
+            ("alpine", "alpine", "alpine"),
+            ("ubuntu-2604", "ubuntu", "ubuntu"),
+        ]
+    ]
+    payload = {
+        "host_target_toml_fragment": {
+            "sensitive": False,
+            "type": "string",
+            "value": "\n".join(blocks),
+        }
+    }
+
+    monkeypatch.setattr("ft.cli.shutil.which", lambda name: "/usr/bin/terraform")
+    monkeypatch.setattr(
+        "ft.cli._run_command",
+        lambda command: subprocess.CompletedProcess(
+            command, 0, stdout=json.dumps(payload), stderr=""
+        ),
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "host",
+            "import-terraform",
+            "--terraform-dir",
+            str(terraform_dir),
+            "--config",
+            str(config_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    targets = HostTargetManifest.model_validate(
+        tomllib.loads(config_path.read_text(encoding="utf-8"))
+    ).by_name()
+    assert set(targets) == {
+        "dev-fortress-fleet-alpine",
+        "dev-fortress-fleet-ubuntu-2604",
+    }
+    assert {t.resolved_ssh_key_name() for t in targets.values()} == {
+        "dev-fortress-fleet"
+    }
+    assert targets["dev-fortress-fleet-alpine"].user == "alpine"
 
 
 def test_infra_aws_disposable_ubuntu_capacity_select_wraps_stack_script(
@@ -2161,7 +2427,9 @@ def test_host_ssh_interactive_uses_selected_target(
         lambda targets, command_name: targets[0],
     )
 
-    def fake_ssh_single_host_target(target: object) -> int:
+    def fake_ssh_single_host_target(
+        target: object, remote_command: list[str] | None = None
+    ) -> int:
         calls.append(target.name)
         return 0
 

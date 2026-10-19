@@ -1,73 +1,26 @@
-resource "aws_key_pair" "this" {
-  key_name   = local.key_pair_name
-  public_key = trimspace(var.ssh_public_key)
-}
+# One disposable host. The resources live in the shared module so the fleet
+# root in ../aws-test-fleet can create several hosts from the same definition.
+module "host" {
+  source = "../modules/disposable-host"
 
-resource "aws_security_group" "ssh" {
-  name_prefix = "${var.name}-ssh-"
-  description = "SSH access for the Dev Fortress disposable host"
-  vpc_id      = data.aws_vpc.default.id
-
-  lifecycle {
-    precondition {
-      condition     = length(local.effective_ssh_ingress_cidrs) > 0
-      error_message = "At least one SSH ingress CIDR must be supplied explicitly or detected automatically."
-    }
-  }
-
-  ingress {
-    description = "SSH"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = local.effective_ssh_ingress_cidrs
-  }
-
-  egress {
-    description = "All outbound"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-resource "aws_instance" "this" {
-  ami                         = local.ami_id
-  instance_type               = var.instance_type
-  subnet_id                   = coalesce(var.subnet_id, sort(data.aws_subnets.default.ids)[0])
-  vpc_security_group_ids      = [aws_security_group.ssh.id]
-  key_name                    = aws_key_pair.this.key_name
-  iam_instance_profile        = local.session_manager_enabled ? aws_iam_instance_profile.session_manager[0].name : null
-  associate_public_ip_address = var.assign_public_ip
-
-  metadata_options {
-    http_endpoint = "enabled"
-    http_tokens   = "required"
-  }
-
-  root_block_device {
-    volume_type           = "gp3"
-    volume_size           = var.root_volume_size_gib
-    encrypted             = true
-    delete_on_termination = true
-  }
-
-  dynamic "instance_market_options" {
-    for_each = var.enable_spot ? [1] : []
-
-    content {
-      market_type = "spot"
-
-      spot_options {
-        instance_interruption_behavior = "terminate"
-        spot_instance_type             = "one-time"
-        max_price                      = var.spot_max_price
-      }
-    }
-  }
-
-  tags = {
-    Name = var.name
-  }
+  name                         = var.name
+  instance_type                = var.instance_type
+  subnet_id                    = var.subnet_id
+  os                           = var.os
+  arch_ami_name_prefix         = var.arch_ami_name_prefix
+  architecture                 = var.architecture
+  ubuntu_release               = var.ubuntu_release
+  alpine_release               = var.alpine_release
+  root_volume_size_gib         = var.root_volume_size_gib
+  ssh_public_key               = var.ssh_public_key
+  aws_key_pair_name            = var.aws_key_pair_name
+  ssh_ingress_cidrs            = var.ssh_ingress_cidrs
+  auto_detect_ssh_ingress_cidr = var.auto_detect_ssh_ingress_cidr
+  public_ip_check_url          = var.public_ip_check_url
+  enable_spot                  = var.enable_spot
+  spot_max_price               = var.spot_max_price
+  assign_public_ip             = var.assign_public_ip
+  enable_session_manager       = var.enable_session_manager
+  ansible_python_interpreter   = var.ansible_python_interpreter
+  tags                         = var.tags
 }

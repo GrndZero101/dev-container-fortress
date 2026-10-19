@@ -16,11 +16,13 @@ data "aws_ssm_parameter" "os_ami" {
   name = format(local.os_profile.ami_ssm_parameter, var.architecture)
 }
 
-data "aws_ami" "os_ami" {
+# aws_ami_ids returns an empty list instead of failing, so the postcondition
+# can say how to fix a missing image. The ids come newest first.
+data "aws_ami_ids" "os_ami" {
   count = local.os_profile.ami_ssm_parameter == null ? 1 : 0
 
-  owners      = local.os_profile.ami_owners
-  most_recent = true
+  owners     = local.os_profile.ami_owners
+  name_regex = local.os_profile.ami_name_regex
 
   filter {
     name   = "name"
@@ -30,6 +32,13 @@ data "aws_ami" "os_ami" {
   filter {
     name   = "architecture"
     values = [local.ec2_architecture[var.architecture]]
+  }
+
+  lifecycle {
+    postcondition {
+      condition     = length(self.ids) > 0
+      error_message = "No ${var.os} AMI matches ${local.os_profile.ami_name_pattern} for ${var.architecture}.${var.os == "arch" ? " Build the private Arch AMI with infra/aws-arch-ami first, or drop arch from the hosts." : ""}"
+    }
   }
 }
 

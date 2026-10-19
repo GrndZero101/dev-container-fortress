@@ -153,6 +153,13 @@ uv run ft host ssh dev-fortress-alpine
 uv run ft host ssh dev-fortress-ec2-dev
 ```
 
+To run one command instead of opening a shell, put it after `--`; the exit code
+is the remote command's:
+
+```zsh
+uv run ft host ssh dev-fortress-ec2-dev -- uname -a
+```
+
 Current behavior:
 
 - the Docker SSH targets reuse their running container, restart it if stopped,
