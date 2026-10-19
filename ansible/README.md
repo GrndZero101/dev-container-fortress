@@ -134,6 +134,11 @@ The inventory is intentionally thin for the first foundation pass:
 > their own, which is why `install.sh` still installs `python3-apt`. SSH targets
 > keep an explicit `ansible_python_interpreter` because uv is not on them yet.
 
+The inventory sets no `become` method. `host.yml` uses `sudo`, and switches to
+the `community.general.doas` plugin on hosts that have `doas` but no `sudo`,
+such as Alpine's cloud images. Set `ansible_become_method` on a host to
+override the detection.
+
 This is meant to stabilize the target and transport contract before the repo
 grows broader workstation or Terraform-driven host provisioning.
 

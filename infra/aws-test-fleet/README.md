@@ -58,6 +58,16 @@ Then run each target's check:
 The one-liner supports Ubuntu only, so Arch and Alpine use the SSH bootstrap
 from the operator's machine.
 
+> [!NOTE]
+> Alpine's cloud image grants root through `doas`, not `sudo`. The host
+> playbook detects that and switches Ansible's `become` to `doas`, so nothing
+> extra is needed. On Alpine the bootstrap converges the base packages,
+> `shell-config`, and the login shell; Docker and Homebrew are skipped there by
+> design.
+>
+> To start several `ft host validate` runs at once from one shell, detach
+> stdin (`< /dev/null`); Ansible refuses to run on a shared non-blocking stdin.
+
 ## :broom: Tear Down
 
 ```zsh

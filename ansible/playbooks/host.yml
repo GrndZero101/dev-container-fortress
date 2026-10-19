@@ -294,6 +294,23 @@
     - name: Prove Ansible reachability
       ansible.builtin.ping:
 
+    # Some stock images ship doas instead of sudo, such as Alpine's cloud
+    # images. Pick the tool the host has, so every `become: true` task works
+    # without installing sudo first. An explicit ansible_become_method wins.
+    - name: Find the host's privilege escalation command
+      ansible.builtin.shell: command -v sudo || command -v doas
+      register: dev_fortress_become_command
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Use doas for become on hosts without sudo
+      ansible.builtin.set_fact:
+        ansible_become_method: community.general.doas
+      when:
+        - ansible_become_method is not defined
+        - dev_fortress_become_command.stdout | basename == 'doas'
+
   roles:
     - role: dev_fortress_target_contract
     - role: dev_fortress_xdg_layout
