@@ -13,6 +13,9 @@ records the result.
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 2. **`M5c-5`:** add `ft devcontainer render` and its `--check`; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
+3. **`M5c-7` to `M5c-9`:** the generic workbench that replaces
+   `tboss-workspace`, its filesystem guardrails, and Claude Code bypass mode;
+   see the [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 
 ## Parked
 
@@ -21,8 +24,6 @@ records the result.
 - Find what wipes `WSLInterop` when a sibling WSL2 distro shuts down (it now
   reproduces with a fresh store distro), and consider a self-heal timer;
   `wsl-restore-interop` restores it meanwhile.
-- Align the `tboss-workspace` devcontainers with the persisted state contract;
-  tracked in that repo's `TODO.md`.
 - Decide Alpine's long-term future: it is the only consumer of the `ft install`
   downloader (`installer.py`, `tools.toml`). Retire it, slim it to `apk`
   without `tenv`, `glow`, and `oh-my-posh`, or keep both toolchains; see the

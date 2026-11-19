@@ -17,6 +17,14 @@ These environments may be disposable, but they are expected to last days,
 months, or years. They need to be quick to compose and safe to grow at will.
 They do not need to be byte-for-byte deterministic.
 
+Added on 2026-11-20: this milestone also folds the separate `tboss-workspace`
+repo into Dev Fortress as a generic **workbench**, a multi-repo devcontainer
+that anyone can set up, not tied to one operator's repos or paths. A
+workbench is a DevOps workbench that feels close to local workstation
+development, with the operator's credentials available. Its container limits
+the **filesystem blast radius**, so coding agents such as Claude Code can run
+with permission prompts bypassed without being able to damage the host.
+
 ## Target Use Cases
 
 Dev Fortress serves four use cases. `M5b` owns the first two and this
@@ -30,6 +38,11 @@ milestone owns the last two:
 4. a devcontainer CLI "terminal mode" in which the container itself is the dev
    environment, with no editor attached (`M5c`)
 
+Workbenches serve both container use cases at the `full` trust level
+described under [Agents in a Full Workbench](#agents-in-a-full-workbench). A
+locked-down `sealed` level, for agents working on untrusted input, is planned
+separately in [`M5d`](M5d-sealed-agent-workbench.md).
+
 ## Exit Criteria
 
 - [x] The container images install their userland tools through Homebrew, with the same bundle model as the host targets, and the decision is recorded in `docs/architecture.md` and `docs/container-standards.md` (Ubuntu and Arch; Alpine keeps the downloader, recorded as a no-go)
@@ -38,12 +51,20 @@ milestone owns the last two:
 - [ ] The devcontainer documents and supports one recommended way to get code in, either a bind mount of the host checkout or a clone into a volume, and the other way works as a documented variant
 - [ ] A devcontainer CLI terminal mode works end to end: `up`, enter a shell, develop, commit, push, and come back later to the same state
 - [ ] `ft workspace` and the devcontainer CLI either share one definition or have a documented reason to differ, so there are no two overlapping container paths
+- [ ] A generic workbench ships in Dev Fortress, rendered from the same data as the other devcontainer definitions: a new user can create one for their own repo list from the docs alone, with no `tboss` names, repos, or absolute paths, and `tboss-workspace` is archived with a pointer to it
+- [ ] What a `full` workbench protects, and what it does not, is recorded in `docs/container-standards.md` and `docs/architecture.md`
+- [ ] Rendered definitions meet the filesystem guardrails, and `--check` enforces them: no container-runtime socket, no host home or `/mnt/c` mount, no `--privileged`, and no host network
+- [ ] SSH works inside a workbench through a forwarded agent, including the 1Password SSH agent on the host, with no private key files mounted, from VS Code and from CLI terminal mode
+- [ ] Claude Code starts with permission prompts bypassed in a workbench where it is selected, and a deny-list hook blocks the listed catastrophic commands
 
 ## Non-Goals
 
 - [ ] Byte-for-byte reproducible image builds
 - [ ] Dropping the distro package manager for low-level system prerequisites
 - [ ] New container distros
+- [ ] Protecting the accounts that a workbench's credentials can reach; that is the `sealed` level in [`M5d`](M5d-sealed-agent-workbench.md)
+- [ ] Defending against a container or kernel escape exploit; the boundary is standard Docker isolation
+- [ ] Workbenches on native Windows without WSL2
 
 ## Design Direction
 
@@ -253,6 +274,175 @@ Found along the way:
 - the devcontainer CLI does not expand `${devcontainerId}` in
   `workspaceMount` (already worked around in M5c-4)
 
+### Workbench
+
+Drafted on 2026-11-20. `GrndZero101/tboss-workspace` is a thin VS Code
+devcontainer around the published `ubuntu-full` image. It has a `repos/`
+folder of ignored child clones, a `.code-workspace` listing them, persisted
+state bind-mounted from host state directories, and a `local-build` variant
+for changing the image itself. It works, but everything in it is specific to
+one operator:
+
+- the name, the state directory (`tboss-vscode`), and the hard-coded repo list
+  (`dev-container-fortress`, `shell-config`, `minecraft-docker`)
+- the absolute `/home/timl/...` paths in `README.md` and `TESTING.md`
+- a mount set that predates this branch: no `state`, `zoxide`, `atuin`, brew
+  volume, or Claude Code mounts, and `glab` at the old `~/.config/glab` target
+- a `TODO.md` that a parked item in the root `TODO.md` pointed at, which the
+  repo no longer has
+
+Fold it into Dev Fortress as a generic **workbench**, built on the `M5c-5`
+renderer rather than beside it:
+
+- A workbench is one directory, usually the user's own small Git repo. It
+  holds a `workbench.toml` with a name, a workspace profile or image, a trust
+  level (`full` for now; `sealed` is reserved for `M5d`), the options and
+  credential mounts to enable, and a list of repo URLs.
+- `ft devcontainer render` gains a workbench target that writes the
+  workbench's `.devcontainer/devcontainer.json`, its `<name>.code-workspace`,
+  and a `.gitignore` for `repos/`, from `workbench.toml` plus the shared mount
+  table. Mounts, start steps (`ft-brew-floor`, `ft-ensure-claude-code`), and
+  environment then come from one source, as decision B intends, and the repo
+  list and `.code-workspace` folders cannot drift apart. `--check` covers
+  workbenches too.
+- A small `ft workbench clone` clones any repos in `workbench.toml` that are
+  missing from `repos/`.
+- Dev Fortress checks in a rendered reference workbench under
+  `examples/workbench/`, kept current by `--check`, so people who do not run
+  `ft` on the host can copy it.
+- Persisted state follows the devcontainer side of the persisted state
+  contract: named volumes for `state`, `zoxide`, `atuin`, the brew prefix,
+  `gh`, `glab-cli`, and the Claude Code paths, plus whichever credential mounts
+  the workbench enables.
+- Code comes in by the `M5c-4` defaults: `repos/` is a bind mount in VS Code,
+  which keeps the feel of local workstation development, and the volume flow
+  serves CLI terminal mode or hosts without a checkout.
+- Terminal mode is the devcontainer CLI run against the rendered definition,
+  the same as the existing volume flow. There is no `ft workbench up`:
+  decision B keeps `ft workspace` as the faster runtime for Dev Fortress
+  self-hosting, and adding a third runtime would undo it.
+- The `local-build` variant becomes a `workbench.toml` setting that points at
+  a Dev Fortress checkout, rather than a second hand-written file.
+
+> [!NOTE]
+> "Workbench" is the multi-repo devcontainer users create; "workspace" stays
+> the `ft workspace` profile and runtime vocabulary.
+
+### Agents in a Full Workbench
+
+Drafted on 2026-11-20. Most agentic development runs inside a workbench. The
+workbench is a DevOps environment, so it carries the operator's credentials:
+SSH through a forwarded agent, 1Password, forge logins, and cloud CLIs. Its
+container gives two things: **filesystem blast radius protection** and a
+development environment that can be composed quickly. Inside it, Claude Code
+runs with permission prompts bypassed.
+
+The trade is deliberate. An agent that has no access to anything is far less
+useful. A locked-down level for untrusted input is planned in
+[`M5d`](M5d-sealed-agent-workbench.md) and gets built when there is a
+concrete job for it.
+
+#### What a `full` Workbench Protects
+
+| Protected by the container | Not protected |
+| --- | --- |
+| The host OS, packages, and services | Anything the mounted or forwarded credentials reach: forges, cloud accounts, SSH hosts including the `M7b` fleet, and the 1Password items in scope |
+| The host home directory, dotfiles, and host-side tools | The bind-mounted `repos/`: the agent can delete uncommitted work, and hooks it plants in `repos/*/.git` run on the host the next time host-side Git touches that repo |
+| Other host checkouts outside `repos/` | The network: the LAN, host services, and cloud metadata are reachable like they are from the host |
+| The Windows side of a WSL2 host | Prompt injection: content the agent reads (issues, web pages, dependency docs) can steer it toward anything in the right-hand column |
+
+The container protects the disk. It does not protect the accounts: running
+Claude Code in bypass mode in a `full` workbench has the same account
+exposure as running it on the host. The guardrails below protect the
+filesystem, and add cheap friction in front of the worst account-level
+mistakes.
+
+#### Filesystem Guardrails
+
+These are required, because without them the container does not limit the
+filesystem blast radius at all. The renderer enforces them, and `--check`
+fails on a definition that breaks one:
+
+- **No host container-runtime socket** (Docker or Podman). A runtime socket
+  gives root on the host, and with it the whole host filesystem. If a
+  workbench needs Docker, spike the options: Docker-in-Docker, a rootless
+  daemon inside the container, or Sysbox. Docker-in-Docker normally needs
+  `--privileged`, which also weakens the disk boundary, so it is not a free
+  answer.
+- **Mount only `repos/` and the persisted state paths.** Never mount the host
+  home directory, `/`, `/mnt/c`, or other Windows drives.
+- **No `--privileged`, no added capabilities, and no host network.** Host
+  networking exposes host-only `localhost` services to the container.
+- **Validate the browser bridge.** `ft.browser_bridge` passes any payload to
+  the host opener (`xdg-open`, `wslview`, or the WSL `explorer.exe` interop).
+  Accept only `http` and `https` URLs before the devcontainers gain the
+  bridge.
+
+Passwordless `sudo` stays in a `full` workbench. Without `--privileged`, a
+runtime socket, or host mounts, root inside the container does not reach the
+host.
+
+#### Credential Model
+
+Credentials are present but come in through the narrowest channel that keeps
+workstation behavior. Most of it already exists on this branch:
+
+- **Forge HTTPS** goes through `gh` and `glab` (`/etc/gitconfig`, `M5c-4`),
+  with device-code logins persisted in their config volumes.
+- **SSH** works through a forwarded agent. Private key files are never
+  mounted. VS Code forwards the host agent itself. The devcontainer CLI does
+  not, and static JSON cannot branch on whether `SSH_AUTH_SOCK` is set, so CLI
+  terminal mode needs a stable socket path to mount (for example the
+  1Password agent socket, or a WSL2 bridge to the Windows agent). With the
+  1Password SSH agent, key use can require approval on the host, which is a
+  cheap human check on pushes and SSH sessions. Confirm how that approval
+  behaves through forwarding.
+- **Commit signing** uses SSH signing through the same forwarded agent, so
+  signing keys stay in 1Password.
+- **The `op` CLI** most likely needs a 1Password service-account token scoped
+  to a vault, because the desktop-app integration is not expected to cross a
+  container boundary. Confirm this before documenting it.
+- **Cloud CLIs** keep today's mounts. Note that `ft workspace` mounts the
+  host's real `~/.aws` (`_workspace_persisted_host_path`), not per-profile
+  state. A workbench sets a non-production default profile (`AWS_PROFILE`
+  from `workbench.toml`), so reaching production takes a deliberate switch.
+- **GPG and `pass`** stay optional mounts. The `pass` store holds every
+  secret, so a workbench enables it only when it needs it.
+- The later `devops-sessions` tool (see Getting Code Into a Devcontainer)
+  is where AWS SSO at scale, GitLab tokens, and SSH key handling grow; this
+  milestone only wires what exists.
+
+#### Claude Code Policy
+
+`M5c-3` already installs Claude Code in containers and persists its login
+through `CLAUDE_CONFIG_DIR`. What a workbench adds:
+
+- Claude Code defaults to bypassing permission prompts inside a workbench
+  where it is selected. The policy ships in the image as managed settings, so
+  project settings in a cloned repo cannot quietly change it, and it does not
+  apply to `ft workspace` unless that profile asks for it.
+- A deny-list hook (a small repo-owned script, `PreToolUse`) blocks a short,
+  data-driven list of catastrophic commands. Examples: force-pushing to a
+  default branch, deleting remote branches or tags, `terraform destroy`
+  outside the `M7b` fleet directories, and bulk cloud deletes or terminations.
+  It is a speed bump against mistakes and injected instructions, not a
+  security boundary.
+- Confirm in `M5c-9` the managed settings path and keys, and that hooks and
+  `deny` rules still apply in bypass mode. Do not rely on either until
+  confirmed.
+
+#### Residual Risks
+
+These are accepted risks, documented rather than solved:
+
+- account-level damage through the credentials in the workbench, reduced by
+  host-side 1Password approval, non-production defaults, the deny list, and
+  branch protection on the forges
+- hooks planted in bind-mounted repos that run on the host; the docs say so,
+  and the volume flow avoids it for anyone who prefers that
+- loss of uncommitted work in `repos/`; commit and push often
+- container and kernel escapes (see Non-Goals)
+
 ## Issue Drafts
 
 ### M5c-1 Spike Homebrew in the container images
@@ -292,6 +482,26 @@ Found along the way:
 - [x] Scope: add a `.dockerignore`, narrow the bind-mounted build steps to the paths they read, and order the layers so that changes under `ft/` do not invalidate the floor where practical
 - [x] Acceptance: a rebuild after a doc-only commit reuses the floor layer, and a devcontainer build after `ft workspace build` with default settings reuses it too
 
+### M5c-7 Fold `tboss-workspace` into a generic workbench
+
+- [ ] Problem: the multi-repo devcontainer lives in a separate repo, tied to one operator's repos, paths, and state names, and its mounts predate this branch
+- [ ] Scope: `workbench.toml`; a workbench target for `ft devcontainer render` that writes `devcontainer.json`, the `.code-workspace`, and the `repos/` `.gitignore`; `ft workbench clone`; `examples/workbench/` kept current by `--check`; the `local-build` setting; and docs that replace `tboss-workspace`'s `README.md` and `TESTING.md`
+- [ ] Acceptance: a fresh user builds a workbench for two of their own repos from the docs alone, opens it in VS Code and in CLI terminal mode, and logs in and pushes; `tboss-workspace` is archived with a pointer; the `M5a` open note about its persisted state is closed
+- [ ] Depends on: `M5c-5` (the renderer)
+
+### M5c-8 Filesystem guardrails and credential model
+
+- [ ] Problem: nothing guarantees that a workbench keeps the host filesystem out of an agent's reach, and SSH and 1Password access inside containers is ad hoc
+- [ ] Scope: the filesystem guardrails, enforced by the renderer and `--check`; `http`/`https`-only validation in `ft.browser_bridge`; SSH through a forwarded agent in VS Code and CLI terminal mode, including the 1Password agent on Linux and WSL2 hosts; SSH commit signing; `op` through a service-account token; a non-production default `AWS_PROFILE`; and the "what it protects" table recorded in `docs/container-standards.md` and `docs/architecture.md`
+- [ ] Acceptance: `--check` fails on a definition with any forbidden mount, socket, privilege, or host network; inside a workbench, `ssh -T git@github.com`, a signed commit, and an `op read` work with no key files present; the browser bridge rejects a non-URL payload
+
+### M5c-9 Claude Code bypass mode and deny list
+
+- [ ] Problem: running Claude Code with bypassed permissions is a per-session flag today, with no backstop
+- [ ] Scope: confirm the managed settings path and keys and that hooks apply in bypass mode; ship the bypass default for workbenches and the `PreToolUse` deny-list hook in the image, with the list kept as data
+- [ ] Acceptance: `claude` starts in bypass mode without a flag in a workbench and keeps prompting in `ft workspace`; each deny-listed command is blocked
+- [ ] Depends on: `M5c-3`
+
 ## Verification Notes
 
 - [ ] VS Code devcontainer, bind-mount flow, on WSL2
@@ -299,11 +509,25 @@ Found along the way:
 - [ ] Devcontainer CLI terminal mode, used for a real change and pushed
 - [ ] A container replaced after `brew install` of an ad hoc tool behaves as documented
 - [ ] amd64 and arm64 builds
+- [ ] A generic workbench created from the docs by someone following them cold
+- [ ] Filesystem checks from inside a workbench, as an agent would try them:
+  - [ ] no container-runtime socket exists, and `docker ps` against the host fails
+  - [ ] the host home directory, `/mnt/c`, and host checkouts outside `repos/` are not reachable
+  - [ ] `ls ~/.ssh` shows no private keys, while `ssh-add -l` lists the forwarded keys
+  - [ ] a non-URL payload sent to the browser bridge is rejected
+- [ ] A real multi-hour Claude Code task in bypass mode in a workbench, delivered as a PR
+
+## Open Questions
+
+- [ ] Does a workbench need Docker inside it, and if so, which option: Docker-in-Docker, rootless, or Sysbox?
+- [ ] Where does each user's own workbench live: a small private repo, or only a local `workbench.toml`?
+- [ ] Which stable SSH agent socket path should CLI terminal mode mount on Linux and on WSL2 hosts?
 
 ## Branch and Merge Plan
 
 - [ ] Start after `M5b`, or alongside it if the Homebrew spike is independent
 - [x] Branch from `main` as `feat/m0005c-composable-container-workspaces`
+- [ ] Remaining order: finish `M5c-4` verification and the `M5c-5` renderer, then `M5c-7` (workbench), `M5c-8` (guardrails and credentials), and `M5c-9` (Claude Code bypass)
 - [ ] Commit freely at verified checkpoints
 - [ ] Squash merge into `main` once the exit criteria are met
 
@@ -454,3 +678,11 @@ found`; the devcontainer image now has
 `SHELL_CONFIG_PROFILE=zsh-tll-citadel-dev-fortress`; `ft container validate`
 passes 27 of 27 checks on Arch and on Alpine; `ft workspace validate
 ubuntu-base` passes.
+
+Extended on 2026-11-20 with the generic workbench, folding in
+`GrndZero101/tboss-workspace`, and agents in a `full` workbench: `M5c-7` to
+`M5c-9`. The workbench builds on the `M5c-5` renderer and the `M5c-4` code-in
+defaults rather than adding a runtime. A first draft made the container a
+credential boundary with an egress allowlist. The operator chose a credentialed
+DevOps workbench that protects the filesystem instead, and that draft moved to
+[`M5d`](M5d-sealed-agent-workbench.md). These are planning changes only.

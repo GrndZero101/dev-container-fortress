@@ -390,7 +390,10 @@ Status: `active`
 Objective:
 Make the container targets long-lived, composable development environments by
 standardizing their userland on Homebrew and making the VS Code devcontainer
-and devcontainer CLI terminal mode genuinely useful.
+and devcontainer CLI terminal mode genuinely useful. Fold `tboss-workspace`
+into a generic multi-repo DevOps workbench whose container limits the
+filesystem blast radius, so coding agents can run with relaxed permissions
+alongside the operator's credentials.
 
 Exit criteria:
 
@@ -403,13 +406,45 @@ Exit criteria:
 - a devcontainer CLI terminal mode works end to end
 - `ft workspace` and `.devcontainer/` share one definition or document why
   they differ
+- a generic workbench anyone can create for their own repos replaces the
+  separate `tboss-workspace` repo
+- workbenches keep the host filesystem out of reach (no runtime socket, host
+  home, or privileged mode), reach SSH and 1Password through forwarded
+  agents, and run Claude Code with permission prompts bypassed behind a
+  deny-list hook
 
 Non-goals:
 
 - byte-for-byte reproducible image builds, and new container distros
+- protecting the accounts a workbench's credentials can reach (`M5d`)
+- defending against container or kernel escape exploits
 
 Details:
 [M5c draft](milestones/M5c-composable-container-workspaces.md)
+
+### `M5d` Sealed Agent Workbench
+
+Status: `later`, when a concrete job needs it
+
+Objective:
+Add a `sealed` workbench trust level in which the container is a credential
+and network boundary as well as a filesystem one, for agents working on
+untrusted input.
+
+Exit criteria:
+
+- sealed workbenches carry no operator credentials, host checkouts, or host
+  channels, only narrow, revocable tokens
+- default-deny egress with a data-driven allowlist
+- a start-up boundary check that fails on anything forbidden
+- red-team checks pass from inside a sealed workbench
+
+Non-goals:
+
+- replacing the `full` workbench, and container or kernel escape defenses
+
+Details:
+[M5d draft](milestones/M5d-sealed-agent-workbench.md)
 
 ### `M6` Operator CLI Maturity
 
