@@ -52,6 +52,12 @@ This leaves `~/src/dev-container-fortress` and `~/src/shell-config` side by
 side; `--dir` puts the Dev Fortress checkout elsewhere. Details:
 [quickstart](docs/quickstart.md).
 
+> [!TIP]
+> To install a branch that is not merged yet, add `--ref <branch>` to the
+> installer; the checkout then starts on that branch. See
+> [Testing a branch](docs/quickstart.md#testing-a-branch) for fetching the
+> installer itself from a fresh push.
+
 **3. Developer setup.** Open a new terminal, which starts the managed zsh and
 picks up the `docker` group, then:
 
@@ -81,6 +87,13 @@ Choose "Reopen in Container", or use terminal mode with
 `devcontainer up --workspace-folder ~/workbenches/devops`. Inside, run
 `ft identity --login github`, then `claude`. Details:
 [workbench usage](docs/workbench-usage.md).
+
+> [!TIP]
+> To run the workbench on an image built from your checkout rather than the
+> published one, for example to try an image change or an unmerged branch,
+> add `--local-build ~/src/dev-container-fortress` to `ft workbench init`, or
+> set `local_build` in the workbench file later. See
+> [Building the Image Locally](docs/workbench-usage.md#building-the-image-locally).
 
 The workbench holds its own clones under `repos/`, separate from `~/src`.
 That is deliberate: an agent in the workbench reaches only `repos/`, never your
