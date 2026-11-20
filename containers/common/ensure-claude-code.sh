@@ -38,8 +38,11 @@ claude_code_selected() {
 # Side effects: replaces ~/.local/bin/claude.
 relink_newest_version() {
   local newest
-  # Self-updates write the newest version last, so modification time orders them.
-  newest="$(ls -1t "${versions_dir}" 2>/dev/null | head -n 1 || true)"
+  # Order by version, not modification time: `claude update` to a version that
+  # is already on disk relinks without rewriting it, so the newest file need
+  # not be the newest version. Only plain version names count, which skips
+  # partial downloads.
+  newest="$(ls -1 "${versions_dir}" 2>/dev/null | grep -E '^[0-9]+(\.[0-9]+)*$' | sort -V | tail -n 1 || true)"
   if [[ -z "${newest}" || ! -x "${versions_dir}/${newest}" ]]; then
     return 1
   fi

@@ -488,9 +488,9 @@ These are accepted risks, documented rather than solved:
 
 ### M5c-3 Offer Claude Code in every container target
 
-- [ ] Problem: Claude Code is installed by hand today
+- [x] Problem: Claude Code is installed by hand today
 - [x] Scope: honour the existing `M5b` `claude-code` option for workspaces, installing through the native installer, a persisted config mount, and a validation check when selected
-- [ ] Acceptance: with the option selected, `claude --version` passes in every workspace and the CLI updates itself without a rebuild; without it, nothing is installed
+- [x] Acceptance: with the option selected, `claude --version` passes in every workspace and the CLI updates itself without a rebuild; without it, nothing is installed
 
 ### M5c-4 Choose how code gets into a devcontainer
 
@@ -516,7 +516,7 @@ These are accepted risks, documented rather than solved:
 - [ ] Problem: the multi-repo devcontainer lives in a separate repo, tied to one operator's repos, paths, and state names, and its mounts predate this branch
 - [ ] Scope: `workbench.toml`; a workbench target for `ft devcontainer render` that writes `devcontainer.json`, the `.code-workspace`, and the `repos/` `.gitignore`; `ft workbench clone`; `examples/workbench/` kept current by `--check`; the `local-build` setting; and docs that replace `tboss-workspace`'s `README.md` and `TESTING.md`
 - [ ] Acceptance: a fresh user builds a workbench for two of their own repos from the docs alone, opens it in VS Code and in CLI terminal mode, and logs in and pushes; `tboss-workspace` is archived with a pointer; the `M5a` open note about its persisted state is closed
-- [ ] Depends on: `M5c-5` (the renderer)
+- [x] Depends on: `M5c-5` (the renderer)
 
 ### M5c-8 Filesystem guardrails and credential model
 
@@ -529,7 +529,7 @@ These are accepted risks, documented rather than solved:
 - [ ] Problem: running Claude Code with bypassed permissions is a per-session flag today, with no backstop
 - [ ] Scope: confirm the managed settings path and keys and that hooks apply in bypass mode; ship the bypass default for workbenches and the `PreToolUse` deny-list hook in the image, with the list kept as data
 - [ ] Acceptance: `claude` starts in bypass mode without a flag in a workbench and keeps prompting in `ft workspace`; each deny-listed command is blocked
-- [ ] Depends on: `M5c-3`
+- [x] Depends on: `M5c-3`
 
 ## Verification Notes
 
@@ -777,3 +777,33 @@ and the override is split into `DEV_FORTRESS_IMAGE_REPO` and
 | Same, with the two variables set | `dev-container-fortress:workspace-ubuntu-base` |
 | `.devcontainer/ubuntu` build with the rendered args | 22 s, floor cached; `SHELL_CONFIG_PROFILE=zsh-tll-citadel-dev-fortress` |
 | `ft` tests and pre-commit | 260 passed; all hooks pass |
+
+M5c-3 verified on 2026-11-20 on amd64 WSL2. Ubuntu was checked through
+`ft workspace`, and Arch and Alpine through their devcontainers with
+`DEV_CONTAINER_FORTRESS_OPTIONS=claude-code`:
+
+| Check | Ubuntu (`ubuntu-base`) | Arch | Alpine (musl) |
+| --- | --- | --- | --- |
+| `claude --version` after start | 2.1.303, relinked from October's state | 2.1.329, fresh install | 2.1.329, fresh install |
+| `claude update` in place, no rebuild | 2.1.303 to 2.1.329 in 4 s | 2.1.303 to 2.1.329 | 2.1.303 to 2.1.329 |
+| Replace the container | 1 s, relinked 2.1.329; `validate` OK | 15 s, relinked 2.1.329 | relinked 2.1.329 after the fix below |
+| `--options none` | `claude` not on `PATH`, options empty | | |
+
+Found on the way:
+
+- **The relink chose by modification time and could pick an older version.**
+  `claude update` to a version that is already on disk relinks without
+  rewriting it, so after reinstalling 2.1.303 and updating back to 2.1.329, a
+  replaced Alpine container came back on 2.1.303. `ft-ensure-claude-code` now
+  takes the highest plain version name with `sort -V` (BusyBox supports it),
+  which also skips partial downloads. A new test runs the helper against a
+  fake versions directory, and fails on the old ordering.
+- **All definitions in one checkout share one devcontainer image tag.** The
+  devcontainer CLI names the image after the workspace folder,
+  `vsc-<folder>-<hash>`, not after the definition. Building Arch and Alpine
+  from the same checkout at once overwrote each other's tag, which most likely
+  made one Arch replace take 174 s and reinstall the floor; run one at a time,
+  it took 15 s. Building any definition also retags the image that another
+  definition's existing container was built from. Containers keep their own
+  image, and the CLI rebuilds from cache when it creates a container, so this
+  only bites when builds run in parallel. Worth remembering for the workbench.

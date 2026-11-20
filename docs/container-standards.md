@@ -81,8 +81,10 @@ That means they should:
   host's option selection.
 - Optional components install at container start, not at image build, so one
   published image serves every selection. `ft-ensure-claude-code` runs the
-  native installer once, then relinks the newest persisted version into the
-  image-owned `$HOME/.local/bin` after a container is replaced.
+  native installer once, then relinks the highest persisted version into the
+  image-owned `$HOME/.local/bin` after a container is replaced. It orders by
+  version, not modification time, because `claude update` to a version that is
+  already on disk does not rewrite it.
 - The images pre-create each path with runtime-user ownership so a fresh named
   volume inherits it instead of mounting as root.
 - Add a new persisted path only when it holds runtime state that is worth keeping

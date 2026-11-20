@@ -8,11 +8,13 @@ records the result.
 
 ## Up Next
 
-1. **`M5c-3`:** confirm `claude --version` in every workspace and a self-update
-   without a rebuild; see the
+1. **`M5c-7`:** the generic workbench that replaces `tboss-workspace`, built on
+   the `ft devcontainer render` renderer; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
-2. **`M5c-7` to `M5c-9`:** the generic workbench that replaces
-   `tboss-workspace`, its filesystem guardrails, and Claude Code bypass mode;
+2. **`M5c-8`:** workbench filesystem guardrails and the SSH and 1Password
+   credential model; see the
+   [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
+3. **`M5c-9`:** Claude Code bypass mode with a deny-list hook in workbenches;
    see the [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 
 ## Parked
