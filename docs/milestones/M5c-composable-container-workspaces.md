@@ -2,7 +2,7 @@
 
 ## Status
 
-- [ ] Milestone complete
+- [x] Milestone complete
 - [x] Active milestone
 
 ## Objective
@@ -24,6 +24,12 @@ workbench is a DevOps workbench that feels close to local workstation
 development, with the operator's credentials available. Its container limits
 the **filesystem blast radius**, so coding agents such as Claude Code can run
 with permission prompts bypassed without being able to damage the host.
+
+Rescoped on 2026-11-20 so the workbench could merge before the first
+bare-metal developer run: the agent guardrails (`M5c-8`, `M5c-9`) moved to
+[`M5f`](M5f-agent-workbench-guardrails.md), and the cold run of the docs moved
+to [`M5e`](M5e-developer-workstation.md)'s verification. The agent design
+below stays here as the record that `M5f` builds on.
 
 ## Target Use Cases
 
@@ -47,15 +53,12 @@ separately in [`M5d`](M5d-sealed-agent-workbench.md).
 
 - [x] The container images install their userland tools through Homebrew, with the same bundle model as the host targets, and the decision is recorded in `docs/architecture.md` and `docs/container-standards.md` (Ubuntu and Arch; Alpine keeps the downloader, recorded as a no-go)
 - [x] Tools added inside a running container with `brew install` persist across container replacement where that is intended, or the docs state clearly that they do not
-- [ ] Claude Code can be selected for every container target through the `M5b` option model, installs through its native installer, and updates itself in place
+- [x] Claude Code can be selected for every container target through the `M5b` option model, installs through its native installer, and updates itself in place
 - [x] The devcontainer documents and supports one recommended way to get code in, either a bind mount of the host checkout or a clone into a volume, and the other way works as a documented variant
 - [x] A devcontainer CLI terminal mode works end to end: `up`, enter a shell, develop, commit, push, and come back later to the same state
-- [ ] `ft workspace` and the devcontainer CLI either share one definition or have a documented reason to differ, so there are no two overlapping container paths
-- [ ] A generic workbench ships in Dev Fortress, rendered from the same data as the other devcontainer definitions: a new user can create one for their own repo list from the docs alone, with no `tboss` names, repos, or absolute paths, and `tboss-workspace` is archived with a pointer to it
-- [ ] What a `full` workbench protects, and what it does not, is recorded in `docs/container-standards.md` and `docs/architecture.md`
-- [ ] Rendered definitions meet the filesystem guardrails, and `--check` enforces them: no container-runtime socket, no host home or `/mnt/c` mount, no `--privileged`, and no host network
-- [ ] SSH works inside a workbench through a forwarded agent, including the 1Password SSH agent on the host, with no private key files mounted, from VS Code and from CLI terminal mode
-- [ ] Claude Code starts with permission prompts bypassed in a workbench where it is selected, and a deny-list hook blocks the listed catastrophic commands
+- [x] `ft workspace` and the devcontainer CLI either share one definition or have a documented reason to differ, so there are no two overlapping container paths
+- [x] A generic workbench ships in Dev Fortress, rendered from the same data as the other devcontainer definitions, with no `tboss` names, repos, or absolute paths (verified in terminal mode; the cold run from the docs is `M5e` verification, and archiving `tboss-workspace` follows the merge)
+- Moved to [`M5f`](M5f-agent-workbench-guardrails.md): what a `full` workbench protects, the filesystem guardrails and `--check`, SSH through forwarded agents, and Claude Code bypass mode with a deny-list hook
 
 ## Non-Goals
 
@@ -518,18 +521,11 @@ These are accepted risks, documented rather than solved:
 - [ ] Acceptance: a fresh user builds a workbench for two of their own repos from the docs alone, opens it in VS Code and in CLI terminal mode, and logs in and pushes; `tboss-workspace` is archived with a pointer; the `M5a` open note about its persisted state is closed
 - [x] Depends on: `M5c-5` (the renderer)
 
-### M5c-8 Filesystem guardrails and credential model
+### M5c-8 and M5c-9
 
-- [ ] Problem: nothing guarantees that a workbench keeps the host filesystem out of an agent's reach, and SSH and 1Password access inside containers is ad hoc
-- [ ] Scope: the filesystem guardrails, enforced by the renderer and `--check`; `http`/`https`-only validation in `ft.browser_bridge`, then the bridge in the devcontainers for CLI terminal mode; SSH through a forwarded agent in VS Code and CLI terminal mode, including the 1Password agent on Linux and WSL2 hosts; SSH commit signing; `op` through a service-account token; a non-production default `AWS_PROFILE`; and the "what it protects" table recorded in `docs/container-standards.md` and `docs/architecture.md`
-- [ ] Acceptance: `--check` fails on a definition with any forbidden mount, socket, privilege, or host network; inside a workbench, `ssh -T git@github.com`, a signed commit, and an `op read` work with no key files present; the browser bridge rejects a non-URL payload
-
-### M5c-9 Claude Code bypass mode and deny list
-
-- [ ] Problem: running Claude Code with bypassed permissions is a per-session flag today, with no backstop
-- [ ] Scope: confirm the managed settings path and keys and that hooks apply in bypass mode; ship the bypass default for workbenches and the `PreToolUse` deny-list hook in the image, with the list kept as data
-- [ ] Acceptance: `claude` starts in bypass mode without a flag in a workbench and keeps prompting in `ft workspace`; each deny-listed command is blocked
-- [x] Depends on: `M5c-3`
+Moved to [`M5f`](M5f-agent-workbench-guardrails.md) as `M5f-1` (filesystem
+guardrails and credential model) and `M5f-2` (Claude Code bypass mode and
+deny list).
 
 ## Verification Notes
 
@@ -538,25 +534,19 @@ These are accepted risks, documented rather than solved:
 - [ ] Devcontainer CLI terminal mode, used for a real change and pushed
 - [ ] A container replaced after `brew install` of an ad hoc tool behaves as documented
 - [ ] amd64 and arm64 builds
-- [ ] A generic workbench created from the docs by someone following them cold
-- [ ] Filesystem checks from inside a workbench, as an agent would try them:
-  - [ ] no container-runtime socket exists, and `docker ps` against the host fails
-  - [ ] the host home directory, `/mnt/c`, and host checkouts outside `repos/` are not reachable
-  - [ ] `ls ~/.ssh` shows no private keys, while `ssh-add -l` lists the forwarded keys
-  - [ ] a non-URL payload sent to the browser bridge is rejected
-- [ ] A real multi-hour Claude Code task in bypass mode in a workbench, delivered as a PR
+- [ ] A generic workbench created from the docs by someone following them cold (moved to `M5e`)
+- The agent checks moved to [`M5f`](M5f-agent-workbench-guardrails.md)
 
 ## Open Questions
 
-- [ ] Does a workbench need Docker inside it, and if so, which option: Docker-in-Docker, rootless, or Sysbox?
 - [x] Where does each user's own workbench live: a small private repo, or only a local `workbench.toml`? A local file under `${XDG_CONFIG_HOME}/dev-container-fortress/workbenches/<name>.toml`, which dotfiles can carry; the rendered folder is regenerable
-- [ ] Which stable SSH agent socket path should CLI terminal mode mount on Linux and on WSL2 hosts?
+- The questions about Docker inside a workbench and the SSH agent socket path moved to `M5f`
 
 ## Branch and Merge Plan
 
 - [ ] Start after `M5b`, or alongside it if the Homebrew spike is independent
 - [x] Branch from `main` as `feat/m0005c-composable-container-workspaces`
-- [ ] Remaining order: `M5c-7` (workbench), `M5c-8` (guardrails and credentials), and `M5c-9` (Claude Code bypass)
+- [x] Remaining order: `M5c-7` (workbench); `M5c-8` and `M5c-9` moved to `M5f`
 - [ ] Commit freely at verified checkpoints
 - [ ] Squash merge into `main` once the exit criteria are met
 

@@ -25,7 +25,9 @@ It focuses on the current high-value loop:
 From a fresh Ubuntu install (bare metal, WSL2, or EC2) to a Dev Fortress
 development workstation plus a workbench for agentic development, in under an
 hour and about ten commands. Each step links to the guide that covers it in
-depth.
+depth. On WSL2, start with the
+[clean start on Windows](docs/wsl-bootstrap.md#checkered_flag-clean-start-on-windows),
+which wraps this path with the Windows-side setup.
 
 **1. Prerequisites.** A user that can `sudo`, and `curl`. Ubuntu Desktop may
 lack `curl`:
@@ -94,7 +96,8 @@ container builds, which need the host's Docker.
 > [`M5e`](docs/milestones/M5e-developer-workstation.md).
 
 Claude Code in a workbench still asks before each action; bypassing permission
-prompts by default, behind a deny-list hook, is `M5c-9`. macOS supports only
+prompts by default, behind a deny-list hook, is planned in
+[`M5f`](docs/milestones/M5f-agent-workbench-guardrails.md). macOS supports only
 the installer's `cli` mode today (see Manual Setup below); macOS host mode is
 planned in `M5e`.
 

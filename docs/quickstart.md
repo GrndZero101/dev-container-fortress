@@ -32,7 +32,9 @@ The installer adds everything else it needs before it starts: `ca-certificates`,
 > already be present. On macOS, `xcode-select --install` provides `git`; `zsh`
 > and `curl` are built in. See [Install Modes](#gear-install-modes).
 
-On WSL2, also check:
+On WSL2, also check the following; for a brand-new Windows machine, the
+[clean start on Windows](wsl-bootstrap.md#checkered_flag-clean-start-on-windows)
+lists the Windows-side setup:
 
 - `systemd` is on, which Docker needs. The installer checks it and tells you
   how to enable it if it is off

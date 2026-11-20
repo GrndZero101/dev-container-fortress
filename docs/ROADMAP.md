@@ -385,15 +385,14 @@ Details:
 
 ### `M5c` Composable Container Workspaces
 
-Status: `active`
+Status: `done` (agent guardrails moved to `M5f`)
 
 Objective:
 Make the container targets long-lived, composable development environments by
 standardizing their userland on Homebrew and making the VS Code devcontainer
 and devcontainer CLI terminal mode genuinely useful. Fold `tboss-workspace`
 into a generic multi-repo DevOps workbench whose container limits the
-filesystem blast radius, so coding agents can run with relaxed permissions
-alongside the operator's credentials.
+filesystem blast radius.
 
 Exit criteria:
 
@@ -408,10 +407,6 @@ Exit criteria:
   they differ
 - a generic workbench anyone can create for their own repos replaces the
   separate `tboss-workspace` repo
-- workbenches keep the host filesystem out of reach (no runtime socket, host
-  home, or privileged mode), reach SSH and 1Password through forwarded
-  agents, and run Claude Code with permission prompts bypassed behind a
-  deny-list hook
 
 Non-goals:
 
@@ -446,6 +441,30 @@ Non-goals:
 
 Details:
 [M5e draft](milestones/M5e-developer-workstation.md)
+
+### `M5f` Agent Workbench Guardrails
+
+Status: `next`
+
+Objective:
+Make the `M5c` workbench safe and convenient for coding agents at the `full`
+trust level, with the operator's credentials available.
+
+Exit criteria:
+
+- workbenches keep the host filesystem out of reach (no runtime socket, host
+  home, or privileged mode), and the renderer's `--check` enforces it
+- SSH and 1Password reach a workbench through forwarded agents, with no key
+  files mounted
+- Claude Code runs with permission prompts bypassed behind a deny-list hook
+
+Non-goals:
+
+- protecting the accounts the credentials reach (`M5d`), and container or
+  kernel escape defenses
+
+Details:
+[M5f draft](milestones/M5f-agent-workbench-guardrails.md)
 
 ### `M5d` Sealed Agent Workbench
 

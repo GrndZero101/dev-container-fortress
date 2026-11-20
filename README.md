@@ -269,9 +269,11 @@ In progress:
 
 ## :calendar: Current Milestone
 
-The current implementation focus is
-[M5b Zero to Hero: Workstation Composability](docs/milestones/M5b-zero-to-hero-workstation-composability.md),
-followed by [M7b Cloud Test Fleet](docs/milestones/M7b-cloud-test-fleet.md).
+[M5c Composable Container Workspaces](docs/milestones/M5c-composable-container-workspaces.md)
+delivered workbenches. Next are
+[M5e Zero to Hero: Developer Workstation](docs/milestones/M5e-developer-workstation.md),
+starting with a timed bare-metal run of the developer path, and
+[M5f Agent Workbench Guardrails](docs/milestones/M5f-agent-workbench-guardrails.md).
 
 Use these planning docs together:
 
