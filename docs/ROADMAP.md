@@ -422,6 +422,31 @@ Non-goals:
 Details:
 [M5c draft](milestones/M5c-composable-container-workspaces.md)
 
+### `M5e` Zero to Hero: Developer Workstation
+
+Status: `next`, after `M5c`
+
+Objective:
+Take a fresh Ubuntu or macOS install to a full DevOps development workstation
+with the fewest commands: Dev Fortress and `shell-config` in development mode,
+the host toolchain, and a workbench for agentic development, in under an hour.
+
+Exit criteria:
+
+- the installer's `host` mode converges a fresh macOS install as it does Ubuntu
+- a developer mode runs the host shell from a `shell-config` clone that the
+  host bootstrap leaves alone
+- the developer path shrinks to the installer, one login, and a workbench
+- timed cold runs on bare-metal Ubuntu and macOS finish in under an hour
+
+Non-goals:
+
+- desktop app installs such as VS Code, Windows-native hosts, and the
+  `dotfiles` repo beyond restoring `~/.config/dev-container-fortress/`
+
+Details:
+[M5e draft](milestones/M5e-developer-workstation.md)
+
 ### `M5d` Sealed Agent Workbench
 
 Status: `later`, when a concrete job needs it

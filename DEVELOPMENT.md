@@ -20,6 +20,84 @@ It focuses on the current high-value loop:
 > manual commands. If a necessary workflow is still too manual or taxing,
 > treat that as a roadmap opportunity rather than a permanent workaround.
 
+## :rocket: Zero to Hero: Developer Path
+
+From a fresh Ubuntu install (bare metal, WSL2, or EC2) to a Dev Fortress
+development workstation plus a workbench for agentic development, in under an
+hour and about ten commands. Each step links to the guide that covers it in
+depth.
+
+**1. Prerequisites.** A user that can `sudo`, and `curl`. Ubuntu Desktop may
+lack `curl`:
+
+```sh
+sudo apt-get update && sudo apt-get install -y curl
+```
+
+**2. Workstation and source checkouts.** Run the installer from the folder
+that holds your source trees. It installs Docker, `shell-config`, the Homebrew
+toolchain, and `ft`, and its checkout is a normal Git clone that you develop
+in. Then clone `shell-config` beside it:
+
+```sh
+mkdir -p ~/src && cd ~/src
+curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
+  sh -s -- --options claude-code
+git clone https://github.com/GrndZero101/shell-config.git
+```
+
+This leaves `~/src/dev-container-fortress` and `~/src/shell-config` side by
+side; `--dir` puts the Dev Fortress checkout elsewhere. Details:
+[quickstart](docs/quickstart.md).
+
+**3. Developer setup.** Open a new terminal, which starts the managed zsh and
+picks up the `docker` group, then:
+
+```sh
+cd ~/src/dev-container-fortress
+uv run pre-commit install
+ft identity --login github
+brew install --cask font-jetbrains-mono-nerd-font
+```
+
+The font command is for a Linux or macOS desktop; on WSL2 install the font on
+Windows instead, as [quickstart step 5](docs/quickstart.md) shows, then select
+it in your terminal.
+
+**4. Agent workbench.** Compose a devcontainer holding the repos you want
+agents to work on:
+
+```sh
+ft workbench init devops --profile ubuntu-full --options claude-code \
+  --repo https://github.com/GrndZero101/dev-container-fortress.git \
+  --repo https://github.com/GrndZero101/shell-config.git
+ft workbench clone devops
+code ~/workbenches/devops
+```
+
+Choose "Reopen in Container", or use terminal mode with
+`devcontainer up --workspace-folder ~/workbenches/devops`. Inside, run
+`ft identity --login github`, then `claude`. Details:
+[workbench usage](docs/workbench-usage.md).
+
+The workbench holds its own clones under `repos/`, separate from `~/src`.
+That is deliberate: an agent in the workbench reaches only `repos/`, never your
+host checkouts. Use the `~/src` clones for the host-side loops below, such as
+container builds, which need the host's Docker.
+
+> [!IMPORTANT]
+> Your login shell runs the installed `~/.config/shell-config`, not
+> `~/src/shell-config`, and re-running the host bootstrap resets it to `main`.
+> Do not edit it. Try `shell-config` changes in a container or `ft workspace`
+> (see the loops below), which mount the sibling clone. Running the host shell
+> from your clone is planned in
+> [`M5e`](docs/milestones/M5e-developer-workstation.md).
+
+Claude Code in a workbench still asks before each action; bypassing permission
+prompts by default, behind a deny-list hook, is `M5c-9`. macOS supports only
+the installer's `cli` mode today (see Manual Setup below); macOS host mode is
+planned in `M5e`.
+
 ## Development Layout
 
 For active development, prefer a sibling-checkout layout:
@@ -74,7 +152,10 @@ General tool-management rule of thumb:
 - Native package managers remain acceptable for base host prerequisites such as
   Docker Engine, `git`, `curl`, and similar bootstrap-floor dependencies
 
-## What You Need
+## Manual Setup
+
+The developer path above covers Ubuntu and WSL2 Ubuntu. Use this section on
+macOS today, or when you do not want the installer to converge the machine.
 
 Recommended baseline on your workstation:
 
@@ -117,7 +198,9 @@ rsync --version
 
 ### Ubuntu or Ubuntu on WSL2
 
-On Ubuntu, prefer Docker CE from Docker's official apt repository instead of a Homebrew-based Docker install.
+The installer's default `host` mode already installs Docker CE. Follow this
+only if you skipped it. Prefer Docker CE from Docker's official apt repository
+instead of a Homebrew-based Docker install.
 
 Useful baseline packages:
 
@@ -155,12 +238,10 @@ rsync --version
 > [!IMPORTANT]
 > Under WSL2, make sure the Docker daemon path you choose is actually reachable from your Ubuntu environment before starting the Dev Fortress loop. The simplest route is usually a normal Docker CE install inside Ubuntu, or a known-good Docker Desktop plus WSL integration setup you already trust.
 
-## First-Time Setup
+## Bootstrap Details
 
-If you only want the operator path, use the installer described in
-[README.md](README.md).
-
-For development, start from explicit clones instead:
+The developer path runs the installer. Without it, start from explicit clones
+and the repo bootstrap, which sets up `uv`, `ft`, and Ansible only:
 
 ```zsh
 git clone https://github.com/GrndZero101/dev-container-fortress.git
@@ -169,16 +250,8 @@ cd dev-container-fortress
 zsh ./bootstrap.zsh
 ```
 
-If you specifically want the installer-shaped flow for Dev Fortress itself,
-this still works:
-
-```zsh
-curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | sh
-```
-
-But that is the weaker development path when you are also editing
-`shell-config`, because you still need to be deliberate about which
-`shell-config` checkout your shell and containers are using.
+Converge the machine afterwards with `ft host bootstrap localhost -K`, or
+stay CLI-only.
 
 Pass `--mode cli` (`curl … | sh -s -- --mode cli`) to stop after the `ft`
 install; the default `host` mode also converges the machine with

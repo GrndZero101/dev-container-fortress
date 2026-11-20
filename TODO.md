@@ -8,16 +8,19 @@ records the result.
 
 ## Up Next
 
-1. **`M5c-7`:** finish the acceptance on bare-metal Ubuntu: quickstart in
-   `host` mode, then follow [`docs/workbench-usage.md`](docs/workbench-usage.md)
-   cold, open a workbench in VS Code, log in and push from inside, then archive
-   `tboss-workspace`; see the
+1. **`M5c-7`:** finish the acceptance on bare-metal Ubuntu: follow the
+   [developer path](DEVELOPMENT.md#rocket-zero-to-hero-developer-path) cold,
+   timing it, open a workbench in VS Code, log in and push from inside, then
+   archive `tboss-workspace`; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 2. **`M5c-8`:** workbench filesystem guardrails and the SSH and 1Password
    credential model; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 3. **`M5c-9`:** Claude Code bypass mode with a deny-list hook in workbenches;
    see the [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
+4. **`M5e`** (after `M5c`): developer mode for `shell-config`, macOS host mode,
+   and a shorter developer path; see the
+   [M5e file](docs/milestones/M5e-developer-workstation.md).
 
 ## Parked
 

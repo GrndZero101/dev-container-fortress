@@ -105,13 +105,15 @@ the source of truth:
   shell-config/
 ```
 
-Recommended setup:
+Recommended setup: follow the
+[developer path](DEVELOPMENT.md#rocket-zero-to-hero-developer-path), which
+runs the installer from your source folder and clones `shell-config` beside
+it:
 
 ```sh
-git clone https://github.com/GrndZero101/dev-container-fortress.git
+mkdir -p ~/src && cd ~/src
+curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | sh
 git clone https://github.com/GrndZero101/shell-config.git
-cd dev-container-fortress
-zsh ./bootstrap.zsh
 ```
 
 Then use the local repos directly:
