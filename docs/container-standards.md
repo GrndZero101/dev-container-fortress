@@ -101,9 +101,11 @@ That means they should:
 - Code reaches a container in one of two ways, and both are supported:
   - **bind mount** of a host checkout, the default for the `.devcontainer/`
     definitions and `ft workspace`
-  - **named volume** that holds clones made inside the container: VS Code's
-    "Clone Repository in Container Volume", or the devcontainer CLI with
-    `devcontainer/volume/devcontainer.json`
+  - **named volume** that holds clones made inside the container, started
+    with the devcontainer CLI and `devcontainer/volume/devcontainer.json`;
+    VS Code attaches to that container rather than using its own "Clone
+    Repository in Container Volume", which only finds definitions at the
+    repository root
 - The volume definition mounts `dev-fortress-src-<folder>` at `/workspaces`,
   keyed on the host folder's name because the devcontainer CLI does not
   substitute `${devcontainerId}` in `workspaceMount`. It uses the published

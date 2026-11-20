@@ -8,10 +8,10 @@ records the result.
 
 ## Up Next
 
-1. **`M5c-4`:** open both code-in flows in VS Code, and log in and push from
-   CLI terminal mode; see the
+1. **`M5c-5`:** add `ft devcontainer render` and its `--check`; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
-2. **`M5c-5`:** add `ft devcontainer render` and its `--check`; see the
+2. **`M5c-3`:** confirm `claude --version` in every workspace and a self-update
+   without a rebuild; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 3. **`M5c-7` to `M5c-9`:** the generic workbench that replaces
    `tboss-workspace`, its filesystem guardrails, and Claude Code bypass mode;

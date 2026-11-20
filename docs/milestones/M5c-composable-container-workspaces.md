@@ -48,8 +48,8 @@ separately in [`M5d`](M5d-sealed-agent-workbench.md).
 - [x] The container images install their userland tools through Homebrew, with the same bundle model as the host targets, and the decision is recorded in `docs/architecture.md` and `docs/container-standards.md` (Ubuntu and Arch; Alpine keeps the downloader, recorded as a no-go)
 - [x] Tools added inside a running container with `brew install` persist across container replacement where that is intended, or the docs state clearly that they do not
 - [ ] Claude Code can be selected for every container target through the `M5b` option model, installs through its native installer, and updates itself in place
-- [ ] The devcontainer documents and supports one recommended way to get code in, either a bind mount of the host checkout or a clone into a volume, and the other way works as a documented variant
-- [ ] A devcontainer CLI terminal mode works end to end: `up`, enter a shell, develop, commit, push, and come back later to the same state
+- [x] The devcontainer documents and supports one recommended way to get code in, either a bind mount of the host checkout or a clone into a volume, and the other way works as a documented variant
+- [x] A devcontainer CLI terminal mode works end to end: `up`, enter a shell, develop, commit, push, and come back later to the same state
 - [ ] `ft workspace` and the devcontainer CLI either share one definition or have a documented reason to differ, so there are no two overlapping container paths
 - [ ] A generic workbench ships in Dev Fortress, rendered from the same data as the other devcontainer definitions: a new user can create one for their own repo list from the docs alone, with no `tboss` names, repos, or absolute paths, and `tboss-workspace` is archived with a pointer to it
 - [ ] What a `full` workbench protects, and what it does not, is recorded in `docs/container-standards.md` and `docs/architecture.md`
@@ -189,9 +189,10 @@ like the other CLI auth paths.
 - **Bind mount** the host checkout: edits are shared with the host and nothing
   is cloned twice, but the checkout must already exist, and performance
   depends on the host filesystem (fine on WSL2's ext4, slow from `/mnt/c`)
-- **Clone into a volume**: this works from a bare host or the VS Code "Clone
-  Repository in Container Volume" flow and is fast everywhere, but the code
-  lives only in the volume, so pushing becomes the backup
+- **Clone into a volume**: this works from a bare host and is fast
+  everywhere, but the code lives only in the volume, so pushing becomes the
+  backup. The devcontainer CLI starts the container, and VS Code attaches to
+  it (decided on 2026-11-20, below)
 
 Today's devcontainers bind-mount the workspace folder. Decided on 2026-10-19:
 support both for flexibility, and document a recommended default per use case.
@@ -204,6 +205,16 @@ uses a device code, so it works through the bridge. `glab auth login --web`
 redirects to a localhost callback that a plain Docker workspace cannot
 receive, so containers should use `glab auth login --device` (GitLab 17.9 or
 later) or publish the callback port.
+
+Decided on 2026-11-20, from the `M5c-4` VS Code run: VS Code's own "Clone
+Repository in Container Volume" is not a supported flow. It only reads
+`.devcontainer/devcontainer.json` or `.devcontainer.json` at the repository
+root, so it never sees the `.devcontainer/<distro>/` definitions and falls back
+to stock templates. The volume flow is one path instead: `devcontainer up` on
+`devcontainer/volume/devcontainer.json`, then VS Code's "Attach to Running
+Container" from as many windows as needed. That is also the long-lived,
+many-window container the workbench needs, so it is not a second path to
+maintain.
 
 Later, outside this milestone: a purpose-built Python CLI for managing many
 GitLab and GitHub repos, and a `devops-sessions` tool for AWS SSO logins at
@@ -317,6 +328,15 @@ renderer rather than beside it:
 - Code comes in by the `M5c-4` defaults: `repos/` is a bind mount in VS Code,
   which keeps the feel of local workstation development, and the volume flow
   serves CLI terminal mode or hosts without a checkout.
+- A workbench can be one always-on container: started once with the
+  devcontainer CLI, entered from terminals, and attached from several VS Code
+  windows, one per repo, that come and go without stopping it. Attached
+  windows skip `devcontainer.json`'s `customizations`, and their extensions
+  live in `~/.vscode-server`, which does not survive container replacement.
+  Decide how a workbench restores its extensions and settings (a volume for
+  `~/.vscode-server`, VS Code's attached-container configuration, or both),
+  and whether rendered definitions set `"shutdownAction": "none"` so a
+  container VS Code started also outlives its windows.
 - Terminal mode is the devcontainer CLI run against the rendered definition,
   the same as the existing volume flow. There is no `ft workbench up`:
   decision B keeps `ft workspace` as the faster runtime for Dev Fortress
@@ -377,6 +397,15 @@ fails on a definition that breaks one:
   the host opener (`xdg-open`, `wslview`, or the WSL `explorer.exe` interop).
   Accept only `http` and `https` URLs before the devcontainers gain the
   bridge.
+- **Give the devcontainers the browser bridge.** VS Code opens host browser
+  links only while a window is attached, so CLI terminal mode needs the `M5a`
+  bridge: the renderer adds the socket mount and the `BROWSER`, `GH_BROWSER`,
+  and `DEV_FORTRESS_HOST_BROWSER_SOCKET` environment, and `initializeCommand`
+  starts the broker on the host. The images already ship
+  `ft-host-browser-open`. Device-code logins (`gh`, `glab --device`,
+  `aws sso login --use-device-code`) work through it; logins that redirect to
+  a `localhost` callback reach the host, not the container, so they need the
+  device-code option or a published port.
 
 Passwordless `sudo` stays in a `full` workbench. Without `--privileged`, a
 runtime socket, or host mounts, root inside the container does not reach the
@@ -465,9 +494,9 @@ These are accepted risks, documented rather than solved:
 
 ### M5c-4 Choose how code gets into a devcontainer
 
-- [ ] Problem: bind mounts need a host checkout and can be slow, while volume clones hide the code from the host
+- [x] Problem: bind mounts need a host checkout and can be slow, while volume clones hide the code from the host
 - [x] Scope: support and document both, with a recommended default per use case; `gh` and `glab` come from the Homebrew bundle
-- [ ] Acceptance: both flows work from VS Code and the devcontainer CLI (CLI verified; VS Code pending)
+- [x] Acceptance: both flows work from VS Code and the devcontainer CLI (VS Code reaches the volume flow by attaching to the CLI container)
 
 ### M5c-5 Unify the workspace and devcontainer definitions
 
@@ -492,7 +521,7 @@ These are accepted risks, documented rather than solved:
 ### M5c-8 Filesystem guardrails and credential model
 
 - [ ] Problem: nothing guarantees that a workbench keeps the host filesystem out of an agent's reach, and SSH and 1Password access inside containers is ad hoc
-- [ ] Scope: the filesystem guardrails, enforced by the renderer and `--check`; `http`/`https`-only validation in `ft.browser_bridge`; SSH through a forwarded agent in VS Code and CLI terminal mode, including the 1Password agent on Linux and WSL2 hosts; SSH commit signing; `op` through a service-account token; a non-production default `AWS_PROFILE`; and the "what it protects" table recorded in `docs/container-standards.md` and `docs/architecture.md`
+- [ ] Scope: the filesystem guardrails, enforced by the renderer and `--check`; `http`/`https`-only validation in `ft.browser_bridge`, then the bridge in the devcontainers for CLI terminal mode; SSH through a forwarded agent in VS Code and CLI terminal mode, including the 1Password agent on Linux and WSL2 hosts; SSH commit signing; `op` through a service-account token; a non-production default `AWS_PROFILE`; and the "what it protects" table recorded in `docs/container-standards.md` and `docs/architecture.md`
 - [ ] Acceptance: `--check` fails on a definition with any forbidden mount, socket, privilege, or host network; inside a workbench, `ssh -T git@github.com`, a signed commit, and an `op read` work with no key files present; the browser bridge rejects a non-URL payload
 
 ### M5c-9 Claude Code bypass mode and deny list
@@ -504,8 +533,8 @@ These are accepted risks, documented rather than solved:
 
 ## Verification Notes
 
-- [ ] VS Code devcontainer, bind-mount flow, on WSL2
-- [ ] VS Code devcontainer, volume-clone flow
+- [x] VS Code devcontainer, bind-mount flow, on WSL2
+- [x] VS Code devcontainer, volume flow: CLI `up`, then two windows attached to different repos
 - [ ] Devcontainer CLI terminal mode, used for a real change and pushed
 - [ ] A container replaced after `brew install` of an ad hoc tool behaves as documented
 - [ ] amd64 and arm64 builds
@@ -527,7 +556,7 @@ These are accepted risks, documented rather than solved:
 
 - [ ] Start after `M5b`, or alongside it if the Homebrew spike is independent
 - [x] Branch from `main` as `feat/m0005c-composable-container-workspaces`
-- [ ] Remaining order: finish `M5c-4` verification and the `M5c-5` renderer, then `M5c-7` (workbench), `M5c-8` (guardrails and credentials), and `M5c-9` (Claude Code bypass)
+- [ ] Remaining order: the `M5c-5` renderer, then `M5c-7` (workbench), `M5c-8` (guardrails and credentials), and `M5c-9` (Claude Code bypass)
 - [ ] Commit freely at verified checkpoints
 - [ ] Squash merge into `main` once the exit criteria are met
 
@@ -686,3 +715,42 @@ defaults rather than adding a runtime. A first draft made the container a
 credential boundary with an egress allowlist. The operator chose a credentialed
 DevOps workbench that protects the filesystem instead, and that draft moved to
 [`M5d`](M5d-sealed-agent-workbench.md). These are planning changes only.
+
+M5c-4 verified on 2026-11-20 on amd64 WSL2 with Docker CE, closing the code-in
+and terminal-mode exit criteria:
+
+| Check | Result |
+| --- | --- |
+| VS Code bind mount, `.devcontainer/ubuntu` | live checkout at `/workspaces/dev-container-fortress`; 44 of 44 floor formulae; all 8 state volumes owned by `vscode` |
+| Login and push from VS Code | `ft identity --login github` opened the host browser; a scratch branch pushed through `gh auth git-credential` alone, under the noreply identity |
+| VS Code "Rebuild Without Cache" | `gh` login, `atuin` history, a state-volume marker, and the floor all kept |
+| `ft workspace build ubuntu-base` right after that devcontainer build | 12 s, floor shared, so `M5c-6`'s cache sharing works both ways |
+| CLI volume flow, `up` on the local image | 27 s; floor present; HTTPS clone into `dev-fortress-src-m5c4` |
+| Terminal-mode login and push | device code opened by hand on the host; push through `gh` alone, no VS Code involved |
+| Host restart, then the same `devcontainer up` | 3 s; the stopped container restarted with the checkout, identity, and floor intact |
+| `up --remove-existing-container` with an unpushed branch | 8 s; branch, commit, untracked file, `gh` login, and `atuin` history kept |
+| Two VS Code windows attached to the CLI container | one per repo (`dev-container-fortress`, `shell-config`); after both closed, the container kept running and `devcontainer exec` re-entered it |
+
+Found on the way:
+
+- VS Code's own "Clone Repository in Container Volume" only reads definitions
+  at the repository root, so it offered stock templates. The volume flow from
+  VS Code is now the CLI container plus "Attach to Running Container"; see the
+  decision under Getting Code Into a Devcontainer.
+- A `.code-workspace` file in a parent folder makes VS Code look for
+  `.devcontainer/` beside it, so it offered stock templates too. The
+  workbench's rendered `.code-workspace` must sit beside its `.devcontainer/`.
+- On WSL2 with Docker CE, a VS Code window not connected to WSL runs the
+  Windows `docker` CLI and starts Docker Desktop. `dev.containers.executeInWSL`
+  and `dev.containers.executeInWSLDistro` fixed it.
+- The host `~/.gitconfig` that VS Code copies in clears VS Code's forwarded
+  credential helper for `github.com` (an empty per-host `credential.helper`
+  from `gh auth setup-git`), so pushes from VS Code use the container's `gh`
+  login. The usage doc's earlier tip said otherwise.
+- Attached windows skip `devcontainer.json`'s extensions and settings; recorded
+  as a workbench decision.
+- `gh repo clone` needs a login even for a public repo; `gh` cannot copy the
+  device code to a clipboard in the container, which is cosmetic.
+
+Still open: Arch, arm64, and the CLI volume flow from the published GHCR image,
+which needs this branch merged first.

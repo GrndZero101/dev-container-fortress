@@ -29,8 +29,9 @@ devcontainer CLI.
 | Use case | Recommended | Why |
 | --- | --- | --- |
 | VS Code on a checkout you already have on Linux or WSL2 ext4 | Bind mount | Edits are shared with the host, and nothing is cloned twice |
-| VS Code with no checkout, or one on `/mnt/c` or another slow host filesystem | Volume | Fast everywhere, and it needs only the repository URL |
+| VS Code with no checkout, or one on `/mnt/c` or another slow host filesystem | Volume, started from the CLI, then attached | Fast everywhere, and it needs only the repository URL |
 | Devcontainer CLI terminal mode, with no editor attached | Volume | The container is the whole environment, so the host needs no checkout |
+| One long-lived container for several repos, with VS Code windows coming and going | Volume, started from the CLI, then attached | The container keeps running when the windows close |
 
 > [!WARNING]
 > Code in a volume lives only in that volume. Push to back it up. Removing the
@@ -42,15 +43,11 @@ devcontainer CLI.
 2. Run `Dev Containers: Reopen in Container` or `Dev Containers: Rebuild and Reopen in Container`.
 3. Choose the Ubuntu, Alpine, or Arch definition when prompted.
 
-### Volume From VS Code
-
-1. Run `Dev Containers: Clone Repository in Container Volume`.
-2. Enter the repository URL, for example
-   `https://github.com/GrndZero101/dev-container-fortress`.
-3. Choose the Ubuntu, Alpine, or Arch definition when prompted.
-
-VS Code clones into a new volume and builds from the definitions inside the
-clone, so the repository must carry them, as this one does.
+> [!IMPORTANT]
+> Open the checkout folder itself, or a `.code-workspace` file inside it. When
+> VS Code opens a `.code-workspace` file, it looks for `.devcontainer/` next to
+> that file, so a workspace file in a parent folder gets VS Code's stock
+> templates instead of these definitions.
 
 ### Bind Mount From the Devcontainer CLI
 
@@ -95,6 +92,47 @@ DEV_FORTRESS_IMAGE=dev-container-fortress:workspace-ubuntu-base devcontainer up 
 > [!NOTE]
 > The published image is cold, so the first start installs the Homebrew floor
 > into the new volume, which takes a few minutes. Later starts take seconds.
+
+The container keeps running until you stop it or the host restarts. After a
+restart, the same `devcontainer up` starts the stopped container again in a few
+seconds.
+
+### Volume From VS Code
+
+Start the volume container from the CLI as above, then attach VS Code to it:
+
+1. Run `Dev Containers: Attach to Running Container` and pick the container.
+2. Run `File: Open Folder` and pick a repo under `/workspaces`.
+
+Attach as many windows as you like, one per repo. Closing them leaves the
+container running, so a terminal session or a later window picks up where you
+left off.
+
+> [!NOTE]
+> An attached window does not apply `devcontainer.json`'s `customizations`, so
+> the recommended extensions are not installed for you. Extensions you install
+> live in the container's `~/.vscode-server` and do not survive
+> `--remove-existing-container`.
+
+VS Code's own `Dev Containers: Clone Repository in Container Volume` is not
+supported. It only looks for `.devcontainer/devcontainer.json` or
+`.devcontainer.json` at the repository root, so it never finds the
+`.devcontainer/<distro>/` definitions and offers VS Code's stock templates.
+
+> [!WARNING]
+> **WSL2 with Docker CE:** a VS Code window that is not connected to WSL runs
+> the Windows `docker` CLI, which starts Docker Desktop and works with its
+> containers rather than Docker CE's in your distro. Set these in your Windows
+> VS Code user settings so every Dev Containers command runs inside the distro:
+>
+> ```jsonc
+> "dev.containers.executeInWSL": true,
+> "dev.containers.executeInWSLDistro": "<your-distro>"
+> ```
+>
+> Also keep Docker Desktop's WSL integration off for that distro (Docker
+> Desktop: Settings > Resources > WSL integration), or Docker Desktop can take
+> over the distro's `docker` CLI and socket when it starts.
 
 ## Expected Behavior
 
@@ -164,11 +202,12 @@ The image's `/etc/gitconfig` routes HTTPS credentials for `github.com` and
 even though `~/.gitconfig` does not persist. Keep the commit identity in the
 checkout with `ft identity --local`.
 
-> [!TIP]
-> VS Code also copies the host's `~/.gitconfig` and forwards the host's Git
-> credentials into the container, so pushing from VS Code can work without a
-> container login. The `gh` and `glab` logins are still needed for their own
-> commands.
+> [!NOTE]
+> VS Code copies the host's `~/.gitconfig` into the container and adds a helper
+> that forwards the host's Git credentials. A host `~/.gitconfig` that sets a
+> per-host helper, such as the one `gh auth setup-git` writes for
+> `github.com`, clears VS Code's helper for that host, so pushes go through the
+> container's `gh` login. Log in inside the container either way.
 
 ## Optional Claude Code
 
