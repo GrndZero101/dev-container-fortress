@@ -57,7 +57,7 @@ separately in [`M5d`](M5d-sealed-agent-workbench.md).
 - [x] The devcontainer documents and supports one recommended way to get code in, either a bind mount of the host checkout or a clone into a volume, and the other way works as a documented variant
 - [x] A devcontainer CLI terminal mode works end to end: `up`, enter a shell, develop, commit, push, and come back later to the same state
 - [x] `ft workspace` and the devcontainer CLI either share one definition or have a documented reason to differ, so there are no two overlapping container paths
-- [x] A generic workbench ships in Dev Fortress, rendered from the same data as the other devcontainer definitions, with no `tboss` names, repos, or absolute paths (verified in terminal mode; the cold run from the docs is `M5e` verification, and archiving `tboss-workspace` follows the merge)
+- [x] A generic workbench ships in Dev Fortress, rendered from the same data as the other devcontainer definitions, with no `tboss` names, repos, or absolute paths (verified in terminal mode; the cold run from the docs is `M5e` verification; `tboss-workspace` was deleted after the merge)
 - Moved to [`M5f`](M5f-agent-workbench-guardrails.md): what a `full` workbench protects, the filesystem guardrails and `--check`, SSH through forwarded agents, and Claude Code bypass mode with a deny-list hook
 
 ## Non-Goals
@@ -548,7 +548,7 @@ deny list).
 - [x] Branch from `main` as `feat/m0005c-composable-container-workspaces`
 - [x] Remaining order: `M5c-7` (workbench); `M5c-8` and `M5c-9` moved to `M5f`
 - [ ] Commit freely at verified checkpoints
-- [ ] Squash merge into `main` once the exit criteria are met
+- [x] Squash merge into `main` (#7, `77d964d`, 2026-11-20)
 
 ## Progress Notes
 
@@ -855,3 +855,11 @@ workbenches yet. The quickstart gained an optional workbench step, and the
 workbench guide now frames the two layers, workstation and workbench, as
 rebuildable from `~/.config/dev-container-fortress/` alone. The cold run of
 the guide is planned on bare-metal Ubuntu.
+
+Merged on 2026-11-20 as #7 (`77d964d`) after CI passed every image job,
+including the `ubuntu-full` layer smoke tests that a shared Homebrew volume
+fixed. `GrndZero101/tboss-workspace` was then deleted rather than archived:
+the operator was its only user and never used it day to day. It had no
+issues, pull requests, or forks, and its local-only leftovers (a `TODO.md` for
+the `state`, `zoxide`, and `atuin` mounts, and a docs commit removing
+hard-coded paths) are both superseded by workbenches.

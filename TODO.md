@@ -8,19 +8,16 @@ records the result.
 
 ## Up Next
 
-1. **Merge `M5c`:** review and squash-merge the PR, then archive
-   `GrndZero101/tboss-workspace` with a pointer to
-   [`docs/workbench-usage.md`](docs/workbench-usage.md).
-2. **`M5e` verification:** follow the
-   [developer path](DEVELOPMENT.md#rocket-zero-to-hero-developer-path) cold on
-   bare-metal Ubuntu, timed, through a workbench opened in VS Code with a login
-   and push from inside; see the
-   [M5e file](docs/milestones/M5e-developer-workstation.md).
-3. **`M5f`:** workbench guardrails and credentials, then Claude Code bypass
+1. **`M5e` baseline run:** on a fresh bare-metal Ubuntu install, follow the
+   [developer path](DEVELOPMENT.md#rocket-zero-to-hero-developer-path) from the
+   top, timing each step, through a workbench opened in VS Code with a login
+   and push from inside. Record the times and every snag in the
+   [M5e file](docs/milestones/M5e-developer-workstation.md). Wait for the
+   `main` CI run from the `M5c` merge to publish the images first.
+2. **`M5f`:** workbench guardrails and credentials, then Claude Code bypass
    mode; see the [M5f file](docs/milestones/M5f-agent-workbench-guardrails.md).
-4. **`M5e`:** developer mode for `shell-config`, macOS host mode, and a
-   shorter developer path; see the
-   [M5e file](docs/milestones/M5e-developer-workstation.md).
+3. **`M5e`:** developer mode for `shell-config`, macOS host mode, and a
+   shorter developer path, shaped by the baseline run.
 
 ## Parked
 

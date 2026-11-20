@@ -3,7 +3,7 @@
 ## Status
 
 - [ ] Milestone complete
-- [ ] Active milestone
+- [x] Active milestone
 
 ## Objective
 
@@ -65,8 +65,8 @@ adds workbenches. What is still manual for a developer:
 
 ## Branch and Merge Plan
 
-- [ ] Start after `M5c` merges
-- [ ] Branch from `main` as `feat/m0005e-developer-workstation`
+- [x] Start after `M5c` merges
+- [x] Branch from `main` as `feat/m0005e-developer-workstation`
 - [ ] Commit freely at verified checkpoints
 - [ ] Squash merge into `main` once the exit criteria are met
 
@@ -76,3 +76,8 @@ Drafted on 2026-11-20 from the operator's stated aim: the fewest commands from
 a new Ubuntu or macOS install to a full DevOps development workstation, in
 hours or less instead of days or weeks. The gaps came from walking the
 developer path for a bare-metal Ubuntu run of the `M5c-7` workbench docs.
+
+Activated on 2026-11-20 after `M5c` merged (#7). The first step is the cold,
+timed bare-metal Ubuntu run of the current developer path, which measures the
+baseline the issue drafts aim to shrink and closes the `M5c` workbench
+acceptance that moved here.

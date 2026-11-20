@@ -385,7 +385,7 @@ Details:
 
 ### `M5c` Composable Container Workspaces
 
-Status: `done` (agent guardrails moved to `M5f`)
+Status: `done` (squash-merged in PR #7, 2026-11-20; agent guardrails moved to `M5f`)
 
 Objective:
 Make the container targets long-lived, composable development environments by
@@ -419,7 +419,7 @@ Details:
 
 ### `M5e` Zero to Hero: Developer Workstation
 
-Status: `next`, after `M5c`
+Status: `active`
 
 Objective:
 Take a fresh Ubuntu or macOS install to a full DevOps development workstation
