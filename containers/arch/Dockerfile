@@ -118,11 +118,9 @@ ARG USER_GID=1000
 ARG HOMEBREW_FLOOR="warm"
 
 COPY --from=uv-distroless /uv /uvx /usr/local/bin/
-COPY containers/common/ft-host-browser-open.sh /usr/local/bin/ft-host-browser-open
-COPY containers/common/install-shell-config.sh /usr/local/bin/install-shell-config
-COPY containers/common/start-test-target.sh /usr/local/bin/start-test-target
-COPY containers/common/ensure-claude-code.sh /usr/local/bin/ft-ensure-claude-code
-COPY containers/common/brew-floor.sh /usr/local/bin/ft-brew-floor
+# Only what the Homebrew floor needs comes before it; the other helpers follow
+# the floor, so editing them does not rebuild it.
+COPY --chmod=0755 containers/common/brew-floor.sh /usr/local/bin/ft-brew-floor
 COPY containers/common/gitconfig /etc/gitconfig
 
 RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
@@ -161,8 +159,6 @@ RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
   && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-${USERNAME} \
   && chmod 0440 /etc/sudoers.d/90-${USERNAME}
 
-RUN chmod 0755 /usr/local/bin/ft-host-browser-open /usr/local/bin/install-shell-config /usr/local/bin/start-test-target /usr/local/bin/ft-ensure-claude-code /usr/local/bin/ft-brew-floor
-
 ENV HOME=/home/${USERNAME}
 ENV XDG_CACHE_HOME=${HOME}/.cache
 ENV XDG_DATA_HOME=${HOME}/.local/share
@@ -195,6 +191,11 @@ RUN --mount=type=cache,target=/home/vscode/.cache/Homebrew,uid=1000,gid=1000 \
       cold) ;; \
       *) echo "HOMEBREW_FLOOR must be warm or cold, not ${HOMEBREW_FLOOR}" >&2; exit 1 ;; \
     esac
+
+COPY --chmod=0755 containers/common/ft-host-browser-open.sh /usr/local/bin/ft-host-browser-open
+COPY --chmod=0755 containers/common/install-shell-config.sh /usr/local/bin/install-shell-config
+COPY --chmod=0755 containers/common/start-test-target.sh /usr/local/bin/start-test-target
+COPY --chmod=0755 containers/common/ensure-claude-code.sh /usr/local/bin/ft-ensure-claude-code
 
 ARG SHELL_CONFIG_SOURCE="github"
 ARG SHELL_CONFIG_REPO_URL="https://github.com/GrndZero101/shell-config.git"
