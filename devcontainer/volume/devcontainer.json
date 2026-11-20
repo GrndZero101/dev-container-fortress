@@ -1,6 +1,6 @@
 {
   "name": "Dev Container Fortress (volume)",
-  "image": "${localEnv:DEV_FORTRESS_IMAGE:ghcr.io/grndzero101/dev-container-fortress:ubuntu}",
+  "image": "${localEnv:DEV_FORTRESS_IMAGE_REPO:ghcr.io/grndzero101/dev-container-fortress}:${localEnv:DEV_FORTRESS_IMAGE_TAG:ubuntu}",
   "workspaceMount": "type=volume,source=dev-fortress-src-${localWorkspaceFolderBasename},target=/workspaces",
   "workspaceFolder": "/workspaces",
   "remoteUser": "vscode",

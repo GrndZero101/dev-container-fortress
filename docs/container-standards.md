@@ -109,7 +109,7 @@ That means they should:
 - The volume definition mounts `dev-fortress-src-<folder>` at `/workspaces`,
   keyed on the host folder's name because the devcontainer CLI does not
   substitute `${devcontainerId}` in `workspaceMount`. It uses the published
-  image unless `DEV_FORTRESS_IMAGE` overrides it. The glibc images pre-create `/workspaces` with runtime-user
+  image unless `DEV_FORTRESS_IMAGE_REPO` and `DEV_FORTRESS_IMAGE_TAG` override it. The glibc images pre-create `/workspaces` with runtime-user
   ownership, so a fresh volume is writable without `sudo`.
 - Code in a volume exists only there. Push to back it up; removing the volume
   deletes any unpushed work.
@@ -189,6 +189,8 @@ That means they should:
 ## Devcontainer Contract
 
 - `.devcontainer/` should remain a thin wrapper around the container target.
+- Every `devcontainer.json` is rendered by `ft devcontainer render` from the runtime table that `ft workspace` also reads (`ft/src/ft/container_runtime.py`) and from the target Dockerfile's build-arg defaults. Edit the data, not the JSON; `--check` in pre-commit and CI enforces it. The architecture doc records why the two runtimes stay separate.
+- A `${localEnv:VAR:default}` default must not contain `:`, because the devcontainer CLI cuts it there. The renderer refuses one; a build arg whose Dockerfile default holds a colon is forwarded without a default and the image's installer falls back.
 - The repository may expose multiple devcontainer definitions when it supports multiple container targets.
 - The current standard definitions are `.devcontainer/ubuntu/devcontainer.json`, `.devcontainer/alpine/devcontainer.json`, and `.devcontainer/arch/devcontainer.json`.
 - `devcontainer/volume/devcontainer.json` is the devcontainer CLI's clone-into-volume definition. It lives outside `.devcontainer/` so VS Code does not offer it when reopening a checkout, and it runs the published image rather than building one.

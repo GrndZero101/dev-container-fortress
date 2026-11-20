@@ -500,10 +500,10 @@ These are accepted risks, documented rather than solved:
 
 ### M5c-5 Unify the workspace and devcontainer definitions
 
-- [ ] Problem: `ft workspace` profiles and `.devcontainer/` describe overlapping container setups
+- [x] Problem: `ft workspace` profiles and `.devcontainer/` describe overlapping container setups
 - [x] Scope: spike `ft workspace` driving the devcontainer CLI, compared with generating the devcontainer files from profiles (decision: generate; see the spike results)
-- [ ] Scope: add `ft devcontainer render`, which writes the four definitions from the shared mount table and target data, plus `--check` in pre-commit and CI; render build-arg defaults where they hold no `:`
-- [ ] Acceptance: one source of truth for mounts, start steps, and environment, with the reasons for two runtimes recorded in `docs/architecture.md`
+- [x] Scope: add `ft devcontainer render`, which writes the four definitions from the shared mount table and target data, plus `--check` in pre-commit and CI; render build-arg defaults where they hold no `:`
+- [x] Acceptance: one source of truth for mounts, start steps, and environment, with the reasons for two runtimes recorded in `docs/architecture.md`
 
 ### M5c-6 Keep the image cache across commits
 
@@ -556,7 +556,7 @@ These are accepted risks, documented rather than solved:
 
 - [ ] Start after `M5b`, or alongside it if the Homebrew spike is independent
 - [x] Branch from `main` as `feat/m0005c-composable-container-workspaces`
-- [ ] Remaining order: the `M5c-5` renderer, then `M5c-7` (workbench), `M5c-8` (guardrails and credentials), and `M5c-9` (Claude Code bypass)
+- [ ] Remaining order: `M5c-7` (workbench), `M5c-8` (guardrails and credentials), and `M5c-9` (Claude Code bypass)
 - [ ] Commit freely at verified checkpoints
 - [ ] Squash merge into `main` once the exit criteria are met
 
@@ -754,3 +754,26 @@ Found on the way:
 
 Still open: Arch, arm64, and the CLI volume flow from the published GHCR image,
 which needs this branch merged first.
+
+M5c-5 done on 2026-11-20. `ft devcontainer render` writes all four
+definitions from `ft/src/ft/container_runtime.py`, which `ft workspace` now
+reads too: the persisted-mount paths, the Homebrew-only mounts, each option's
+mounts and environment, and the start steps, which `ft workspace up` now runs
+from the same list. Build-arg defaults come from the target Dockerfiles. A
+`devcontainer-render` pre-commit hook runs `--check`, so CI enforces it too.
+The reasons for keeping two runtimes are in `docs/architecture.md`.
+
+Found on the way: the volume flow's image,
+`${localEnv:DEV_FORTRESS_IMAGE:ghcr.io/...:ubuntu}`, resolved to the
+unpublished `:latest` when the variable was unset, because the CLI cut the
+default at its first colon. The renderer now refuses a colon in any default,
+and the override is split into `DEV_FORTRESS_IMAGE_REPO` and
+`DEV_FORTRESS_IMAGE_TAG`.
+
+| Check | Result |
+| --- | --- |
+| Fresh render against the committed files | only the intended changes: four build-arg defaults per build definition, and the split image reference |
+| `devcontainer read-configuration`, volume flow, no variables set | `ghcr.io/grndzero101/dev-container-fortress:ubuntu` |
+| Same, with the two variables set | `dev-container-fortress:workspace-ubuntu-base` |
+| `.devcontainer/ubuntu` build with the rendered args | 22 s, floor cached; `SHELL_CONFIG_PROFILE=zsh-tll-citadel-dev-fortress` |
+| `ft` tests and pre-commit | 260 passed; all hooks pass |

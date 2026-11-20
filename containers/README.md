@@ -95,7 +95,7 @@ VS Code should see three devcontainer definitions under `.devcontainer/`:
 - `.devcontainer/alpine/devcontainer.json`
 - `.devcontainer/arch/devcontainer.json`
 
-Each stays a thin wrapper over the matching Dockerfile. Ubuntu and Arch run `ft-brew-floor` and the opt-in Claude Code check on every start; Alpine runs a lightweight `ft plan` validation in `postCreate`.
+They are generated: run `ft devcontainer render` after changing the shared runtime data or a forwarded Dockerfile build arg. Each stays a thin wrapper over the matching Dockerfile. Ubuntu and Arch run `ft-brew-floor` and the opt-in Claude Code check on every start; Alpine runs a lightweight `ft plan` validation in `postCreate`.
 
 ## Local Build
 

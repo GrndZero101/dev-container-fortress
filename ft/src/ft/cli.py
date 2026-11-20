@@ -26,7 +26,15 @@ from rich.live import Live
 from rich.markup import escape
 from rich.table import Table
 
+from ft.container_runtime import (
+    HOMEBREW_PREFIX,
+    OPTION_ENV,
+    OPTION_MOUNTS,
+    PERSISTED_MOUNT_PATHS,
+    START_STEPS,
+)
 from ft.container_targets import CONTAINER_TARGETS, KNOWN_CONTAINER_TARGETS
+from ft.devcontainer import render_all, stale_definitions
 from ft.fleet_check import (
     FAILED,
     PASSED,
@@ -173,6 +181,13 @@ options_app = typer.Typer(
         "Nothing optional is installed unless selected."
     ),
 )
+devcontainer_app = typer.Typer(
+    no_args_is_help=False,
+    help=(
+        "Render the repository's devcontainer definitions from the same data "
+        "that ft workspace uses."
+    ),
+)
 completion_app = typer.Typer(
     no_args_is_help=False,
     help=(
@@ -193,6 +208,7 @@ infra_app.add_typer(aws_disposable_ubuntu_app, name="aws-disposable-ubuntu")
 infra_app.add_typer(aws_test_fleet_app, name="aws-test-fleet")
 aws_disposable_ubuntu_app.add_typer(aws_disposable_ubuntu_capacity_app, name="capacity")
 app.add_typer(options_app, name="options")
+app.add_typer(devcontainer_app, name="devcontainer")
 app.add_typer(completion_app, name="completion")
 
 console = Console()
@@ -233,14 +249,6 @@ WORKSPACE_TOOLCHAIN_CHECKS = (
     ("python", f"python{sys.version_info.major}.{sys.version_info.minor} --version"),
     ("nvim", "setopt pipefail; nvim --version | head -n 1"),
 )
-# Optional components a workspace installs when it starts, each with the
-# persisted mounts that keep its state across container replacement. The
-# other options, such as the tmux profiles, are host-only.
-WORKSPACE_OPTION_MOUNTS: dict[str, tuple[str, ...]] = {
-    "claude-code": ("claude", "claude-versions"),
-}
-WORKSPACE_CLAUDE_CONFIG_DIR = "/home/vscode/.claude"
-WORKSPACE_HOMEBREW_PREFIX = "/home/linuxbrew/.linuxbrew"
 
 
 @app.callback(invoke_without_command=True)
@@ -856,27 +864,12 @@ def _workspace_persisted_host_path(profile_name: str, mount_name: str) -> Path:
 def _workspace_persisted_container_path(mount_name: str) -> str:
     """Return the in-container path for one named workspace persisted mount.
 
-    The image owns ``${XDG_DATA_HOME}`` (``uv`` tools and Python, ``ft``,
-    the Neovim runtime, and prewarmed zinit plugins), so persisted mounts
-    must target narrow runtime-state paths rather than the whole data root.
+    The paths live in :data:`ft.container_runtime.PERSISTED_MOUNT_PATHS`,
+    shared with the rendered devcontainers.
     """
-    mapping = {
-        "cache": "/home/vscode/.cache",
-        "state": "/home/vscode/.local/state",
-        "zoxide": "/home/vscode/.local/share/zoxide",
-        "atuin": "/home/vscode/.local/share/atuin",
-        "gh": "/home/vscode/.config/gh",
-        "glab": "/home/vscode/.config/glab-cli",
-        "aws": "/home/vscode/.aws",
-        "azure": "/home/vscode/.azure",
-        "gnupg": "/home/vscode/.gnupg",
-        "password-store": "/home/vscode/.password-store",
-        "claude": WORKSPACE_CLAUDE_CONFIG_DIR,
-        "claude-versions": "/home/vscode/.local/share/claude",
-    }
-    if mount_name not in mapping:
+    if mount_name not in PERSISTED_MOUNT_PATHS:
         raise ValueError(f"unsupported workspace persisted mount: {mount_name}")
-    return mapping[mount_name]
+    return PERSISTED_MOUNT_PATHS[mount_name]
 
 
 def _host_proc_version_text() -> str:
@@ -1054,7 +1047,7 @@ def _workspace_mount_plan(
     for option_name in option_names:
         mount_names.extend(
             mount_name
-            for mount_name in WORKSPACE_OPTION_MOUNTS[option_name]
+            for mount_name in OPTION_MOUNTS[option_name]
             if mount_name not in mount_names
         )
     for mount_name in mount_names:
@@ -1124,7 +1117,7 @@ def _workspace_mount_plan_payload(
             [
                 {
                     "volume": _workspace_brew_volume(profile_name),
-                    "container_path": WORKSPACE_HOMEBREW_PREFIX,
+                    "container_path": HOMEBREW_PREFIX,
                 }
             ]
             if CONTAINER_TARGETS[profile.container_target].homebrew
@@ -5138,10 +5131,8 @@ def _workspace_option_names(selection: OptionSelection) -> tuple[str, ...]:
     Returns:
         The selected names that a workspace installs, in catalog order.
     """
-    supported = tuple(
-        name for name in selection.names if name in WORKSPACE_OPTION_MOUNTS
-    )
-    skipped = [name for name in selection.names if name not in WORKSPACE_OPTION_MOUNTS]
+    supported = tuple(name for name in selection.names if name in OPTION_MOUNTS)
+    skipped = [name for name in selection.names if name not in OPTION_MOUNTS]
     console.print(
         f"options: {', '.join(supported) or 'none'} ({selection.source})",
         highlight=False,
@@ -5229,11 +5220,9 @@ def _up_workspace_profile(
     run_command.extend(["--env", "DEV_FORTRESS_AWS_LOGIN_MODE=device-code"])
     # Record the selection in the container, where validation reads it back.
     run_command.extend(["--env", f"{OPTIONS_ENV}={','.join(option_names)}"])
-    if "claude-code" in option_names:
-        # Keeps ~/.claude.json inside the persisted config directory too.
-        run_command.extend(
-            ["--env", f"CLAUDE_CONFIG_DIR={WORKSPACE_CLAUDE_CONFIG_DIR}"]
-        )
+    for option_name in option_names:
+        for env_name, env_value in OPTION_ENV.get(option_name, {}).items():
+            run_command.extend(["--env", f"{env_name}={env_value}"])
 
     ssh_auth_sock = os.environ.get("SSH_AUTH_SOCK")
     if ssh_auth_sock:
@@ -5339,7 +5328,7 @@ def _up_workspace_profile(
         run_command.extend(
             [
                 "--volume",
-                f"{_workspace_brew_volume(profile_name)}:{WORKSPACE_HOMEBREW_PREFIX}",
+                f"{_workspace_brew_volume(profile_name)}:{HOMEBREW_PREFIX}",
             ]
         )
 
@@ -5356,25 +5345,18 @@ def _up_workspace_profile(
         return False
 
     console.print(f"started {container_name}")
-    if homebrew:
-        floor_result = _run_streaming_command(
-            ["docker", "exec", container_name, "ft-brew-floor"]
+    for step in START_STEPS:
+        if not step.applies(homebrew=homebrew):
+            continue
+        if step.option is not None and step.option not in option_names:
+            continue
+        step_result = _run_streaming_command(
+            ["docker", "exec", container_name, step.command]
         )
-        if floor_result.returncode != 0:
+        if step_result.returncode != 0:
             console.print(
-                f"[red]Homebrew floor failed[/red] in {container_name}; images "
-                "built before M5c-2 lack ft-brew-floor, so rebuild or pull the image"
-            )
-            return False
-    if "claude-code" in option_names:
-        install_result = _run_streaming_command(
-            ["docker", "exec", container_name, "ft-ensure-claude-code"]
-        )
-        if install_result.returncode != 0:
-            console.print(
-                "[red]claude-code install failed[/red] in "
-                f"{container_name}; images built before M5c lack "
-                "ft-ensure-claude-code, so rebuild or pull the image"
+                f"[red]{step.command} failed[/red] in {container_name}; images "
+                f"built before {step.since} lack it, so rebuild or pull the image"
             )
             return False
     return True
@@ -8751,6 +8733,53 @@ def options_list(ctx: typer.Context) -> None:
         "or pass --options to `ft host bootstrap` for one run.",
         highlight=False,
     )
+
+
+@devcontainer_app.command("render")
+def devcontainer_render(
+    check: Annotated[
+        bool,
+        typer.Option(
+            "--check",
+            help=(
+                "Write nothing; fail when a committed definition differs from "
+                "a fresh render. For pre-commit and CI."
+            ),
+        ),
+    ] = False,
+) -> None:
+    """Write the devcontainer definitions from the shared runtime data.
+
+    Mounts, start steps, and option environment come from the table that
+    ft workspace uses, and build-arg defaults from the target Dockerfiles.
+    """
+    repo_root = _repo_root()
+    try:
+        if check:
+            stale = stale_definitions(repo_root)
+        else:
+            rendered = render_all(repo_root)
+    except (OSError, ValueError) as error:
+        console.print(f"[red]devcontainer render failed:[/red] {error}")
+        raise typer.Exit(code=1) from error
+    if check:
+        for path in stale:
+            console.print(
+                f"[red]stale:[/red] {path.relative_to(repo_root)}", highlight=False
+            )
+        if stale:
+            console.print("run `ft devcontainer render` and commit the result")
+            raise typer.Exit(code=1)
+        console.print("devcontainer definitions are up to date")
+        return
+    for path, text in rendered.items():
+        current = path.read_text(encoding="utf-8") if path.is_file() else None
+        if current == text:
+            continue
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        console.print(f"wrote {path.relative_to(repo_root)}", highlight=False)
+    console.print("devcontainer definitions are up to date")
 
 
 @options_app.command("pick")

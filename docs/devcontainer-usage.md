@@ -17,6 +17,12 @@ The repository currently provides three devcontainer definitions:
 
 Each is a thin wrapper over the matching Dockerfile in `containers/`.
 
+> [!IMPORTANT]
+> These files, and `devcontainer/volume/devcontainer.json`, are generated.
+> Change the shared data in `ft/src/ft/container_runtime.py` or the renderer in
+> `ft/src/ft/devcontainer.py`, then run `ft devcontainer render`. Pre-commit
+> and CI run `ft devcontainer render --check` and fail on a hand edit.
+
 These repo-local definitions are best for changing the Dev Fortress image
 itself. The orchestrator scaffold is best for using Dev Fortress as the
 workspace toolchain while editing multiple child repositories.
@@ -82,11 +88,14 @@ cd repo && ft identity --local
 ```
 
 Run the same `up` and `exec` later to come back to the same state, including
-after `devcontainer up --remove-existing-container`. Set `DEV_FORTRESS_IMAGE`
-to use another image, such as a local build:
+after `devcontainer up --remove-existing-container`. Set
+`DEV_FORTRESS_IMAGE_REPO` and `DEV_FORTRESS_IMAGE_TAG` to use another image,
+such as a local build. They are separate because the devcontainer CLI cuts a
+default at its first `:`, so one variable could not default to a tagged image:
 
 ```bash
-DEV_FORTRESS_IMAGE=dev-container-fortress:workspace-ubuntu-base devcontainer up --workspace-folder . --config "$dcf"
+DEV_FORTRESS_IMAGE_REPO=dev-container-fortress DEV_FORTRESS_IMAGE_TAG=workspace-ubuntu-base \
+  devcontainer up --workspace-folder . --config "$dcf"
 ```
 
 > [!NOTE]

@@ -170,7 +170,7 @@ ft container build ubuntu \
 | `just` | Convenience shim | Keep for muscle memory, but do not treat it as the logic home |
 | `ansible/` | Host automation layer | Thin today, expanding during host-role milestones |
 | `containers/` | Disposable target implementation | Use for build/runtime contracts |
-| `.devcontainer/` | VS Code integration | Thin wrapper over the matching container target |
+| `.devcontainer/` | VS Code integration | Thin wrapper over the matching container target, rendered by `ft devcontainer render` |
 | `devcontainer/volume/` | Devcontainer CLI terminal mode | Clones code into a named volume on the published image |
 
 ## :world_map: Target Matrix

@@ -157,6 +157,41 @@ Use:
   [devcontainer usage guide](devcontainer-usage.md#getting-code-in)
 - `gh` and `glab` logins on persisted volumes, with `/etc/gitconfig` routing
   HTTPS pushes through them, since `~/.gitconfig` does not persist
+- generated definitions: `ft devcontainer render` writes every
+  `devcontainer.json`, and its `--check` runs in pre-commit and CI
+
+### One definition, two runtimes
+
+`ft workspace` and the devcontainers start the same images from one shared
+definition in [`ft/src/ft/container_runtime.py`](../ft/src/ft/container_runtime.py):
+the persisted mounts and their container paths, which apply to Homebrew
+targets only, the start steps (`ft-brew-floor`, `ft-ensure-claude-code`), and
+each option's mounts and environment. The renderer adds the build-arg defaults
+from the target Dockerfiles. Adding a persisted mount is one edit plus a
+render.
+
+The two runtimes stay separate on purpose. Having `ft workspace` drive the
+devcontainer CLI was measured in the `M5c-5` spike and rejected:
+
+- `ft workspace` replaces a container in about 1 s and runs a command in about
+  0.3 s, against 7.4 s and 0.85 s through the devcontainer CLI, and needs no
+  Node toolchain on hosts or the EC2 fleet
+- it computes host integrations at start: the browser bridge broker, WSL
+  interop mounts, the SSH agent socket, and option-dependent mounts. VS Code
+  supplies its own browser, agent, and credential forwarding, and static JSON
+  cannot branch on the host
+- its state is host-owned bind mounts that `ft workspace auth` and `doctor`
+  inspect, while devcontainer state is named volumes keyed per definition
+
+Because a rendered definition cannot see the option selection, it mounts every
+option's volumes and runs option-gated steps with `--if-selected`, which reads
+`DEV_CONTAINER_FORTRESS_OPTIONS` inside the container.
+
+> [!NOTE]
+> The devcontainer CLI cuts a `${localEnv:VAR:default}` default at its first
+> `:`. The renderer refuses such a default, leaves build args like
+> `SHELL_CONFIG_REPO_URL` to the image's own fallback, and splits the volume
+> flow's image into `DEV_FORTRESS_IMAGE_REPO` and `DEV_FORTRESS_IMAGE_TAG`.
 
 ## Operator CLI Direction
 
