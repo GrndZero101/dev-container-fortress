@@ -156,7 +156,9 @@ That means they should:
   `[homebrew.linux]` in `ft/tools/tool-pool.toml`), which the image writes to
   `$XDG_DATA_HOME/dev-container-fortress/brew-floor.txt` with
   `ft tool formulae`. Tool layers that come from Homebrew, such as `aws`,
-  append their formulae to that list.
+  append their formulae to that list. `[homebrew.host]` holds
+  workstation-only formulae, such as the `devcontainer` CLI, and never enters
+  the floor.
 - The `vscode` user owns the prefix at `/home/linuxbrew/.linuxbrew`, so
   `brew install` needs no `sudo`. The prefix must stay there for bottles to
   pour.

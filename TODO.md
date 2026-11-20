@@ -8,10 +8,11 @@ records the result.
 
 ## Up Next
 
-1. **`M5c-7`:** finish the acceptance: follow
-   [`docs/workbench-usage.md`](docs/workbench-usage.md) cold, open a workbench
-   in VS Code, log in and push from inside, then archive `tboss-workspace`; see
-   the [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
+1. **`M5c-7`:** finish the acceptance on bare-metal Ubuntu: quickstart in
+   `host` mode, then follow [`docs/workbench-usage.md`](docs/workbench-usage.md)
+   cold, open a workbench in VS Code, log in and push from inside, then archive
+   `tboss-workspace`; see the
+   [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 2. **`M5c-8`:** workbench filesystem guardrails and the SSH and 1Password
    credential model; see the
    [M5c file](docs/milestones/M5c-composable-container-workspaces.md).

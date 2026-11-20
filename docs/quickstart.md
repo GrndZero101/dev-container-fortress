@@ -43,8 +43,9 @@ choose another place.
 3. installs `uv`, the Python that `.python-version` pins, a live `ft` CLI, and
    a user-level Ansible
 4. converges this machine with `ft host bootstrap localhost`: Docker,
-   `shell-config`, zsh as your login shell, the Homebrew toolchain, and a
-   kickstart Neovim launcher
+   `shell-config`, zsh as your login shell, the Homebrew toolchain (including
+   the `devcontainer` CLI that workbenches use), and a kickstart Neovim
+   launcher
 5. sets your Git identity if it is missing
 
 A fresh host takes about five minutes. The installer keeps the `sudo` session
@@ -128,6 +129,23 @@ ft host validate localhost -K
 `ft host validate` runs a check-mode pass, a real pass, and a second pass that
 must report `changed=0`. `-K` asks for your `sudo` password.
 
+## :hammer_and_wrench: 5. Add a Workbench (Optional)
+
+The workstation is the base layer. For your own projects, compose a
+**workbench** on top: a devcontainer that holds a set of repos, described by
+one TOML file that you can keep in your dotfiles and re-render anywhere.
+
+```sh
+ft workbench init mybench --options claude-code \
+  --repo https://github.com/you/first-repo.git \
+  --repo https://github.com/you/second-repo.git
+ft workbench clone mybench
+devcontainer up --workspace-folder ~/workbenches/mybench
+```
+
+See [Workbench Usage](workbench-usage.md) for the VS Code path and how to
+rebuild or reshape one.
+
 ## :house: Existing Machines
 
 Re-running Dev Fortress on a machine you already set up by hand is safe. It
@@ -169,7 +187,8 @@ without re-running the installer.
 | `workspace` | A thin host: prerequisites, `ft`, and Docker, plus the `ubuntu-full` daily-driver container image |
 
 `workspace` mode keeps the daily-driver toolchain in a container instead of on
-the host: no `shell-config`, login shell, Homebrew, or extras.
+the host: no `shell-config`, login shell, Homebrew, or extras. Without
+Homebrew there is no `devcontainer` CLI, so workbenches need `host` mode.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
@@ -241,6 +260,8 @@ More detail: [WSL Bootstrap Notes](wsl-bootstrap.md).
 
 ## :compass: Next Steps
 
+- [Workbench Usage](workbench-usage.md) to compose devcontainers for your own
+  repos on top of this workstation
 - [Container Usage](container-usage.md) and
   [Devcontainer Usage](devcontainer-usage.md) for daily-driver containers and
   VS Code devcontainers

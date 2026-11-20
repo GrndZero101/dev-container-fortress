@@ -150,7 +150,16 @@ class ToolPoolGroup(BaseModel):
 
 
 class HomebrewToolPool(BaseModel):
-    """Homebrew-oriented shared tool-pool definition."""
+    """Homebrew-oriented shared tool-pool definition.
+
+    Attributes:
+        common: Formulae for every host and the glibc container images.
+        linux: Linux additions, shared by hosts and the container floor.
+        wsl: WSL additions.
+        macos: macOS additions.
+        host: Formulae for workstations only, never the container floor, such
+            as the devcontainer CLI that drives workbenches from the host.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -158,6 +167,7 @@ class HomebrewToolPool(BaseModel):
     linux: ToolPoolGroup = Field(default_factory=ToolPoolGroup)
     wsl: ToolPoolGroup = Field(default_factory=ToolPoolGroup)
     macos: ToolPoolGroup = Field(default_factory=ToolPoolGroup)
+    host: ToolPoolGroup = Field(default_factory=ToolPoolGroup)
 
     def formulae_for(self, platform: str) -> list[str]:
         """Return the effective formula list for the requested platform.
@@ -172,6 +182,18 @@ class HomebrewToolPool(BaseModel):
             raise ValueError(f"unsupported tool-pool platform: {platform}")
         platform_group = getattr(self, platform)
         return self.common.formulae + platform_group.formulae
+
+    def host_formulae_for(self, platform: str) -> list[str]:
+        """Return the formula list a workstation installs on one platform.
+
+        Args:
+            platform: Tool-pool platform key such as ``linux`` or ``macos``.
+
+        Returns:
+            The platform list from :meth:`formulae_for` followed by the
+            host-only formulae.
+        """
+        return self.formulae_for(platform) + self.host.formulae
 
 
 class DownloaderToolPoolGroup(BaseModel):

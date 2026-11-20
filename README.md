@@ -72,6 +72,11 @@ already set up by hand.
 > such as Claude Code and the tmux profiles, Git identity, existing machines,
 > the `cli` and `workspace` install modes, every override, and troubleshooting.
 
+On top of the workstation, compose a **workbench** per set of repos: a
+devcontainer described by one TOML file that `ft` renders and clones, so the
+whole setup can be rebuilt on a new machine from a few small files. See
+[Workbench Usage](docs/workbench-usage.md).
+
 ### Manual clone fallback
 
 ```sh
@@ -120,18 +125,9 @@ ft workspace up ubuntu-full
 ft workspace enter ubuntu-full
 ```
 
-For VS Code-first multi-repo work on your own repos, create a workbench: one
-TOML file under `~/.config/dev-container-fortress/workbenches/`, from which
-`ft` renders a devcontainer folder and clones the repos into it:
-
-```sh
-ft workbench init mybench --profile ubuntu-full --options claude-code \
-  --repo https://github.com/you/first-repo.git \
-  --repo https://github.com/you/second-repo.git
-ft workbench clone mybench
-```
-
-See the [workbench usage guide](docs/workbench-usage.md).
+For VS Code-first multi-repo work, use a [workbench](docs/workbench-usage.md),
+with `local_build` pointing at your Dev Fortress clone when you are changing
+the image itself.
 
 ```sh
 ft container build ubuntu \

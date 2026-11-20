@@ -852,3 +852,16 @@ Still open for the acceptance: a fresh user following
 inside a workbench, and archiving `tboss-workspace` with a pointer (an
 operator action). Deferred to the always-on workbench work: persisting
 `~/.vscode-server` and `"shutdownAction": "none"`.
+
+Workbench prerequisites settled on 2026-11-20: a workbench sits on a full
+Dev Fortress workstation, the quickstart in `host` mode, which already brings
+`ft`, Docker, `shell-config`, and the Homebrew toolchain. The `devcontainer`
+CLI joined the hosts through a new host-only tool-pool group,
+`[homebrew.host]` (`brew/Brewfile.host`, appended to the host playbook's
+list), so the container floor stays free of it and of Node; a test keeps the
+two apart. VS Code and its Dev Containers extension stay a documented
+prerequisite. `--mode workspace` hosts lack Homebrew, so they do not support
+workbenches yet. The quickstart gained an optional workbench step, and the
+workbench guide now frames the two layers, workstation and workbench, as
+rebuildable from `~/.config/dev-container-fortress/` alone. The cold run of
+the guide is planned on bare-metal Ubuntu.

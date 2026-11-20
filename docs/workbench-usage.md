@@ -6,6 +6,22 @@ toolchain, persisted logins and shell history, and optional components such as
 Claude Code. You describe it in one small TOML file, and `ft` generates the
 rest.
 
+## How It Fits
+
+Dev Fortress aims to get you to a working development machine quickly, and to
+let you rebuild or reshape it just as quickly. Two layers do that:
+
+| Layer | What it is | Built by | What you keep |
+| --- | --- | --- | --- |
+| Workstation | The host: Docker, `shell-config`, the Homebrew toolchain, and `ft` | The [quickstart](quickstart.md) one-liner | Your option selection, `~/.config/dev-container-fortress/options.toml` |
+| Workbench | A container per set of repos, on the same toolchain | `ft workbench` | One TOML file per workbench, under `~/.config/dev-container-fortress/workbenches/` |
+
+Everything else is generated or cloned from those files, so you can delete a
+workbench folder, add a repo, swap the profile, or move to a new machine, and
+get back to the same place with a few commands. Keep
+`~/.config/dev-container-fortress/` in your dotfiles and the whole setup
+travels with you.
+
 > [!NOTE]
 > "Workbench" is the multi-repo devcontainer you create for your own repos.
 > "Workspace" is the `ft workspace` profile and runtime used to develop Dev
@@ -28,10 +44,28 @@ rest.
 The TOML file is the only thing you own. The folder holds generated files and
 clones, so a new machine needs only the TOML file and three commands.
 
-## Create a Workbench
+## :clipboard: Before You Start
 
-You need Docker, Git, and `ft` on the host. For the devcontainer CLI terminal
-mode you also need the `devcontainer` CLI (`brew install devcontainer`).
+1. **A Dev Fortress workstation.** Run the [quickstart](quickstart.md) in its
+   default `host` mode, then open a new terminal so your user picks up the
+   `docker` group. That installs everything a workbench needs on the host:
+   `ft`, Docker, Git, `shell-config`, and the Homebrew toolchain, including the
+   `devcontainer` CLI.
+2. **VS Code with the Dev Containers extension**, if you want the VS Code path.
+   Dev Fortress does not install desktop apps. Terminal mode needs only the
+   `devcontainer` CLI.
+
+A thin host from `--mode workspace` has Docker but no Homebrew, so it lacks
+the `devcontainer` CLI. Re-run the quickstart without `--mode workspace` to
+turn it into a full workstation; nothing is removed.
+
+> [!WARNING]
+> **WSL2:** use VS Code on Windows with the WSL extension, and set
+> `dev.containers.executeInWSL` as described in the
+> [devcontainer usage guide](devcontainer-usage.md), or VS Code starts Docker
+> Desktop instead of using the distro's Docker CE.
+
+## :rocket: Create a Workbench
 
 ```bash
 ft workbench init mybench \
@@ -55,10 +89,6 @@ Then open it in one of two ways:
   then `devcontainer exec --workspace-folder ~/workbenches/mybench zsh -l`.
 
 The repos are bind-mounted from the host, so edits are shared both ways.
-
-> [!TIP]
-> On a new machine, restore the TOML file (for example from your dotfiles) and
-> run `ft workbench render mybench && ft workbench clone mybench`.
 
 ## The Workbench File
 
@@ -130,6 +160,18 @@ Run `ft workbench clone` first so the checkout exists, then render. The local
 build turns on the profile's tool layers and OS release, and forwards the same
 `DEV_CONTAINER_FORTRESS_*` build variables as the repository's own
 devcontainers.
+
+## :arrows_counterclockwise: Rebuild and Recompose
+
+| To | Do |
+| --- | --- |
+| Add or drop a repo, option, or mount | Edit the TOML file, run `ft workbench render mybench` and `ft workbench clone mybench`, then rebuild the container |
+| Start the folder fresh | Delete `~/workbenches/mybench`, then `render` and `clone` again; logins and history stay in the volumes |
+| Start the container state fresh | Remove the `dev-fortress-wb-mybench-*` volumes (see What Persists) |
+| Set up a new machine | Run the quickstart, restore `~/.config/dev-container-fortress/` from your dotfiles, then `ft workbench render && ft workbench clone` for every workbench at once |
+
+Repos come back from their remotes, so push before you delete a folder or a
+machine.
 
 ## Caveats
 

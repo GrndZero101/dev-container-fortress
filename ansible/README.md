@@ -278,7 +278,10 @@ The canonical Homebrew tool-pool definition now lives in:
 - [ft/tools/tool-pool.toml](../ft/tools/tool-pool.toml)
 
 The host playbook and repo Brewfiles are expected to stay aligned with that
-manifest.
+manifest. Hosts install the shared set plus `[homebrew.host]`
+(`brew/Brewfile.host`), the workstation-only formulae such as the
+devcontainer CLI that workbenches use; the container floor installs only the
+shared set.
 
 For Neovim specifically, host bootstrap now also installs the upstream
 `kickstart.nvim` starter config into a parallel XDG app directory and provides
