@@ -12,18 +12,36 @@ You need:
 
 - Ubuntu or WSL2 Ubuntu. Ubuntu 26.04 LTS is the tested baseline, on amd64 and
   arm64
-- `curl`, and a user that can `sudo`
+- a user that can `sudo`
+- `curl`, to fetch the installer. Ubuntu Server and WSL2 Ubuntu include it;
+  Ubuntu Desktop may not, so install it first if `curl --version` fails:
+
+  ```sh
+  sudo apt-get update && sudo apt-get install -y curl
+  ```
+
 - one terminal for the whole run
 
+The installer adds everything else it needs before it starts: `ca-certificates`,
+`curl`, `git`, `zsh`, `python3`, `python3-apt`, and `sudo` through `apt`, then
+`uv` and a pinned Python on its own.
+
 > [!NOTE]
-> On other platforms, including macOS today, only `--mode cli` works, and it
-> needs `git` and `zsh` already installed. See [Install Modes](#gear-install-modes).
+> On other platforms, including macOS today, only `--mode cli` works. It
+> installs no native packages, so `git`, `zsh`, and `curl` or `wget` must
+> already be present. On macOS, `xcode-select --install` provides `git`; `zsh`
+> and `curl` are built in. See [Install Modes](#gear-install-modes).
 
 On WSL2, also check:
 
 - `systemd` is on, which Docker needs. The installer checks it and tells you
   how to enable it if it is off
 - you start from the Linux filesystem, such as `~`, not from `/mnt/c/...`
+
+> [!TIP]
+> Dev Fortress and `shell-config` look best with a Nerd Font in your terminal:
+> the prompt, `eza`, `yazi`, and the `full` and `raidboss` tmux profiles use its
+> icons. We recommend **JetBrainsMono Nerd Font**; step 5 installs it.
 
 ## :rocket: 1. Run the Installer
 
@@ -129,7 +147,28 @@ ft host validate localhost -K
 `ft host validate` runs a check-mode pass, a real pass, and a second pass that
 must report `changed=0`. `-K` asks for your `sudo` password.
 
-## :hammer_and_wrench: 5. Add a Workbench (Optional)
+## :abc: 5. Set the Terminal Font (Recommended)
+
+Install **JetBrainsMono Nerd Font** on the machine whose screen you look at,
+then select it in your terminal. Without a Nerd Font, icons in the prompt,
+file listings, and tmux status line show as boxes or question marks.
+
+| Where your terminal runs | Install |
+| --- | --- |
+| Ubuntu desktop (this workstation) | `brew install --cask font-jetbrains-mono-nerd-font`, after step 4 so `brew` is on your `PATH`. It installs into `~/.local/share/fonts`; run `fc-cache -f` if your terminal does not list it yet |
+| macOS | `brew install --cask font-jetbrains-mono-nerd-font` |
+| WSL2 | On **Windows**, not in the distro: Windows Terminal and VS Code draw the text. Download `JetBrainsMono.zip` from the [Nerd Fonts releases](https://github.com/ryanoasis/nerd-fonts/releases/latest), extract it, select the `.ttf` files, and choose "Install for all users" |
+| SSH to a remote host or into a container | On your local machine only; remote hosts and containers need no font |
+
+Then pick **JetBrainsMono Nerd Font** in your terminal's profile settings
+(GNOME Terminal, Windows Terminal, iTerm2, and others each have a font
+setting), and in VS Code set:
+
+```jsonc
+"terminal.integrated.fontFamily": "JetBrainsMono Nerd Font"
+```
+
+## :hammer_and_wrench: 6. Add a Workbench (Optional)
 
 The workstation is the base layer. For your own projects, compose a
 **workbench** on top: a devcontainer that holds a set of repos, described by

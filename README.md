@@ -55,7 +55,8 @@ For active repository work, prefer the development path.
 ## Operator Install
 
 On Ubuntu or WSL2 Ubuntu, one command takes a fresh machine to a Dev Fortress
-workstation. The only prerequisite is `curl`:
+workstation. You need a user that can `sudo` and `curl` (Ubuntu Desktop may
+need `sudo apt-get install -y curl` first); the installer adds the rest:
 
 ```sh
 cd ~
@@ -71,6 +72,10 @@ already set up by hand.
 > The [Zero to Hero Quickstart](docs/quickstart.md) is the whole onramp: extras
 > such as Claude Code and the tmux profiles, Git identity, existing machines,
 > the `cli` and `workspace` install modes, every override, and troubleshooting.
+
+Dev Fortress and `shell-config` look best with **JetBrainsMono Nerd Font** in
+your terminal; the quickstart shows how to install it on Linux, macOS, and
+Windows for WSL2.
 
 On top of the workstation, compose a **workbench** per set of repos: a
 devcontainer described by one TOML file that `ft` renders and clones, so the
