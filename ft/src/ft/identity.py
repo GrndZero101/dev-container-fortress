@@ -25,6 +25,10 @@ NOREPLY_HINT = (
 
 # Each forge maps to its CLI, a status check that succeeds when already logged
 # in, and the login commands. `gh auth setup-git` makes HTTPS pushes use gh.
+# Both logins use a device code, so they also work in containers and over SSH,
+# where a localhost OAuth callback cannot reach the CLI. glab's device flow
+# needs GitLab 17.9 or later; run `glab auth login` directly for older
+# self-managed instances.
 FORGE_LOGINS: dict[str, tuple[str, list[str], list[list[str]]]] = {
     "github": (
         "gh",
@@ -46,7 +50,18 @@ FORGE_LOGINS: dict[str, tuple[str, list[str], list[list[str]]]] = {
     "gitlab": (
         "glab",
         ["glab", "auth", "status"],
-        [["glab", "auth", "login"]],
+        [
+            [
+                "glab",
+                "auth",
+                "login",
+                "--hostname",
+                "gitlab.com",
+                "--git-protocol",
+                "https",
+                "--device",
+            ]
+        ],
     ),
 }
 

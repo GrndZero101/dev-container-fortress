@@ -83,7 +83,20 @@ def test_ansible_linuxbrew_formulae_match_canonical_linux_pool() -> None:
     playbook_path = _repo_root() / "ansible" / "playbooks" / "host.yml"
     manifest = load_tool_pool_manifest(manifest_path)
     ansible_formulae = _host_playbook_linuxbrew_formulae(playbook_path)
-    assert ansible_formulae == manifest.homebrew.formulae_for("linux")
+    assert ansible_formulae == manifest.homebrew.host_formulae_for("linux")
+
+
+def test_host_only_formulae_stay_out_of_the_container_floor() -> None:
+    """Host-only formulae reach workstations but never the container floor."""
+    manifest_path = _repo_root() / "ft" / "tools" / "tool-pool.toml"
+    brewfile_path = _repo_root() / "brew" / "Brewfile.host"
+    manifest = load_tool_pool_manifest(manifest_path)
+
+    assert "devcontainer" in manifest.homebrew.host.formulae
+    assert _brewfile_formulae(brewfile_path) == manifest.homebrew.host.formulae
+    for platform in ("linux", "wsl", "macos"):
+        floor = set(manifest.homebrew.formulae_for(platform))
+        assert floor.isdisjoint(manifest.homebrew.host.formulae)
 
 
 def test_base_brewfile_matches_canonical_common_pool() -> None:

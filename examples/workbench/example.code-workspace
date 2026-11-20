@@ -1,0 +1,16 @@
+{
+  "folders": [
+    {
+      "path": "."
+    },
+    {
+      "path": "repos/dev-container-fortress"
+    },
+    {
+      "path": "repos/shell-config"
+    }
+  ],
+  "settings": {
+    "terminal.integrated.defaultProfile.linux": "zsh"
+  }
+}

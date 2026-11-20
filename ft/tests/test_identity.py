@@ -7,7 +7,13 @@ from pathlib import Path
 
 import pytest
 from ft.cli import app
-from ft.identity import GitIdentity, read_identity, resolve_identity, validate_email
+from ft.identity import (
+    FORGE_LOGINS,
+    GitIdentity,
+    read_identity,
+    resolve_identity,
+    validate_email,
+)
 from typer.testing import CliRunner
 
 from ft import cli
@@ -185,3 +191,14 @@ def test_identity_login_skips_without_a_terminal(
 
     assert result.exit_code == 0, result.output
     assert "needs a terminal" in result.output
+
+
+@pytest.mark.parametrize(
+    ("forge", "flag"), [("github", "--web"), ("gitlab", "--device")]
+)
+def test_forge_logins_use_a_device_code(forge: str, flag: str) -> None:
+    """Both logins show a device code, so no localhost callback is needed.
+
+    ``gh auth login --web`` is a device-code flow; glab needs ``--device``.
+    """
+    assert flag in FORGE_LOGINS[forge][2][0]

@@ -12,18 +12,38 @@ You need:
 
 - Ubuntu or WSL2 Ubuntu. Ubuntu 26.04 LTS is the tested baseline, on amd64 and
   arm64
-- `curl`, and a user that can `sudo`
+- a user that can `sudo`
+- `curl`, to fetch the installer. Ubuntu Server and WSL2 Ubuntu include it;
+  Ubuntu Desktop may not, so install it first if `curl --version` fails:
+
+  ```sh
+  sudo apt-get update && sudo apt-get install -y curl
+  ```
+
 - one terminal for the whole run
 
-> [!NOTE]
-> On other platforms, including macOS today, only `--mode cli` works, and it
-> needs `git` and `zsh` already installed. See [Install Modes](#gear-install-modes).
+The installer adds everything else it needs before it starts: `ca-certificates`,
+`curl`, `git`, `zsh`, `python3`, `python3-apt`, and `sudo` through `apt`, then
+`uv` and a pinned Python on its own.
 
-On WSL2, also check:
+> [!NOTE]
+> On other platforms, including macOS today, only `--mode cli` works. It
+> installs no native packages, so `git`, `zsh`, and `curl` or `wget` must
+> already be present. On macOS, `xcode-select --install` provides `git`; `zsh`
+> and `curl` are built in. See [Install Modes](#gear-install-modes).
+
+On WSL2, also check the following; for a brand-new Windows machine, the
+[clean start on Windows](wsl-bootstrap.md#checkered_flag-clean-start-on-windows)
+lists the Windows-side setup:
 
 - `systemd` is on, which Docker needs. The installer checks it and tells you
   how to enable it if it is off
 - you start from the Linux filesystem, such as `~`, not from `/mnt/c/...`
+
+> [!TIP]
+> Dev Fortress and `shell-config` look best with a Nerd Font in your terminal:
+> the prompt, `eza`, `yazi`, and the `full` and `raidboss` tmux profiles use its
+> icons. We recommend **JetBrainsMono Nerd Font**; step 5 installs it.
 
 ## :rocket: 1. Run the Installer
 
@@ -43,8 +63,9 @@ choose another place.
 3. installs `uv`, the Python that `.python-version` pins, a live `ft` CLI, and
    a user-level Ansible
 4. converges this machine with `ft host bootstrap localhost`: Docker,
-   `shell-config`, zsh as your login shell, the Homebrew toolchain, and a
-   kickstart Neovim launcher
+   `shell-config`, zsh as your login shell, the Homebrew toolchain (including
+   the `devcontainer` CLI that workbenches use), and a kickstart Neovim
+   launcher
 5. sets your Git identity if it is missing
 
 A fresh host takes about five minutes. The installer keeps the `sudo` session
@@ -82,6 +103,11 @@ curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/
 
 `ft options` lists the choices and shows what the next bootstrap installs.
 Removing an option later stops managing it but does not uninstall it.
+
+`ft workspace up` and `ft workspace enter` honour the same selection and also
+take `--options`. A workspace installs `claude-code` when it starts and keeps
+its login and self-updates on persisted mounts. The tmux profiles are
+host-only, so workspaces skip them.
 
 > [!TIP]
 > Selecting any tmux profile installs all three. Switch between them later with
@@ -122,6 +148,44 @@ ft host validate localhost -K
 
 `ft host validate` runs a check-mode pass, a real pass, and a second pass that
 must report `changed=0`. `-K` asks for your `sudo` password.
+
+## :abc: 5. Set the Terminal Font (Recommended)
+
+Install **JetBrainsMono Nerd Font** on the machine whose screen you look at,
+then select it in your terminal. Without a Nerd Font, icons in the prompt,
+file listings, and tmux status line show as boxes or question marks.
+
+| Where your terminal runs | Install |
+| --- | --- |
+| Ubuntu desktop (this workstation) | `brew install --cask font-jetbrains-mono-nerd-font`, after step 4 so `brew` is on your `PATH`. It installs into `~/.local/share/fonts`; run `fc-cache -f` if your terminal does not list it yet |
+| macOS | `brew install --cask font-jetbrains-mono-nerd-font` |
+| WSL2 | On **Windows**, not in the distro: Windows Terminal and VS Code draw the text. Download `JetBrainsMono.zip` from the [Nerd Fonts releases](https://github.com/ryanoasis/nerd-fonts/releases/latest), extract it, select the `.ttf` files, and choose "Install for all users" |
+| SSH to a remote host or into a container | On your local machine only; remote hosts and containers need no font |
+
+Then pick **JetBrainsMono Nerd Font** in your terminal's profile settings
+(GNOME Terminal, Windows Terminal, iTerm2, and others each have a font
+setting), and in VS Code set:
+
+```jsonc
+"terminal.integrated.fontFamily": "JetBrainsMono Nerd Font"
+```
+
+## :hammer_and_wrench: 6. Add a Workbench (Optional)
+
+The workstation is the base layer. For your own projects, compose a
+**workbench** on top: a devcontainer that holds a set of repos, described by
+one TOML file that you can keep in your dotfiles and re-render anywhere.
+
+```sh
+ft workbench init mybench --options claude-code \
+  --repo https://github.com/you/first-repo.git \
+  --repo https://github.com/you/second-repo.git
+ft workbench clone mybench
+devcontainer up --workspace-folder ~/workbenches/mybench
+```
+
+See [Workbench Usage](workbench-usage.md) for the VS Code path and how to
+rebuild or reshape one.
 
 ## :house: Existing Machines
 
@@ -164,7 +228,8 @@ without re-running the installer.
 | `workspace` | A thin host: prerequisites, `ft`, and Docker, plus the `ubuntu-full` daily-driver container image |
 
 `workspace` mode keeps the daily-driver toolchain in a container instead of on
-the host: no `shell-config`, login shell, Homebrew, or extras.
+the host: no `shell-config`, login shell, Homebrew, or extras. Without
+Homebrew there is no `devcontainer` CLI, so workbenches need `host` mode.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
@@ -236,6 +301,8 @@ More detail: [WSL Bootstrap Notes](wsl-bootstrap.md).
 
 ## :compass: Next Steps
 
+- [Workbench Usage](workbench-usage.md) to compose devcontainers for your own
+  repos on top of this workstation
 - [Container Usage](container-usage.md) and
   [Devcontainer Usage](devcontainer-usage.md) for daily-driver containers and
   VS Code devcontainers

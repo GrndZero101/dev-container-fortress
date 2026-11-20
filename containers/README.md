@@ -11,8 +11,8 @@ For user-facing build and run instructions, see [Container Usage](../docs/contai
 ## Strategy
 
 - Use the distro package manager only for base system dependencies
-- Use Python + `uv` plus the packaged downloader for the managed tool pool
-- Avoid Homebrew inside containers
+- Use Homebrew for the userland tools on the glibc targets (Ubuntu, Arch), from the same tool-pool set as the hosts, on a per-workspace volume
+- Keep the packaged `ft install` downloader for Alpine, which Homebrew does not support
 - Keep Ubuntu, Alpine, and Arch variants aligned where practical
 - Use a non-root runtime user for day-to-day development inside the container
 
@@ -37,11 +37,14 @@ The Ubuntu, Alpine, and Arch Dockerfiles now use a shared split bootstrap strate
 - install fortress `zinit` support by default so the richer shell profile is ready on first launch
 - pre-create minimal Zsh startup files so the container shell is non-interactive on first launch
 - install Alpine's split `zsh-vcs` package so native zsh prompt fallback can still use `vcs_info`
+- on Ubuntu and Arch, write the tool-pool Homebrew floor to `brew-floor.txt` and, for warm builds (`HOMEBREW_FLOOR=warm`, the default), install it into the `vscode`-owned prefix at `/home/linuxbrew/.linuxbrew`; `ft-brew-floor` tops it up at every start
+- ship `ft-ensure-claude-code`, which installs Claude Code at container start when the `claude-code` option is selected; Alpine also carries `libgcc` and `libstdc++` and sets `USE_BUILTIN_RIPGREP=0`, which the musl build needs
 - on Alpine, restore user-local bin discovery through `/etc/profile.d` because login shells source `/etc/profile`, which otherwise resets `PATH` to system directories only
 - on Arch, point pacman at one [Arch Linux Archive](https://archive.archlinux.org/) snapshot through the `ARCH_ARCHIVE_DATE` build arg so the rolling release still yields a reproducible package set
 
-The Dockerfiles now resolve and install the current downloader-managed tool
-subset through the packaged downloader entrypoint. `fzf` still comes from the
+The Alpine Dockerfile resolves and installs the downloader-managed tool subset
+through the packaged downloader entrypoint; the Ubuntu and Arch images use
+Homebrew instead. `fzf` still comes from the
 distro package manager today because it is not yet represented in the
 downloader manifest. For downloader-managed tools backed by GitHub releases, the
 container build now resolves the latest upstream release at install time by
@@ -92,7 +95,7 @@ VS Code should see three devcontainer definitions under `.devcontainer/`:
 - `.devcontainer/alpine/devcontainer.json`
 - `.devcontainer/arch/devcontainer.json`
 
-Each stays a thin wrapper over the matching Dockerfile and only runs a lightweight `ft plan` validation in `postCreate`.
+They are generated: run `ft devcontainer render` after changing the shared runtime data or a forwarded Dockerfile build arg. Each stays a thin wrapper over the matching Dockerfile. Ubuntu and Arch run `ft-brew-floor` and the opt-in Claude Code check on every start; Alpine runs a lightweight `ft plan` validation in `postCreate`.
 
 ## Local Build
 
@@ -160,14 +163,14 @@ export DEV_CONTAINER_FORTRESS_CA_CERT_DIR=.local/certs
 If the variable is unset or empty, the CA installation step is skipped and the build behaves exactly as before. If the variable is set, the build requires the directory to exist and to contain at least one valid PEM `.crt` file.
 
 > [!IMPORTANT]
-> This feature is active only when you opt in. Certificates are loaded as individual `.crt` files and copied into the distro trust setup. On Ubuntu this matches Canonical's documented `/usr/local/share/ca-certificates` plus `update-ca-certificates` flow. On Alpine we use the same `update-ca-certificates` integration as an implementation choice based on Alpine examples. On Arch the installer uses the p11-kit anchors directory `/etc/ca-certificates/trust-source/anchors` plus `update-ca-trust`. Keep the directory inside the Docker build context, and do not commit private cert material. Add it under an ignored path such as `.local/certs/`.
+> This feature is active only when you opt in. Certificates are loaded as individual `.crt` files and copied into the distro trust setup. On Ubuntu this matches Canonical's documented `/usr/local/share/ca-certificates` plus `update-ca-certificates` flow. On Alpine we use the same `update-ca-certificates` integration as an implementation choice based on Alpine examples. On Arch the installer uses the p11-kit anchors directory `/etc/ca-certificates/trust-source/anchors` plus `update-ca-trust`. Keep the directory under `.local/`, such as `.local/certs/`: the repo's `.dockerignore` admits no other operator path into the build context, and `.local/` is not committed.
 
 ## Shell-Config Source Options
 
 Container builds now support two `shell-config` source modes:
 
 - `github` (default): clone from `SHELL_CONFIG_REPO_URL` and `SHELL_CONFIG_BRANCH`
-- `local`: copy from a repo-relative directory inside the Docker build context via `SHELL_CONFIG_LOCAL_DIR`
+- `local`: copy from a repo-relative directory under `.local/` via `SHELL_CONFIG_LOCAL_DIR`
 
 Build args:
 

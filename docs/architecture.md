@@ -48,7 +48,9 @@ Host-side policy should stay explicit:
 > Claude Code is a deliberate exception. Its native installer is the supported
 > path that keeps it updating itself between bootstrap runs, so the host role
 > runs that installer once and then leaves updates to Claude Code. Containers
-> follow the same rule in `M5c`.
+> follow the same rule: when the option is selected, `ft workspace up` and the
+> devcontainers run the installer through `ft-ensure-claude-code`, and keep its
+> versions on a persisted mount so self-updates survive container replacement.
 
 Large extras such as agentic coding tools are optional components rather than
 baseline. `ft` owns the selection (`--options`, `DEV_CONTAINER_FORTRESS_OPTIONS`,
@@ -121,28 +123,25 @@ Use:
 
 Container-side policy should stay separate from the host story:
 
-- container userland tools should be installed through repo-owned Dev Fortress
-  mechanisms such as `ft`, shared installer scripts, and image-managed build
-  logic
-- vendor installers may still be used inside that repo-owned path when they are
-  the cleanest supported source for a given container target
+- the glibc container targets (Ubuntu, Arch) install userland tools from
+  Homebrew, using the same tool-pool set as the hosts, so hosts and containers
+  share one toolchain
+- the Homebrew prefix lives on a per-workspace named Docker volume, which
+  `ft-brew-floor` brings up to the tool-pool floor on every start; ad hoc
+  `brew install`s survive container replacement
+- images are built warm (floor baked in, seeding a fresh volume in seconds) or
+  cold (empty prefix, installed on first start); CI publishes cold images
+- `uv` and Claude Code stay on their native installers everywhere
+- the Alpine target keeps the `ft install` downloader, because Homebrew does
+  not support musl; the `M5c` spike found no workable glibc compatibility path
 - complex cryptographic substrate such as GnuPG and pinentry may use the base
-  image package manager for now when upstream binary distribution is not a
-  clean fit and distro integration matters
+  image package manager for now when distro integration matters
 - that exception should stay narrow, documented, and validated by command
   checks; it should not become a general escape hatch for normal userland tools
-- Homebrew should not become the default package substrate inside the Dev
-  Fortress container images
 
-> [!NOTE]
-> This is the current contract, not the direction. `M5c` moves the container
-> userland onto Homebrew so hosts and containers share one toolchain. See the
-> [M5c draft](milestones/M5c-composable-container-workspaces.md).
-
-For host targets, Homebrew remains the preferred path for newer steady-state
-tooling where it is supported. For container targets, the base image package
-manager is acceptable for GPG-class substrate until a stronger repo-owned
-installer proves worth the added build and maintenance cost.
+Homebrew is the preferred path for steady-state tooling on hosts and on the
+glibc container targets. For container targets, the base image package manager
+stays acceptable for GPG-class substrate.
 
 See [Container Standards](./container-standards.md) for the current runtime
 contract and design rules that Ubuntu, Alpine, and Arch should follow.
@@ -153,6 +152,51 @@ Use:
 
 - the Docker target as the base
 - VS Code metadata as a thin wrapper
+- a bind mount of the host checkout or a named volume for the code, with a
+  recommended default per use case in the
+  [devcontainer usage guide](devcontainer-usage.md#getting-code-in)
+- `gh` and `glab` logins on persisted volumes, with `/etc/gitconfig` routing
+  HTTPS pushes through them, since `~/.gitconfig` does not persist
+- generated definitions: `ft devcontainer render` writes every
+  `devcontainer.json`, and its `--check` runs in pre-commit and CI
+- workbenches for multi-repo work: a user-owned TOML file under
+  `${XDG_CONFIG_HOME}/dev-container-fortress/workbenches/` from which
+  `ft workbench render` writes a devcontainer folder, using the same runtime
+  table and a workspace profile for the image. There is no `ft workbench up`:
+  VS Code and the devcontainer CLI run it, so no third runtime is added
+
+### One definition, two runtimes
+
+`ft workspace` and the devcontainers start the same images from one shared
+definition in [`ft/src/ft/container_runtime.py`](../ft/src/ft/container_runtime.py):
+the persisted mounts and their container paths, which apply to Homebrew
+targets only, the start steps (`ft-brew-floor`, `ft-ensure-claude-code`), and
+each option's mounts and environment. The renderer adds the build-arg defaults
+from the target Dockerfiles. Adding a persisted mount is one edit plus a
+render.
+
+The two runtimes stay separate on purpose. Having `ft workspace` drive the
+devcontainer CLI was measured in the `M5c-5` spike and rejected:
+
+- `ft workspace` replaces a container in about 1 s and runs a command in about
+  0.3 s, against 7.4 s and 0.85 s through the devcontainer CLI, and needs no
+  Node toolchain on hosts or the EC2 fleet
+- it computes host integrations at start: the browser bridge broker, WSL
+  interop mounts, the SSH agent socket, and option-dependent mounts. VS Code
+  supplies its own browser, agent, and credential forwarding, and static JSON
+  cannot branch on the host
+- its state is host-owned bind mounts that `ft workspace auth` and `doctor`
+  inspect, while devcontainer state is named volumes keyed per definition
+
+Because a rendered definition cannot see the option selection, it mounts every
+option's volumes and runs option-gated steps with `--if-selected`, which reads
+`DEV_CONTAINER_FORTRESS_OPTIONS` inside the container.
+
+> [!NOTE]
+> The devcontainer CLI cuts a `${localEnv:VAR:default}` default at its first
+> `:`. The renderer refuses such a default, leaves build args like
+> `SHELL_CONFIG_REPO_URL` to the image's own fallback, and splits the volume
+> flow's image into `DEV_FORTRESS_IMAGE_REPO` and `DEV_FORTRESS_IMAGE_TAG`.
 
 ## Operator CLI Direction
 

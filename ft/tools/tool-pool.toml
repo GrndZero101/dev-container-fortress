@@ -36,7 +36,6 @@ formulae = [
   "tmux",
   "tree",
   "tree-sitter-cli",
-  "uv",
   "yazi",
   "yq",
   "zoxide",
@@ -53,6 +52,13 @@ formulae = []
 
 [homebrew.wsl]
 formulae = []
+
+# Workstations only, never the container floor: the devcontainer CLI runs
+# workbenches from the host and would add Node to every image.
+[homebrew.host]
+formulae = [
+  "devcontainer",
+]
 
 [homebrew.macos]
 formulae = [

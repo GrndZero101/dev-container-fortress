@@ -20,12 +20,16 @@ class ContainerTarget:
         architectures: Normalized host architectures the image can be built for.
         release_build_arg: Dockerfile build argument that selects the base OS
             release, or None when the target has no release selection.
+        homebrew: Whether the image's userland tools come from Homebrew. False
+            for musl targets, which Homebrew does not support; they keep the
+            ``ft install`` downloader.
     """
 
     name: str
     ssh_host_port: int
     architectures: tuple[str, ...] = ("amd64", "arm64")
     release_build_arg: str | None = None
+    homebrew: bool = True
 
     @property
     def ssh_host_target_name(self) -> str:
@@ -54,7 +58,7 @@ CONTAINER_TARGETS: dict[str, ContainerTarget] = {
         ContainerTarget(
             name="ubuntu", ssh_host_port=2222, release_build_arg="UBUNTU_RELEASE"
         ),
-        ContainerTarget(name="alpine", ssh_host_port=2223),
+        ContainerTarget(name="alpine", ssh_host_port=2223, homebrew=False),
         # The official archlinux image is published for amd64 only.
         ContainerTarget(name="arch", ssh_host_port=2224, architectures=("amd64",)),
     )

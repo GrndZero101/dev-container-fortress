@@ -207,6 +207,8 @@ Recommended host-owned persisted roots:
 - `/state/workspace/<profile>/azure`
 - `/state/workspace/<profile>/gnupg`
 - `/state/workspace/<profile>/password-store`
+- `/state/workspace/<profile>/claude` and `claude-versions`, when the
+  `claude-code` option is selected
 
 Recommended in-container mount targets:
 
@@ -215,11 +217,12 @@ Recommended in-container mount targets:
 - `${XDG_DATA_HOME}/zoxide`
 - `${XDG_DATA_HOME}/atuin`
 - `${XDG_CONFIG_HOME}/gh`
-- `${XDG_CONFIG_HOME}/glab`
+- `${XDG_CONFIG_HOME}/glab-cli`
 - `${HOME}/.aws`
 - `${HOME}/.azure`
 - `${HOME}/.gnupg`
 - `${HOME}/.password-store`
+- `${HOME}/.claude` and `${XDG_DATA_HOME}/claude`
 
 The first supported secrets baseline is GPG plus `pass`; `gopass` remains a
 future alternative rather than the default contract.
@@ -250,7 +253,7 @@ Do not:
 
 Recommended first supported path:
 
-- persist `${XDG_CONFIG_HOME}/gh` and `${XDG_CONFIG_HOME}/glab`
+- persist `${XDG_CONFIG_HOME}/gh` and `${XDG_CONFIG_HOME}/glab-cli`
 - allow normal `gh auth login` and `glab auth login` flows inside the container
 
 That keeps forge login state outside the image and survives container
@@ -313,9 +316,10 @@ The base image should remain lean.
 Recommended first-pass layer split:
 
 - `base`: current shell and operator baseline
-- `gitforge`: add `gh` and `glab`
+- `gitforge`: persist `gh` and `glab` state (both are in the Homebrew floor on
+  Ubuntu and Arch, so every profile has the commands)
 - `secrets`: add GPG-backed `pass`
-- `aws`: add AWS CLI
+- `aws`: add AWS CLI, as the `awscli` formula appended to the Homebrew floor
 - `azure`: add Azure CLI
 
 Recommended rule:

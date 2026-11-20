@@ -30,6 +30,8 @@ RUN apk add --no-cache \
     fzf \
     git \
     gzip \
+    libgcc \
+    libstdc++ \
     openssh-server \
     neovim \
     python3 \
@@ -59,6 +61,7 @@ COPY --from=uv-distroless /uv /uvx /usr/local/bin/
 COPY containers/common/install-corporate-ca.sh /usr/local/bin/install-corporate-ca
 COPY containers/common/install-shell-config.sh /usr/local/bin/install-shell-config
 COPY containers/common/start-test-target.sh /usr/local/bin/start-test-target
+COPY containers/common/ensure-claude-code.sh /usr/local/bin/ft-ensure-claude-code
 
 RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
       delgroup ${USERNAME}; \
@@ -80,6 +83,8 @@ RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share/dev-container-fortress \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share/zoxide \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share/atuin \
+  && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share/claude \
+  && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.claude \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/state \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.cache \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.config \
@@ -90,7 +95,7 @@ RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
   && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-${USERNAME} \
   && chmod 0440 /etc/sudoers.d/90-${USERNAME}
 
-RUN chmod 0755 /usr/local/bin/install-corporate-ca /usr/local/bin/install-shell-config /usr/local/bin/start-test-target
+RUN chmod 0755 /usr/local/bin/install-corporate-ca /usr/local/bin/install-shell-config /usr/local/bin/start-test-target /usr/local/bin/ft-ensure-claude-code
 RUN --mount=type=bind,source=.,target=/tmp/build-context,readonly \
     /usr/local/bin/install-corporate-ca /tmp/build-context "${CORPORATE_CA_CERT_DIR}"
 
@@ -105,6 +110,8 @@ ENV XDG_STATE_HOME=${HOME}/.local/state
 ENV UV_PROJECT_ENVIRONMENT=.venv-container
 ENV PATH=${HOME}/.local/bin:${PATH}
 ENV SHELL_CONFIG_PROFILE=${SHELL_CONFIG_PROFILE_DEFAULT}
+# Claude Code's bundled ripgrep is a glibc build, so use Alpine's ripgrep.
+ENV USE_BUILTIN_RIPGREP=0
 
 WORKDIR ${HOME}
 

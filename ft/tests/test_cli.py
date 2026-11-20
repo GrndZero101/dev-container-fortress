@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tarfile
 import tomllib
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -3061,6 +3062,16 @@ def test_workspace_persisted_mounts_never_hide_the_image_data_root() -> None:
             assert container_path.rstrip("/") != "/home/vscode/.local"
 
 
+def test_workspace_forge_mounts_target_the_cli_config_dirs() -> None:
+    """The gh and glab mounts cover the directories the CLIs actually use."""
+    from ft.cli import _workspace_persisted_container_path
+
+    assert _workspace_persisted_container_path("gh") == "/home/vscode/.config/gh"
+    assert (
+        _workspace_persisted_container_path("glab") == "/home/vscode/.config/glab-cli"
+    )
+
+
 def test_validate_workspace_profile_fails_when_ft_does_not_run(
     monkeypatch: object,
 ) -> None:
@@ -4140,6 +4151,7 @@ def test_workspace_up_configures_wsl_browser_bridge(
 
     monkeypatch.delenv("BROWSER", raising=False)
     monkeypatch.delenv("GH_BROWSER", raising=False)
+    monkeypatch.setenv("DEV_CONTAINER_FORTRESS_OPTIONS", "none")
     monkeypatch.setenv("WSL_DISTRO_NAME", "dev-fortress")
     monkeypatch.setenv("WSL_INTEROP", str(wsl_interop_root / "622_interop"))
     monkeypatch.setattr(
@@ -4182,6 +4194,10 @@ def test_workspace_up_configures_wsl_browser_bridge(
         return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
     monkeypatch.setattr("ft.cli._run_command", fake_run)
+    monkeypatch.setattr(
+        "ft.cli._run_streaming_command",
+        lambda command: subprocess.CompletedProcess(command, 0),
+    )
 
     profile = WorkspaceProfileDefinition(
         description="gitforge",
@@ -4207,6 +4223,236 @@ def test_workspace_up_configures_wsl_browser_bridge(
     assert "GH_BROWSER=/usr/local/bin/ft-host-browser-open" in run_command
     assert "WSL_DISTRO_NAME=dev-fortress" in run_command
     assert f"WSL_INTEROP={wsl_interop_root / '622_interop'}" in run_command
+
+
+def _fake_workspace_up_run(
+    commands: list[list[str]],
+) -> Callable[[list[str]], subprocess.CompletedProcess[str]]:
+    """Return a fake ``_run_command`` for a workspace whose image exists."""
+
+    def fake_run(command: list[str]) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        missing = command[:3] == ["docker", "container", "inspect"]
+        return subprocess.CompletedProcess(
+            command, 1 if missing else 0, stdout="", stderr=""
+        )
+
+    return fake_run
+
+
+@pytest.mark.parametrize(
+    ("names", "installs"),
+    [(("claude-code", "tmux-full"), True), (("tmux-full",), False), ((), False)],
+)
+def test_workspace_up_installs_selected_claude_code(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    names: tuple[str, ...],
+    installs: bool,
+) -> None:
+    """Workspace up should persist and install Claude Code only when selected."""
+    from ft.cli import _up_workspace_profile
+    from ft.models import WorkspaceProfileDefinition
+    from ft.options import OptionSelection
+
+    commands: list[list[str]] = []
+    streamed: list[list[str]] = []
+    monkeypatch.setattr("ft.cli._workspace_state_root", lambda: tmp_path / "state")
+    monkeypatch.setattr("ft.cli._host_runs_under_wsl", lambda: False)
+    monkeypatch.setattr(
+        "ft.cli._ensure_workspace_host_browser_bridge", lambda profile_name: None
+    )
+    monkeypatch.setattr(
+        "ft.cli._workspace_host_checkout_mounts",
+        lambda checkout: [(tmp_path / "repo", "/workspace/dev-container-fortress")],
+    )
+    monkeypatch.setattr("ft.cli._run_command", _fake_workspace_up_run(commands))
+    monkeypatch.setattr(
+        "ft.cli._run_streaming_command",
+        lambda command: (
+            streamed.append(command) or subprocess.CompletedProcess(command, 0)
+        ),
+    )
+
+    profile = WorkspaceProfileDefinition(
+        description="base", container_target="ubuntu", persisted_mounts=["cache"]
+    )
+    assert _up_workspace_profile(
+        "ubuntu-base", profile, options=OptionSelection(names, "flag")
+    )
+
+    run_command = next(c for c in commands if c[:3] == ["docker", "run", "--detach"])
+    claude_mounts = [
+        f"{tmp_path / 'state' / 'ubuntu-base' / 'claude'}:/home/vscode/.claude",
+        (
+            f"{tmp_path / 'state' / 'ubuntu-base' / 'claude-versions'}:"
+            "/home/vscode/.local/share/claude"
+        ),
+    ]
+    selected = "claude-code" if installs else ""
+    assert f"DEV_CONTAINER_FORTRESS_OPTIONS={selected}" in run_command
+    for mount in claude_mounts:
+        assert (mount in run_command) is installs
+    assert ("CLAUDE_CONFIG_DIR=/home/vscode/.claude" in run_command) is installs
+    floor = ["docker", "exec", "dev-fortress-workspace-ubuntu-base", "ft-brew-floor"]
+    claude = [
+        "docker",
+        "exec",
+        "dev-fortress-workspace-ubuntu-base",
+        "ft-ensure-claude-code",
+    ]
+    assert streamed == ([floor, claude] if installs else [floor])
+    output = capsys.readouterr().out
+    assert ("skipping host-only tmux-full" in output) is ("tmux-full" in names)
+
+
+def test_workspace_up_fails_when_claude_code_install_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed Claude Code install should fail workspace up."""
+    from ft.cli import _up_workspace_profile
+    from ft.models import WorkspaceProfileDefinition
+    from ft.options import OptionSelection
+
+    monkeypatch.setattr("ft.cli._workspace_state_root", lambda: tmp_path / "state")
+    monkeypatch.setattr("ft.cli._host_runs_under_wsl", lambda: False)
+    monkeypatch.setattr(
+        "ft.cli._ensure_workspace_host_browser_bridge", lambda profile_name: None
+    )
+    monkeypatch.setattr("ft.cli._workspace_host_checkout_mounts", lambda checkout: [])
+    monkeypatch.setattr("ft.cli._run_command", _fake_workspace_up_run([]))
+    monkeypatch.setattr(
+        "ft.cli._run_streaming_command",
+        lambda command: subprocess.CompletedProcess(
+            command, 1 if command[-1] == "ft-ensure-claude-code" else 0
+        ),
+    )
+
+    profile = WorkspaceProfileDefinition(description="base")
+    assert not _up_workspace_profile(
+        "ubuntu-base", profile, options=OptionSelection(("claude-code",), "flag")
+    )
+
+
+@pytest.mark.parametrize(
+    ("target", "floor_rc", "started"),
+    [("ubuntu", 0, True), ("ubuntu", 1, False), ("alpine", 0, True)],
+)
+def test_workspace_up_mounts_brew_volume_and_runs_floor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    target: str,
+    floor_rc: int,
+    started: bool,
+) -> None:
+    """Homebrew targets get a per-profile brew volume and a floor run at start."""
+    from ft.cli import _up_workspace_profile
+    from ft.models import WorkspaceProfileDefinition
+    from ft.options import OptionSelection
+
+    commands: list[list[str]] = []
+    streamed: list[list[str]] = []
+    monkeypatch.setattr("ft.cli._workspace_state_root", lambda: tmp_path / "state")
+    monkeypatch.setattr("ft.cli._host_runs_under_wsl", lambda: False)
+    monkeypatch.setattr(
+        "ft.cli._ensure_workspace_host_browser_bridge", lambda profile_name: None
+    )
+    monkeypatch.setattr("ft.cli._workspace_host_checkout_mounts", lambda checkout: [])
+    monkeypatch.setattr("ft.cli._run_command", _fake_workspace_up_run(commands))
+    monkeypatch.setattr(
+        "ft.cli._run_streaming_command",
+        lambda command: (
+            streamed.append(command) or subprocess.CompletedProcess(command, floor_rc)
+        ),
+    )
+
+    profile = WorkspaceProfileDefinition(description="base", container_target=target)
+    assert (
+        _up_workspace_profile("p", profile, options=OptionSelection((), "flag"))
+        is started
+    )
+
+    run_command = next(c for c in commands if c[:3] == ["docker", "run", "--detach"])
+    homebrew = target != "alpine"
+    volume = "dev-fortress-brew-p:/home/linuxbrew/.linuxbrew"
+    assert (volume in run_command) is homebrew
+    expected = [["docker", "exec", "dev-fortress-workspace-p", "ft-brew-floor"]]
+    assert streamed == (expected if homebrew else [])
+
+
+@pytest.mark.parametrize(("args", "volume_removed"), [(["--brew"], True), ([], False)])
+def test_workspace_reset_removes_brew_volume_only_when_asked(
+    monkeypatch: pytest.MonkeyPatch, args: list[str], volume_removed: bool
+) -> None:
+    """`ft workspace reset --brew` should also remove the Homebrew volume."""
+    commands: list[list[str]] = []
+
+    def fake_run(command: list[str]) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("ft.cli._run_command", fake_run)
+    result = runner.invoke(app, ["workspace", "reset", "ubuntu-base", *args])
+
+    assert result.exit_code == 0
+    assert (
+        ["docker", "volume", "rm", "dev-fortress-brew-ubuntu-base"] in commands
+    ) is volume_removed
+
+
+def test_tool_formulae_prints_linux_floor() -> None:
+    """`ft tool formulae` should print the tool-pool Linux set without uv."""
+    result = runner.invoke(app, ["tool", "formulae"])
+
+    formulae = result.stdout.split()
+    assert result.exit_code == 0
+    assert "gh" in formulae
+    assert "glab" in formulae
+    assert "uv" not in formulae
+
+
+@pytest.mark.parametrize(("selected", "checked"), [("claude-code", True), ("", False)])
+def test_validate_workspace_profile_checks_selected_claude_code(
+    monkeypatch: pytest.MonkeyPatch, selected: str, checked: bool
+) -> None:
+    """Validation should run Claude Code only when the workspace selected it."""
+    from ft.cli import _validate_workspace_profile
+    from ft.models import WorkspaceProfileDefinition
+
+    monkeypatch.setattr(
+        "ft.cli._run_command",
+        lambda command: subprocess.CompletedProcess(command, 0, stdout="", stderr=""),
+    )
+    monkeypatch.setattr(
+        "ft.cli._workspace_shell_config_resolution",
+        lambda checkout: {"available": False, "detail": "not mounted"},
+    )
+    shell_outputs = {
+        "whoami": "vscode",
+        "pwd": "/workspace/dev-container-fortress",
+        "SHELL_CONFIG_PROFILE": "zsh-tll-citadel-dev-fortress",
+        "PATH": "/home/vscode/.local/bin:/usr/bin",
+        "test -d /workspace/dev-container-fortress": "mounted",
+        "DEV_CONTAINER_FORTRESS_OPTIONS": selected,
+        "claude --version": "2.1.0 (Claude Code)",
+    }
+
+    def fake_shell_text(container_name: str, command: str) -> tuple[bool, str]:
+        for marker, output in shell_outputs.items():
+            if marker in command:
+                return True, output
+        return True, "ok"
+
+    monkeypatch.setattr("ft.cli._shell_text", fake_shell_text)
+
+    report = _validate_workspace_profile(
+        "ubuntu-base", WorkspaceProfileDefinition(description="base")
+    )
+    check_map = {check["check"]: check for check in report["checks"]}
+
+    assert report["success"] is True
+    assert ("claude_code" in check_map) is checked
 
 
 def test_completion_group_uses_help_when_no_args_are_passed() -> None:
@@ -5288,6 +5534,17 @@ def test_container_build_forwards_shell_config_options(monkeypatch: object) -> N
             "no_cache": True,
         }
     ]
+
+
+def test_build_context_path_must_live_under_local() -> None:
+    """Staged build inputs must sit under .local/, which .dockerignore admits."""
+    import typer
+    from ft.cli import _relative_build_context_path, _repo_root
+
+    staged = _repo_root() / ".local" / "sources" / "shell-config"
+    assert _relative_build_context_path(staged) == ".local/sources/shell-config"
+    with pytest.raises(typer.BadParameter, match=r"\.local/"):
+        _relative_build_context_path(_repo_root() / "sources" / "shell-config")
 
 
 def test_container_status_defaults_to_all_targets(monkeypatch: object) -> None:

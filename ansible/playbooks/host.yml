@@ -278,7 +278,6 @@
       - tmux
       - tree
       - tree-sitter-cli
-      - uv
       - yazi
       - yq
       - zoxide
@@ -289,6 +288,9 @@
       # picker and the git status segment. Small, and harmless without them.
       - gitmux
       - sesh
+      # Host-only ([homebrew.host] in the tool pool): the devcontainer CLI for
+      # workbench terminal mode. The container floor leaves it out.
+      - devcontainer
 
   pre_tasks:
     - name: Prove Ansible reachability

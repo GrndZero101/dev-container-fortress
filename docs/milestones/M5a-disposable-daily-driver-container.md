@@ -324,7 +324,9 @@ Open:
 
 1. The separate `tboss-workspace` devcontainers persist cache and auth paths but
    not `state`, `zoxide`, or `atuin`; aligning them is tracked in that repo's
-   `TODO.md`.
+   `TODO.md`. Superseded by `M5c-7`: workbenches render these mounts from the
+   shared runtime table, and `tboss-workspace` is to be archived in favour of
+   them.
 
 ## Branch and Merge Plan
 

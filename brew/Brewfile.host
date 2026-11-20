@@ -1,0 +1,3 @@
+# Workstation-only formulae ([homebrew.host] in ft/tools/tool-pool.toml),
+# installed on hosts in addition to Brewfile but never in the container floor.
+brew "devcontainer"

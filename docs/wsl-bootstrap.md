@@ -11,6 +11,31 @@ The model:
 - the bootstrap runs inside the distro against `localhost`, so no SSH is needed
 - native Windows shell setup and Windows host management are out of scope
 
+## :checkered_flag: Clean Start on Windows
+
+The path inside the distro is the same as on any Ubuntu machine. What WSL2
+adds is the Windows side around it:
+
+1. **Install WSL2 and Ubuntu.** In PowerShell, run `wsl --install` on a
+   machine without WSL (then reboot), list the releases with
+   `wsl --list --online`, and install one with `wsl --install -d <name>`, for
+   example the newest Ubuntu LTS. Create your Linux user when it opens.
+2. **Inside the distro,** from `~`, follow the
+   [developer path](../DEVELOPMENT.md#rocket-zero-to-hero-developer-path), or
+   the [quickstart](quickstart.md) for an operator workstation. Skip the font
+   command there; the font belongs on Windows.
+3. **On Windows,** install JetBrainsMono Nerd Font as
+   [quickstart step 5](quickstart.md#abc-5-set-the-terminal-font-recommended)
+   describes, and select it in the Windows Terminal profile for the distro.
+4. **VS Code on Windows,** with the WSL and Dev Containers extensions. Add the
+   `dev.containers.executeInWSL` settings from the
+   [devcontainer usage guide](devcontainer-usage.md), and keep Docker
+   Desktop's WSL integration off for this distro, so devcontainers use the
+   distro's Docker CE.
+5. **Open a workbench** from a distro terminal with
+   `code ~/workbenches/<name>`, which opens VS Code connected to WSL, then
+   choose "Reopen in Container".
+
 ## :clipboard: Before the Installer
 
 > [!IMPORTANT]

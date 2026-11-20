@@ -22,6 +22,19 @@ repos:
 
   - repo: local
     hooks:
+      # The devcontainer definitions are rendered from ft's runtime data.
+      - id: devcontainer-render
+        name: devcontainer definitions are rendered
+        entry: uv run ft devcontainer render --check
+        language: system
+        files: ^(\.devcontainer/.*|devcontainer/.*|containers/[^/]+/Dockerfile|ft/src/ft/(container_runtime|container_targets|devcontainer|options)\.py)$
+        pass_filenames: false
+      - id: workbench-example-render
+        name: example workbench is rendered
+        entry: uv run ft workbench render examples/workbench/example.toml --check
+        language: system
+        files: ^(examples/workbench/.*|ft/workspaces/profiles\.toml|ft/src/ft/(container_runtime|devcontainer|options|workbench)\.py)$
+        pass_filenames: false
       - id: ansible-playbook-syntax
         name: ansible playbook syntax
         entry: zsh -lc 'ANSIBLE_CONFIG="$PWD/ansible/ansible.cfg" ANSIBLE_LOCAL_TEMP=/tmp/dev-fortress-ansible-local ANSIBLE_REMOTE_TEMP=/tmp/dev-fortress-ansible-remote uv run ansible-playbook --syntax-check ansible/playbooks/host.yml'
@@ -44,3 +57,10 @@ repos:
         entry: sh -n
         language: system
         files: ^(install\.sh|containers/common/.*\.sh)$
+        exclude: ^containers/common/(brew-floor|ensure-claude-code)\.sh$
+      # Container helpers that run under bash in every image.
+      - id: bash-syntax
+        name: bash syntax
+        entry: bash -n
+        language: system
+        files: ^containers/common/(brew-floor|ensure-claude-code)\.sh$

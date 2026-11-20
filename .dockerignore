@@ -1,0 +1,17 @@
+# The container builds read only these paths. Everything else, including
+# .git, docs, and local Terraform state, stays out of the build context, so
+# commits and unrelated edits never reach the builder or bust the layer cache.
+# Corporate CA certificates and a staged local shell-config live under .local/.
+*
+!.python-version
+!containers/
+!ft/
+!.local/
+
+# Docs, generated, and test-only paths under the allowed directories.
+**/*.md
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.venv*/
+ft/tests/

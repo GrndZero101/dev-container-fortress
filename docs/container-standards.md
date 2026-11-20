@@ -64,13 +64,57 @@ That means they should:
   | `state` | `$XDG_STATE_HOME` | shell history, Neovim undo and shada |
   | `zoxide` | `$XDG_DATA_HOME/zoxide` | zoxide directory database |
   | `atuin` | `$XDG_DATA_HOME/atuin` | atuin history database |
+  | `claude` | `$HOME/.claude` | Claude Code config and login, with `CLAUDE_CONFIG_DIR` pointing here |
+  | `claude-versions` | `$XDG_DATA_HOME/claude` | Claude Code versions, including self-updates |
+  | `gh` | `$XDG_CONFIG_HOME/gh` | GitHub CLI login, on the glibc targets only |
+  | `glab` | `$XDG_CONFIG_HOME/glab-cli` | GitLab CLI login, on the glibc targets only |
+  | `brew` | `/home/linuxbrew/.linuxbrew` | the Homebrew prefix, on the glibc targets only |
 
 - `ft workspace` bind-mounts these from host-owned XDG state directories. The
   devcontainer definitions use named Docker volumes for the same paths.
+- The `brew` path is always a named Docker volume, in `ft workspace`
+  (`dev-fortress-brew-<profile>`) as well as in the devcontainers, because only
+  a named volume seeds from the image. It is never shared between workspaces.
+  `ft workspace reset --brew` removes it, so the next start re-seeds it.
+- `ft workspace` mounts the `claude` paths only when the `claude-code` option
+  is selected. The devcontainers always mount them, since they cannot read the
+  host's option selection.
+- Optional components install at container start, not at image build, so one
+  published image serves every selection. `ft-ensure-claude-code` runs the
+  native installer once, then relinks the highest persisted version into the
+  image-owned `$HOME/.local/bin` after a container is replaced. It orders by
+  version, not modification time, because `claude update` to a version that is
+  already on disk does not rewrite it.
 - The images pre-create each path with runtime-user ownership so a fresh named
   volume inherits it instead of mounting as root.
 - Add a new persisted path only when it holds runtime state that is worth keeping
   across container replacement, and add it to both consumers.
+- `~/.gitconfig` is not persisted. On the glibc targets, `/etc/gitconfig`
+  (with `GIT_CONFIG_SYSTEM` pointing at it, since Homebrew's `git` otherwise
+  reads its system config from the prefix) sends
+  HTTPS credentials for `github.com` and `gitlab.com` through
+  `gh auth git-credential` and `glab auth git-credential`, so a persisted
+  forge login is enough to push after the container is replaced. Keep the Git
+  author identity in the checkout with `ft identity --local`, since the
+  checkout persists with the code.
+
+## Workspace Code Contract
+
+- Code reaches a container in one of two ways, and both are supported:
+  - **bind mount** of a host checkout, the default for the `.devcontainer/`
+    definitions and `ft workspace`
+  - **named volume** that holds clones made inside the container, started
+    with the devcontainer CLI and `devcontainer/volume/devcontainer.json`;
+    VS Code attaches to that container rather than using its own "Clone
+    Repository in Container Volume", which only finds definitions at the
+    repository root
+- The volume definition mounts `dev-fortress-src-<folder>` at `/workspaces`,
+  keyed on the host folder's name because the devcontainer CLI does not
+  substitute `${devcontainerId}` in `workspaceMount`. It uses the published
+  image unless `DEV_FORTRESS_IMAGE_REPO` and `DEV_FORTRESS_IMAGE_TAG` override it. The glibc images pre-create `/workspaces` with runtime-user
+  ownership, so a fresh volume is writable without `sudo`.
+- Code in a volume exists only there. Push to back it up; removing the volume
+  deletes any unpushed work.
 
 ## Bootstrap Contract
 
@@ -89,27 +133,58 @@ That means they should:
 - When enabled, corporate CA material should come from an explicitly provided directory of PEM-formatted `.crt` files.
 - The build should validate those `.crt` files before installation and install them into the distro trust store before repo-managed network fetches such as the Astral installer or downloader-managed tool downloads.
 
+## Build Cache Contract
+
+- `.dockerignore` is an allowlist: `.python-version`, `containers/`, `ft/`
+  (without tests and caches), and `.local/` for operator inputs such as
+  corporate CA certificates and a staged `shell-config`. Commits, docs, and
+  local Terraform state never enter the build context.
+- No step before the Homebrew floor bind-mounts the whole build context. On
+  the glibc targets, the requested CA directory and the floor list each come
+  from their own stage through `COPY --from`, which BuildKit keys on content.
+- The floor comes before the `shell-config` build args and `COPY ft`, so a
+  devcontainer build and an `ft workspace build` with default settings share
+  it, and an `ft` change that leaves the floor list alone keeps it cached.
+- Only `ft-brew-floor` and `/etc/gitconfig` are copied in before the floor.
+  The other `containers/common/` helpers come after it, so editing one
+  rebuilds in seconds instead of re-running the floor.
+
 ## Tool Installation Contract
 
+- On the glibc targets (Ubuntu, Arch), userland tools come from Homebrew. The
+  floor is the tool-pool Linux set (`[homebrew.common]` plus
+  `[homebrew.linux]` in `ft/tools/tool-pool.toml`), which the image writes to
+  `$XDG_DATA_HOME/dev-container-fortress/brew-floor.txt` with
+  `ft tool formulae`. Tool layers that come from Homebrew, such as `aws`,
+  append their formulae to that list. `[homebrew.host]` holds
+  workstation-only formulae, such as the `devcontainer` CLI, and never enters
+  the floor.
+- The `vscode` user owns the prefix at `/home/linuxbrew/.linuxbrew`, so
+  `brew install` needs no `sudo`. The prefix must stay there for bottles to
+  pour.
+- `ft-brew-floor` installs Homebrew when the prefix is empty, then any missing
+  floor formulae. `ft workspace up` and the devcontainers run it on every
+  start; with nothing missing it takes under a second. It never upgrades.
+- The `HOMEBREW_FLOOR` build arg chooses `warm` (the default: the floor is in
+  the image and seeds a fresh volume in seconds) or `cold` (an empty prefix,
+  about 2 GB smaller, filled on first start in a few minutes). CI publishes
+  cold images; local builds, devcontainers, and `ft container` test targets
+  are warm.
+- `uv` and Claude Code keep their native installers so they can update
+  themselves; neither comes from Homebrew.
+- The Alpine target keeps the repo-owned `ft install` downloader
+  (`ft/tools/tools.toml`), because Homebrew does not support musl. Its
+  external downloads prefer pinned versions and checksum verification.
 - User-facing Python CLI tools should prefer `uv tool install` in the final
   runtime image.
-- Tool executables should land in the user's XDG-aligned bin directory through
-  `uv` defaults.
-- Repo-owned runtime tool configuration should be explicit and data-driven.
-- External binary downloads should prefer pinned versions and checksum
-  verification.
 - The base image package manager should normally be limited to bootstrap
   substrate and OS-integrated dependencies.
 - GPG-class cryptographic substrate is a documented exception for now:
   containers may install `gnupg`, `pinentry-curses`, and equivalent distro
   packages through `apt`, `apk`, or the target base package manager when that is
   safer and simpler than source-building a crypto stack.
-- This exception is not a precedent for ordinary userland tools. Tools such as
-  `rustic`, `lazygit`, `yazi`, and similar standalone CLIs should continue to
-  prefer the repo-owned downloader or image-managed installer path.
-- Host targets that support Homebrew should prefer Homebrew for newer GPG,
-  password-store, backup, and daily-driver tooling after native bootstrap is
-  complete.
+- This exception is not a precedent for ordinary userland tools, which come
+  from Homebrew on the glibc targets.
 
 ## Shell Contract
 
@@ -121,10 +196,14 @@ That means they should:
 ## Devcontainer Contract
 
 - `.devcontainer/` should remain a thin wrapper around the container target.
+- Every `devcontainer.json` is rendered by `ft devcontainer render` from the runtime table that `ft workspace` also reads (`ft/src/ft/container_runtime.py`) and from the target Dockerfile's build-arg defaults. Edit the data, not the JSON; `--check` in pre-commit and CI enforces it. The architecture doc records why the two runtimes stay separate.
+- Workbench definitions are rendered the same way by `ft workbench render`, from a user-owned TOML file under `${XDG_CONFIG_HOME}/dev-container-fortress/workbenches/`. Their volumes are named `dev-fortress-wb-<name>-<mount>` rather than keyed by `${devcontainerId}`, so they survive moving the folder; their mounts are the profile's persisted mounts plus the shared devcontainer set, the selected options' mounts, and any extra `mounts`. `examples/workbench/` is the checked-in reference, kept current by pre-commit.
+- A `${localEnv:VAR:default}` default must not contain `:`, because the devcontainer CLI cuts it there. The renderer refuses one; a build arg whose Dockerfile default holds a colon is forwarded without a default and the image's installer falls back.
 - The repository may expose multiple devcontainer definitions when it supports multiple container targets.
 - The current standard definitions are `.devcontainer/ubuntu/devcontainer.json`, `.devcontainer/alpine/devcontainer.json`, and `.devcontainer/arch/devcontainer.json`.
+- `devcontainer/volume/devcontainer.json` is the devcontainer CLI's clone-into-volume definition. It lives outside `.devcontainer/` so VS Code does not offer it when reopening a checkout, and it runs the published image rather than building one.
 - Each devcontainer should use the same runtime user as its container image.
-- Post-create behavior should validate or lightly bootstrap the environment, not duplicate the core image provisioning logic.
+- Post-start behavior should validate or lightly bootstrap the environment, not duplicate the core image provisioning logic. The glibc definitions run `ft-brew-floor` and `ft-ensure-claude-code --if-selected` on every start.
 - Devcontainer build args may expose opt-in environment hooks such as `DEV_CONTAINER_FORTRESS_CA_CERT_DIR` when they are needed for corporate networks.
 - Devcontainer `mounts` persist only the paths in the persisted state contract, as named volumes keyed by `${devcontainerId}`.
 

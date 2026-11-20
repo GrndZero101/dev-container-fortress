@@ -10,6 +10,9 @@ ARG SHELL_CONFIG_INSTALL_ZINIT="1"
 ARG WORKSPACE_TOOL_LAYER_GITFORGE="0"
 ARG WORKSPACE_TOOL_LAYER_SECRETS="0"
 ARG WORKSPACE_TOOL_LAYER_AWS="0"
+# warm installs the Homebrew floor into the image; cold leaves the prefix
+# empty for ft-brew-floor to fill on first start. CI publishes cold images.
+ARG HOMEBREW_FLOOR="warm"
 
 FROM ${UV_DISTROLESS_IMAGE} AS uv-distroless
 
@@ -22,7 +25,8 @@ ARG ARCH_ARCHIVE_DATE="2026/10/01"
 
 ENV LANG=C.UTF-8
 
-# Refresh the keyring first so snapshot packages signed by newer keys verify.
+# base-devel, file, and procps-ng are Homebrew's Linux prerequisites. Refresh
+# the keyring first so snapshot packages signed by newer keys verify.
 # -Suu then allows downgrades, so packages in the base image converge on the
 # snapshot even when the base image is newer than the snapshot date.
 RUN printf 'Server = https://archive.archlinux.org/repos/%s/$repo/os/$arch\n' "${ARCH_ARCHIVE_DATE}" \
@@ -31,13 +35,16 @@ RUN printf 'Server = https://archive.archlinux.org/repos/%s/$repo/os/$arch\n' "$
   && pacman-key --populate archlinux \
   && pacman -Syy --noconfirm archlinux-keyring \
   && pacman -Suu --noconfirm --needed \
+    base-devel \
     ca-certificates \
     openssl \
     curl \
+    file \
     fzf \
     git \
     gzip \
     openssh \
+    procps-ng \
     python \
     rsync \
     sudo \
@@ -57,27 +64,64 @@ case ":${PATH}:" in
 esac
 EOF
 
-FROM arch-base AS arch-runtime
+FROM arch-base AS corporate-ca-source
+
+ARG CORPORATE_CA_CERT_DIR=""
+
+# Copy only the requested certificate directory out of the build context.
+# The next stage copies this output, which BuildKit keys on content, so edits
+# elsewhere in the context leave every layer below it cached.
+RUN --mount=type=bind,source=.,target=/tmp/build-context,readonly \
+    mkdir -p /corporate-ca \
+  && case "${CORPORATE_CA_CERT_DIR}" in \
+       ""|/*) ;; \
+       *) if [ -d "/tmp/build-context/${CORPORATE_CA_CERT_DIR}" ]; then \
+            mkdir -p "/corporate-ca/${CORPORATE_CA_CERT_DIR}" \
+            && cp -a "/tmp/build-context/${CORPORATE_CA_CERT_DIR}/." "/corporate-ca/${CORPORATE_CA_CERT_DIR}/"; \
+          fi ;; \
+     esac
+
+FROM arch-base AS arch-trusted
+
+ARG CORPORATE_CA_CERT_DIR=""
+
+COPY containers/common/install-corporate-ca.sh /usr/local/bin/install-corporate-ca
+COPY --from=corporate-ca-source /corporate-ca /tmp/corporate-ca
+RUN chmod 0755 /usr/local/bin/install-corporate-ca \
+  && /usr/local/bin/install-corporate-ca /tmp/corporate-ca "${CORPORATE_CA_CERT_DIR}" \
+  && rm -rf /tmp/corporate-ca
+
+FROM arch-trusted AS brew-floor-list
+
+ARG WORKSPACE_TOOL_LAYER_AWS="0"
+
+COPY --from=uv-distroless /uv /usr/local/bin/
+COPY ft /tmp/dev-container-fortress/ft
+COPY .python-version /tmp/dev-container-fortress/.python-version
+
+# Write the floor list in its own stage. The runtime stage copies only the
+# list, so a change under ft/ that leaves the list alone keeps the floor
+# cached. Tool layers that come from Homebrew extend the list, so their
+# formulae also reach a workspace volume seeded before the layer was added.
+RUN cd /tmp/dev-container-fortress \
+  && UV_PYTHON_PREFERENCE=only-managed uv tool run --python "$(cat .python-version)" --from ./ft \
+       ft tool formulae --manifest ft/tools/tool-pool.toml > /brew-floor.txt \
+  && if [ "${WORKSPACE_TOOL_LAYER_AWS}" = "1" ]; then echo awscli >> /brew-floor.txt; fi
+
+FROM arch-trusted AS arch-runtime
 
 ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=1000
-ARG CORPORATE_CA_CERT_DIR=""
-ARG SHELL_CONFIG_SOURCE="github"
-ARG SHELL_CONFIG_REPO_URL="https://github.com/GrndZero101/shell-config.git"
-ARG SHELL_CONFIG_BRANCH="main"
-ARG SHELL_CONFIG_LOCAL_DIR=""
-ARG SHELL_CONFIG_PROFILE_DEFAULT="zsh-tll-citadel-dev-fortress"
-ARG SHELL_CONFIG_INSTALL_ZINIT="1"
-ARG WORKSPACE_TOOL_LAYER_GITFORGE="0"
-ARG WORKSPACE_TOOL_LAYER_SECRETS="0"
-ARG WORKSPACE_TOOL_LAYER_AWS="0"
+# warm installs the Homebrew floor into the image; cold leaves the prefix
+# empty for ft-brew-floor to fill on first start. CI publishes cold images.
+ARG HOMEBREW_FLOOR="warm"
 
 COPY --from=uv-distroless /uv /uvx /usr/local/bin/
-COPY containers/common/install-corporate-ca.sh /usr/local/bin/install-corporate-ca
-COPY containers/common/ft-host-browser-open.sh /usr/local/bin/ft-host-browser-open
-COPY containers/common/install-shell-config.sh /usr/local/bin/install-shell-config
-COPY containers/common/start-test-target.sh /usr/local/bin/start-test-target
+# Only what the Homebrew floor needs comes before it; the other helpers follow
+# the floor, so editing them does not rebuild it.
+COPY --chmod=0755 containers/common/brew-floor.sh /usr/local/bin/ft-brew-floor
+COPY containers/common/gitconfig /etc/gitconfig
 
 RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
       groupmod --gid ${USER_GID} ${USERNAME}; \
@@ -99,19 +143,21 @@ RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share/dev-container-fortress \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share/zoxide \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share/atuin \
+  && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/share/claude \
+  && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.claude \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.local/state \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.cache \
   && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.config \
+  && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.config/gh \
+  && install -d -o ${USER_UID} -g ${USER_GID} /home/${USERNAME}/.config/glab-cli \
+  && install -d -o ${USER_UID} -g ${USER_GID} /home/linuxbrew /home/linuxbrew/.linuxbrew \
+  && install -d -o ${USER_UID} -g ${USER_GID} /workspaces \
   && printf '%s\n' '# Managed by dev-container-fortress.' > /home/${USERNAME}/.zshenv \
   && printf '%s\n' '# Managed by dev-container-fortress.' > /home/${USERNAME}/.zshrc \
   && chown ${USER_UID}:${USER_GID} /home/${USERNAME}/.zshenv /home/${USERNAME}/.zshrc \
   && chown -R ${USER_UID}:${USER_GID} /home/${USERNAME}/.local /home/${USERNAME}/.cache /home/${USERNAME}/.config \
   && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-${USERNAME} \
   && chmod 0440 /etc/sudoers.d/90-${USERNAME}
-
-RUN chmod 0755 /usr/local/bin/install-corporate-ca /usr/local/bin/ft-host-browser-open /usr/local/bin/install-shell-config /usr/local/bin/start-test-target
-RUN --mount=type=bind,source=.,target=/tmp/build-context,readonly \
-    /usr/local/bin/install-corporate-ca /tmp/build-context "${CORPORATE_CA_CERT_DIR}"
 
 ENV HOME=/home/${USERNAME}
 ENV XDG_CACHE_HOME=${HOME}/.cache
@@ -122,15 +168,51 @@ ENV XDG_STATE_HOME=${HOME}/.local/state
 # environment beside the host .venv instead of overwriting it. uv resolves
 # this relative path per project root, and the directory ignores itself.
 ENV UV_PROJECT_ENVIRONMENT=.venv-container
-ENV PATH=${HOME}/.local/bin:${PATH}
-ENV SHELL_CONFIG_PROFILE=${SHELL_CONFIG_PROFILE_DEFAULT}
+ENV HOMEBREW_PREFIX=/home/linuxbrew/.linuxbrew
+ENV HOMEBREW_CELLAR=${HOMEBREW_PREFIX}/Cellar
+ENV HOMEBREW_REPOSITORY=${HOMEBREW_PREFIX}/Homebrew
+# Homebrew's git reads its system config from the prefix, which lives on the
+# brew volume; point every git at the image-managed file instead.
+ENV GIT_CONFIG_SYSTEM=/etc/gitconfig
+ENV PATH=${HOME}/.local/bin:${HOMEBREW_PREFIX}/bin:${HOMEBREW_PREFIX}/sbin:${PATH}
 
 WORKDIR ${HOME}
 
+USER ${USERNAME}
+
+# The floor comes before anything keyed on the shell-config build args or the
+# ft source, so devcontainer and ft builds share it and ft edits keep it.
+COPY --from=brew-floor-list --chown=${USER_UID}:${USER_GID} /brew-floor.txt ${XDG_DATA_HOME}/dev-container-fortress/brew-floor.txt
+# A warm image carries the floor, so a fresh workspace volume seeds from it in
+# seconds. The download cache stays out of the image.
+RUN --mount=type=cache,target=/home/vscode/.cache/Homebrew,uid=1000,gid=1000 \
+    case "${HOMEBREW_FLOOR}" in \
+      warm) ft-brew-floor ;; \
+      cold) ;; \
+      *) echo "HOMEBREW_FLOOR must be warm or cold, not ${HOMEBREW_FLOOR}" >&2; exit 1 ;; \
+    esac
+
+COPY --chmod=0755 containers/common/ft-host-browser-open.sh /usr/local/bin/ft-host-browser-open
+COPY --chmod=0755 containers/common/install-shell-config.sh /usr/local/bin/install-shell-config
+COPY --chmod=0755 containers/common/start-test-target.sh /usr/local/bin/start-test-target
+COPY --chmod=0755 containers/common/ensure-claude-code.sh /usr/local/bin/ft-ensure-claude-code
+
+ARG SHELL_CONFIG_SOURCE="github"
+ARG SHELL_CONFIG_REPO_URL="https://github.com/GrndZero101/shell-config.git"
+ARG SHELL_CONFIG_BRANCH="main"
+ARG SHELL_CONFIG_LOCAL_DIR=""
+ARG SHELL_CONFIG_PROFILE_DEFAULT="zsh-tll-citadel-dev-fortress"
+ARG SHELL_CONFIG_INSTALL_ZINIT="1"
+ARG WORKSPACE_TOOL_LAYER_GITFORGE="0"
+ARG WORKSPACE_TOOL_LAYER_SECRETS="0"
+ARG WORKSPACE_TOOL_LAYER_AWS="0"
+
+# The devcontainers pass an unset variable as an empty build arg, so fall back
+# to the default profile here as install-shell-config does.
+ENV SHELL_CONFIG_PROFILE=${SHELL_CONFIG_PROFILE_DEFAULT:-zsh-tll-citadel-dev-fortress}
+
 COPY --chown=${USER_UID}:${USER_GID} ft ${XDG_DATA_HOME}/dev-container-fortress/ft
 COPY --chown=${USER_UID}:${USER_GID} .python-version ${XDG_DATA_HOME}/dev-container-fortress/.python-version
-
-USER ${USERNAME}
 
 RUN --mount=type=bind,source=.,target=/tmp/build-context,readonly \
     /usr/local/bin/install-shell-config /tmp/build-context
@@ -140,36 +222,20 @@ RUN uv python install "$(cat ${XDG_DATA_HOME}/dev-container-fortress/.python-ver
 RUN uv tool install --python "$(cat ${XDG_DATA_HOME}/dev-container-fortress/.python-version)" \
     ${XDG_DATA_HOME}/dev-container-fortress/ft
 RUN ft completion install zsh
-RUN --mount=type=cache,target=/home/vscode/.cache/dev-container-fortress/tools,uid=1000,gid=1000 \
-    ft install \
-    --manifest ${XDG_DATA_HOME}/dev-container-fortress/ft/tools/tools.toml \
-    --target arch
-
 # Optional layers come from the official repositories, so pacman verifies
 # package signatures against the pinned archive snapshot.
-RUN if [ "${WORKSPACE_TOOL_LAYER_GITFORGE}" = "1" ]; then \
-      sudo pacman -S --noconfirm --needed github-cli glab \
-      && sudo pacman -Scc --noconfirm; \
-    fi
 RUN if [ "${WORKSPACE_TOOL_LAYER_SECRETS}" = "1" ]; then \
       sudo pacman -S --noconfirm --needed gnupg pass pinentry \
-      && sudo pacman -Scc --noconfirm; \
-    fi
-RUN if [ "${WORKSPACE_TOOL_LAYER_AWS}" = "1" ]; then \
-      sudo pacman -S --noconfirm --needed aws-cli-v2 \
       && sudo pacman -Scc --noconfirm; \
     fi
 
 RUN uv --version \
   && test -f ${XDG_DATA_HOME}/dev-container-fortress/completions/zsh/_ft \
-  && ft plan --manifest ${XDG_DATA_HOME}/dev-container-fortress/ft/tools/tools.toml --target arch --use-manifest-version \
-  && tenv --version \
-  && starship --version \
-  && zoxide --version \
-  && atuin --version \
-  && nvim --version \
-  && rg --version \
-  && if [ "${WORKSPACE_TOOL_LAYER_GITFORGE}" = "1" ]; then gh --version && glab --version; fi \
+  && test -s ${XDG_DATA_HOME}/dev-container-fortress/brew-floor.txt \
+  && if [ "${HOMEBREW_FLOOR}" = "warm" ]; then \
+       tenv --version && starship --version && zoxide --version && atuin --version \
+       && nvim --version && rg --version && gh --version && glab --version \
+       && if [ "${WORKSPACE_TOOL_LAYER_AWS}" = "1" ]; then aws --version; fi; \
+     fi \
   && if [ "${WORKSPACE_TOOL_LAYER_SECRETS}" = "1" ]; then gpg --version && pass --version; fi \
-  && if [ "${WORKSPACE_TOOL_LAYER_AWS}" = "1" ]; then aws --version; fi \
   && fzf --version

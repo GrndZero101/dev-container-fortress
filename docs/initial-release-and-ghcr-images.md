@@ -265,10 +265,17 @@ nvim --version
 fzf --version
 ```
 
-Also verify the target-specific plan:
+The Ubuntu and Arch images are published cold, without the Homebrew floor, so
+pulls stay about 2 GB smaller. Install the floor before the tool checks; a
+workspace or devcontainer does this on its first start:
 
 ```zsh
-ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/tools.toml --target ubuntu --use-manifest-version
+ft-brew-floor
+```
+
+For Alpine, verify the downloader plan instead:
+
+```zsh
 ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/tools.toml --target alpine --use-manifest-version
 ```
 

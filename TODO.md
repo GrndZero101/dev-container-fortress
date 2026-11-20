@@ -8,12 +8,19 @@ records the result.
 
 ## Up Next
 
-1. **`M7b`:** done and destroyed; the PR is open, waiting for green CI and the
-   operator's squash merge; see the
-   [M7b file](docs/milestones/M7b-cloud-test-fleet.md).
-2. **Then `M5c`:** Homebrew in the containers, Claude Code everywhere, and
-   the devcontainer and CLI terminal-mode flows; see the
-   [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
+1. **Merge `M5c`:** review and squash-merge the PR, then archive
+   `GrndZero101/tboss-workspace` with a pointer to
+   [`docs/workbench-usage.md`](docs/workbench-usage.md).
+2. **`M5e` verification:** follow the
+   [developer path](DEVELOPMENT.md#rocket-zero-to-hero-developer-path) cold on
+   bare-metal Ubuntu, timed, through a workbench opened in VS Code with a login
+   and push from inside; see the
+   [M5e file](docs/milestones/M5e-developer-workstation.md).
+3. **`M5f`:** workbench guardrails and credentials, then Claude Code bypass
+   mode; see the [M5f file](docs/milestones/M5f-agent-workbench-guardrails.md).
+4. **`M5e`:** developer mode for `shell-config`, macOS host mode, and a
+   shorter developer path; see the
+   [M5e file](docs/milestones/M5e-developer-workstation.md).
 
 ## Parked
 
@@ -22,7 +29,9 @@ records the result.
 - Find what wipes `WSLInterop` when a sibling WSL2 distro shuts down (it now
   reproduces with a fresh store distro), and consider a self-heal timer;
   `wsl-restore-interop` restores it meanwhile.
-- Align the `tboss-workspace` devcontainers with the persisted state contract;
-  tracked in that repo's `TODO.md`.
+- Decide Alpine's long-term future: it is the only consumer of the `ft install`
+  downloader (`installer.py`, `tools.toml`). Retire it, slim it to `apk`
+  without `tenv`, `glow`, and `oh-my-posh`, or keep both toolchains; see the
+  [M5c file](docs/milestones/M5c-composable-container-workspaces.md).
 - Optional: turn off build-record artifacts in CI with
   `DOCKER_BUILD_RECORD_UPLOAD: false`.

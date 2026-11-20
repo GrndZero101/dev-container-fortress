@@ -1,0 +1,13 @@
+# Managed by dev-container-fortress, installed as /etc/gitconfig.
+#
+# HTTPS remotes on GitHub and GitLab authenticate through the gh and glab
+# logins, which persist on their config mounts. ~/.gitconfig does not persist,
+# so `gh auth setup-git` alone would be lost when the container is replaced.
+# A helper that has no login fails quietly, and Git moves on to the next one,
+# such as the VS Code credential forwarder.
+[credential "https://github.com"]
+	helper = !gh auth git-credential
+[credential "https://gist.github.com"]
+	helper = !gh auth git-credential
+[credential "https://gitlab.com"]
+	helper = !glab auth git-credential

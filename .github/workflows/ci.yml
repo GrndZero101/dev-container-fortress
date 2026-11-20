@@ -24,6 +24,10 @@ env:
   IMAGE_NAME: grndzero101/dev-container-fortress
   PUBLISH: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
 
+# The Homebrew targets publish cold images, without the Homebrew floor, to keep
+# pulls about 2 GB smaller; a workspace's first start installs the floor into
+# its volume. The smoke test runs that same first-start path.
+#
 # Both jobs pin the runner to an Ubuntu LTS label instead of ubuntu-latest, so a
 # runner OS change is a deliberate edit here. Bump both when a new LTS lands.
 jobs:
@@ -82,7 +86,8 @@ jobs:
           - name: ubuntu
             dockerfile: containers/ubuntu/Dockerfile
             target: ubuntu
-            build-args: ""
+            build-args: |
+              HOMEBREW_FLOOR=cold
             tags: |
               type=raw,value=ubuntu,enable={{is_default_branch}}
               type=match,pattern=v(.*),group=1,prefix=ubuntu-v
@@ -91,6 +96,7 @@ jobs:
             dockerfile: containers/ubuntu/Dockerfile
             target: ubuntu
             build-args: |
+              HOMEBREW_FLOOR=cold
               WORKSPACE_TOOL_LAYER_GITFORGE=1
               WORKSPACE_TOOL_LAYER_SECRETS=1
               WORKSPACE_TOOL_LAYER_AWS=1
@@ -104,6 +110,7 @@ jobs:
             target: ubuntu
             build-args: |
               UBUNTU_RELEASE=rolling
+              HOMEBREW_FLOOR=cold
               WORKSPACE_TOOL_LAYER_GITFORGE=1
               WORKSPACE_TOOL_LAYER_SECRETS=1
               WORKSPACE_TOOL_LAYER_AWS=1
@@ -123,7 +130,8 @@ jobs:
           - name: arch
             dockerfile: containers/arch/Dockerfile
             target: arch
-            build-args: ""
+            build-args: |
+              HOMEBREW_FLOOR=cold
             tags: |
               type=raw,value=arch,enable={{is_default_branch}}
               type=match,pattern=v(.*),group=1,prefix=arch-v
@@ -163,9 +171,20 @@ jobs:
 
       - name: Smoke test image
         run: |
-          # err_exit makes every check count, not just the last command.
-          docker run --rm dev-container-fortress:${{ matrix.name }}-smoke zsh -lc '
+          # err_exit makes every check count, not just the last command. The
+          # Homebrew targets install their floor first, as a cold workspace does,
+          # into a named volume that the next step reuses like a replaced
+          # workspace container.
+          docker run --rm -v smoke-brew:/home/linuxbrew/.linuxbrew \
+            dev-container-fortress:${{ matrix.name }}-smoke zsh -lc '
             setopt err_exit
+            if [[ -x /usr/local/bin/ft-brew-floor ]]; then
+              ft-brew-floor
+              gh --version
+              glab --version
+            else
+              ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/tools.toml --target ${{ matrix.target }} --use-manifest-version
+            fi
             whoami
             zsh --version
             git --version
@@ -178,16 +197,16 @@ jobs:
             atuin --version
             nvim --version
             fzf --version
-            ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/tools.toml --target ${{ matrix.target }} --use-manifest-version
           '
 
       - name: Smoke test workspace layer commands
         if: startsWith(matrix.name, 'ubuntu-full')
         run: |
-          docker run --rm dev-container-fortress:${{ matrix.name }}-smoke zsh -lc '
+          # aws comes from the Homebrew floor, which the previous step installed
+          # into the shared volume.
+          docker run --rm -v smoke-brew:/home/linuxbrew/.linuxbrew \
+            dev-container-fortress:${{ matrix.name }}-smoke zsh -lc '
             setopt err_exit
-            gh --version
-            glab --version
             aws --version
             gpg --version
             pass --version

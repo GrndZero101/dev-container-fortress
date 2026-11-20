@@ -385,12 +385,14 @@ Details:
 
 ### `M5c` Composable Container Workspaces
 
-Status: `planned`
+Status: `done` (agent guardrails moved to `M5f`)
 
 Objective:
 Make the container targets long-lived, composable development environments by
 standardizing their userland on Homebrew and making the VS Code devcontainer
-and devcontainer CLI terminal mode genuinely useful.
+and devcontainer CLI terminal mode genuinely useful. Fold `tboss-workspace`
+into a generic multi-repo DevOps workbench whose container limits the
+filesystem blast radius.
 
 Exit criteria:
 
@@ -403,13 +405,90 @@ Exit criteria:
 - a devcontainer CLI terminal mode works end to end
 - `ft workspace` and `.devcontainer/` share one definition or document why
   they differ
+- a generic workbench anyone can create for their own repos replaces the
+  separate `tboss-workspace` repo
 
 Non-goals:
 
 - byte-for-byte reproducible image builds, and new container distros
+- protecting the accounts a workbench's credentials can reach (`M5d`)
+- defending against container or kernel escape exploits
 
 Details:
 [M5c draft](milestones/M5c-composable-container-workspaces.md)
+
+### `M5e` Zero to Hero: Developer Workstation
+
+Status: `next`, after `M5c`
+
+Objective:
+Take a fresh Ubuntu or macOS install to a full DevOps development workstation
+with the fewest commands: Dev Fortress and `shell-config` in development mode,
+the host toolchain, and a workbench for agentic development, in under an hour.
+
+Exit criteria:
+
+- the installer's `host` mode converges a fresh macOS install as it does Ubuntu
+- a developer mode runs the host shell from a `shell-config` clone that the
+  host bootstrap leaves alone
+- the developer path shrinks to the installer, one login, and a workbench
+- timed cold runs on bare-metal Ubuntu and macOS finish in under an hour
+
+Non-goals:
+
+- desktop app installs such as VS Code, Windows-native hosts, and the
+  `dotfiles` repo beyond restoring `~/.config/dev-container-fortress/`
+
+Details:
+[M5e draft](milestones/M5e-developer-workstation.md)
+
+### `M5f` Agent Workbench Guardrails
+
+Status: `next`
+
+Objective:
+Make the `M5c` workbench safe and convenient for coding agents at the `full`
+trust level, with the operator's credentials available.
+
+Exit criteria:
+
+- workbenches keep the host filesystem out of reach (no runtime socket, host
+  home, or privileged mode), and the renderer's `--check` enforces it
+- SSH and 1Password reach a workbench through forwarded agents, with no key
+  files mounted
+- Claude Code runs with permission prompts bypassed behind a deny-list hook
+
+Non-goals:
+
+- protecting the accounts the credentials reach (`M5d`), and container or
+  kernel escape defenses
+
+Details:
+[M5f draft](milestones/M5f-agent-workbench-guardrails.md)
+
+### `M5d` Sealed Agent Workbench
+
+Status: `later`, when a concrete job needs it
+
+Objective:
+Add a `sealed` workbench trust level in which the container is a credential
+and network boundary as well as a filesystem one, for agents working on
+untrusted input.
+
+Exit criteria:
+
+- sealed workbenches carry no operator credentials, host checkouts, or host
+  channels, only narrow, revocable tokens
+- default-deny egress with a data-driven allowlist
+- a start-up boundary check that fails on anything forbidden
+- red-team checks pass from inside a sealed workbench
+
+Non-goals:
+
+- replacing the `full` workbench, and container or kernel escape defenses
+
+Details:
+[M5d draft](milestones/M5d-sealed-agent-workbench.md)
 
 ### `M6` Operator CLI Maturity
 
@@ -522,7 +601,7 @@ Details:
 
 ### `M7b` Cloud Test Fleet
 
-Status: `now`, before `M5c`
+Status: `done` (squash-merged in PR #6, 2026-10-19)
 
 Objective:
 Verify Dev Fortress on several fresh supported OS targets at once with one

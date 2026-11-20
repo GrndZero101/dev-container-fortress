@@ -39,7 +39,6 @@ Tooling policy follows the same split:
 | Project | Role |
 | --- | --- |
 | [`shell-config`](https://github.com/GrndZero101/shell-config) | Shell UX, profile behavior, and interactive environment shaping consumed by Dev Fortress |
-| `tboss-workspace` | Thin VS Code devcontainer orchestrator that consumes published Dev Fortress images for multi-repo daily-driver work |
 
 ## Two Paths
 
@@ -56,7 +55,8 @@ For active repository work, prefer the development path.
 ## Operator Install
 
 On Ubuntu or WSL2 Ubuntu, one command takes a fresh machine to a Dev Fortress
-workstation. The only prerequisite is `curl`:
+workstation. You need a user that can `sudo` and `curl` (Ubuntu Desktop may
+need `sudo apt-get install -y curl` first); the installer adds the rest:
 
 ```sh
 cd ~
@@ -72,6 +72,15 @@ already set up by hand.
 > The [Zero to Hero Quickstart](docs/quickstart.md) is the whole onramp: extras
 > such as Claude Code and the tmux profiles, Git identity, existing machines,
 > the `cli` and `workspace` install modes, every override, and troubleshooting.
+
+Dev Fortress and `shell-config` look best with **JetBrainsMono Nerd Font** in
+your terminal; the quickstart shows how to install it on Linux, macOS, and
+Windows for WSL2.
+
+On top of the workstation, compose a **workbench** per set of repos: a
+devcontainer described by one TOML file that `ft` renders and clones, so the
+whole setup can be rebuilt on a new machine from a few small files. See
+[Workbench Usage](docs/workbench-usage.md).
 
 ### Manual clone fallback
 
@@ -96,13 +105,15 @@ the source of truth:
   shell-config/
 ```
 
-Recommended setup:
+Recommended setup: follow the
+[developer path](DEVELOPMENT.md#rocket-zero-to-hero-developer-path), which
+runs the installer from your source folder and clones `shell-config` beside
+it:
 
 ```sh
-git clone https://github.com/GrndZero101/dev-container-fortress.git
+mkdir -p ~/src && cd ~/src
+curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | sh
 git clone https://github.com/GrndZero101/shell-config.git
-cd dev-container-fortress
-zsh ./bootstrap.zsh
 ```
 
 Then use the local repos directly:
@@ -121,19 +132,9 @@ ft workspace up ubuntu-full
 ft workspace enter ubuntu-full
 ```
 
-For VS Code-first multi-repo work, use the sibling `tboss-workspace` scaffold:
-
-```text
-tboss-workspace/
-  .devcontainer/
-  repos/
-    dev-container-fortress/
-    shell-config/
-```
-
-That scaffold consumes `ghcr.io/grndzero101/dev-container-fortress:ubuntu-full`
-by default and keeps Dev Fortress image publishing separate from workspace
-composition.
+For VS Code-first multi-repo work, use a [workbench](docs/workbench-usage.md),
+with `local_build` pointing at your Dev Fortress clone when you are changing
+the image itself.
 
 ```sh
 ft container build ubuntu \
@@ -170,7 +171,9 @@ ft container build ubuntu \
 | `just` | Convenience shim | Keep for muscle memory, but do not treat it as the logic home |
 | `ansible/` | Host automation layer | Thin today, expanding during host-role milestones |
 | `containers/` | Disposable target implementation | Use for build/runtime contracts |
-| `.devcontainer/` | VS Code integration | Thin wrapper over the matching container target |
+| `.devcontainer/` | VS Code integration | Thin wrapper over the matching container target, rendered by `ft devcontainer render` |
+| `devcontainer/volume/` | Devcontainer CLI terminal mode | Clones code into a named volume on the published image |
+| `ft workbench` | Multi-repo devcontainers for your own repos | Define one TOML file; `ft` renders the folder and clones the repos |
 
 ## :world_map: Target Matrix
 
@@ -185,6 +188,7 @@ ft container build ubuntu \
 | Ubuntu workstation | Supported, one-liner | [Quickstart](docs/quickstart.md) |
 | WSL workstation | Supported, one-liner on WSL2 Ubuntu | [Quickstart](docs/quickstart.md) |
 | VS Code devcontainers | Supported | [Devcontainer Usage](docs/devcontainer-usage.md) |
+| Workbenches (multi-repo devcontainers) | New | [Workbench Usage](docs/workbench-usage.md) |
 
 ## :compass: Documentation Map
 
@@ -201,6 +205,7 @@ ft container build ubuntu \
 | [docs/secrets-management.md](docs/secrets-management.md) | Operators | First-pass GPG and `pass` secrets baseline for workspace profiles |
 | [docs/backup-restore.md](docs/backup-restore.md) | Operators | General `rustic`-oriented backup and restore direction |
 | [docs/devcontainer-usage.md](docs/devcontainer-usage.md) | Operators | VS Code devcontainer usage |
+| [docs/workbench-usage.md](docs/workbench-usage.md) | Operators | Multi-repo workbenches for your own repos |
 | [docs/architecture.md](docs/architecture.md) | Maintainers | Layering and control-plane direction |
 | [docs/container-standards.md](docs/container-standards.md) | Maintainers | Container runtime/build contract |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Maintainers | Milestone ordering and strategic direction |
@@ -216,6 +221,8 @@ ft container build ubuntu \
 | `containers/` | Ubuntu, Alpine, and Arch container targets plus shared runtime helpers |
 | `infra/` | Terraform-owned infrastructure layer for disposable and future repeatable host targets |
 | `.devcontainer/` | VS Code wrappers for container targets |
+| `devcontainer/` | Devcontainer CLI definitions that VS Code should not offer on reopen |
+| `examples/workbench/` | A rendered reference workbench, kept current by pre-commit |
 | `docs/` | Usage guides, contracts, roadmap, and milestone drafts |
 
 ## :dart: Design Direction
@@ -262,9 +269,11 @@ In progress:
 
 ## :calendar: Current Milestone
 
-The current implementation focus is
-[M5b Zero to Hero: Workstation Composability](docs/milestones/M5b-zero-to-hero-workstation-composability.md),
-followed by [M7b Cloud Test Fleet](docs/milestones/M7b-cloud-test-fleet.md).
+[M5c Composable Container Workspaces](docs/milestones/M5c-composable-container-workspaces.md)
+delivered workbenches. Next are
+[M5e Zero to Hero: Developer Workstation](docs/milestones/M5e-developer-workstation.md),
+starting with a timed bare-metal run of the developer path, and
+[M5f Agent Workbench Guardrails](docs/milestones/M5f-agent-workbench-guardrails.md).
 
 Use these planning docs together:
 
