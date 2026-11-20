@@ -34,7 +34,7 @@ from ft.container_runtime import (
     START_STEPS,
 )
 from ft.container_targets import CONTAINER_TARGETS, KNOWN_CONTAINER_TARGETS
-from ft.devcontainer import render_all, stale_definitions
+from ft.devcontainer import render_all, stale_files, write_files
 from ft.fleet_check import (
     FAILED,
     PASSED,
@@ -86,6 +86,17 @@ from ft.recap import parse_play_recaps
 from ft.secrets import run_secret_readiness_checks
 from ft.settings import FtSettings
 from ft.tool_pool import default_tool_pool_manifest_path, load_tool_pool_manifest
+from ft.workbench import (
+    DEFAULT_PROFILE,
+    WorkbenchDefinition,
+    load_workbench,
+    render_workbench,
+    repo_dir_name,
+    workbench_config_dir,
+    workbench_directory,
+    workbench_path,
+    workbench_toml,
+)
 
 app = typer.Typer(
     add_completion=False,
@@ -188,6 +199,13 @@ devcontainer_app = typer.Typer(
         "that ft workspace uses."
     ),
 )
+workbench_app = typer.Typer(
+    no_args_is_help=False,
+    help=(
+        "Create and render workbenches: multi-repo devcontainers defined in "
+        "~/.config/dev-container-fortress/workbenches/<name>.toml."
+    ),
+)
 completion_app = typer.Typer(
     no_args_is_help=False,
     help=(
@@ -209,6 +227,7 @@ infra_app.add_typer(aws_test_fleet_app, name="aws-test-fleet")
 aws_disposable_ubuntu_app.add_typer(aws_disposable_ubuntu_capacity_app, name="capacity")
 app.add_typer(options_app, name="options")
 app.add_typer(devcontainer_app, name="devcontainer")
+app.add_typer(workbench_app, name="workbench")
 app.add_typer(completion_app, name="completion")
 
 console = Console()
@@ -8755,31 +8774,323 @@ def devcontainer_render(
     """
     repo_root = _repo_root()
     try:
-        if check:
-            stale = stale_definitions(repo_root)
-        else:
-            rendered = render_all(repo_root)
+        rendered = render_all(repo_root)
     except (OSError, ValueError) as error:
         console.print(f"[red]devcontainer render failed:[/red] {error}")
         raise typer.Exit(code=1) from error
+    if not _apply_rendered_files(
+        rendered,
+        check=check,
+        base=repo_root,
+        fix_hint="run `ft devcontainer render` and commit the result",
+    ):
+        raise typer.Exit(code=1)
+    console.print("devcontainer definitions are up to date")
+
+
+def _apply_rendered_files(
+    files: dict[Path, str], *, check: bool, base: Path, fix_hint: str
+) -> bool:
+    """Write rendered files, or with ``check`` only report the stale ones.
+
+    Args:
+        files: Output paths mapped to their rendered text.
+        check: Report stale files instead of writing them.
+        base: The folder that printed paths are shown relative to.
+        fix_hint: What to tell the operator when ``check`` finds stale files.
+
+    Returns:
+        False when ``check`` found stale files, True otherwise.
+    """
     if check:
+        stale = stale_files(files)
         for path in stale:
             console.print(
-                f"[red]stale:[/red] {path.relative_to(repo_root)}", highlight=False
+                f"[red]stale:[/red] {path.relative_to(base)}",
+                highlight=False,
+                soft_wrap=True,
             )
         if stale:
-            console.print("run `ft devcontainer render` and commit the result")
+            console.print(fix_hint, highlight=False, soft_wrap=True)
+        return not stale
+    for path in write_files(files):
+        console.print(
+            f"wrote {path.relative_to(base)}", highlight=False, soft_wrap=True
+        )
+    return True
+
+
+def _cli_path_setting(value: str | None) -> str | None:
+    """Return a path flag as it should be stored in a workbench file.
+
+    A ``~`` path stays as typed, so the file keeps working in dotfiles on
+    another machine; any other relative path becomes absolute.
+
+    Args:
+        value: The flag value, or None when unset.
+
+    Returns:
+        The value to store, or None.
+    """
+    if value is None or value.startswith("~") or Path(value).is_absolute():
+        return value
+    return str(Path(value).resolve())
+
+
+def _render_workbench_file(toml_path: Path, *, check: bool) -> bool:
+    """Render, or check, one workbench file and report the result.
+
+    Args:
+        toml_path: The workbench TOML file.
+        check: Report stale files instead of writing them.
+
+    Returns:
+        Whether the workbench rendered, or with ``check`` was up to date.
+    """
+    try:
+        definition = load_workbench(toml_path)
+        files = render_workbench(
+            definition, toml_path, _load_workspace_profile_manifest()
+        )
+    except (OSError, ValueError) as error:
+        console.print(
+            f"[red]workbench render failed:[/red] {error}",
+            highlight=False,
+            soft_wrap=True,
+        )
+        return False
+    directory = workbench_directory(definition, toml_path)
+    if not _apply_rendered_files(
+        files,
+        check=check,
+        base=directory,
+        fix_hint=f"run `ft workbench render {toml_path}`",
+    ):
+        return False
+    console.print(
+        f"workbench {definition.name}: {directory}", highlight=False, soft_wrap=True
+    )
+    return True
+
+
+def _workbench_files(workbench: str | None) -> list[Path]:
+    """Return the workbench files a command acts on.
+
+    Args:
+        workbench: A name or TOML path, or None for every saved workbench.
+
+    Returns:
+        The TOML paths.
+
+    Raises:
+        typer.Exit: When the named file does not exist, or none are saved.
+    """
+    if workbench is not None:
+        path = workbench_path(workbench)
+        if not path.is_file():
+            console.print(
+                f"[red]no workbench file:[/red] {path}", highlight=False, soft_wrap=True
+            )
             raise typer.Exit(code=1)
-        console.print("devcontainer definitions are up to date")
-        return
-    for path, text in rendered.items():
-        current = path.read_text(encoding="utf-8") if path.is_file() else None
-        if current == text:
+        return [path]
+    paths = sorted(workbench_config_dir().glob("*.toml"))
+    if not paths:
+        console.print(
+            f"no workbenches in {workbench_config_dir()}; create one with "
+            "`ft workbench init <name> --repo <url>`",
+            highlight=False,
+            soft_wrap=True,
+        )
+        raise typer.Exit(code=1)
+    return paths
+
+
+@workbench_app.command("init")
+def workbench_init(
+    name: Annotated[
+        str, typer.Argument(help="Workbench name: lowercase letters, digits, '-'.")
+    ],
+    repo: Annotated[
+        list[str] | None,
+        typer.Option("--repo", help="Git URL to clone into repos/. Repeatable."),
+    ] = None,
+    profile: Annotated[
+        str,
+        typer.Option(
+            "--profile",
+            help="ft workspace profile that supplies the image, layers, and mounts.",
+        ),
+    ] = DEFAULT_PROFILE,
+    options: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--options",
+            help=(
+                "Comma-separated optional components, such as claude-code, or "
+                "'none'. Defaults to DEV_CONTAINER_FORTRESS_OPTIONS or the saved "
+                "selection; host-only options are skipped."
+            ),
+        ),
+    ] = None,
+    mount: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--mount", help="Persisted mount to add, such as aws. Repeatable."
+        ),
+    ] = None,
+    extension: Annotated[
+        list[str] | None,
+        typer.Option("--extension", help="VS Code extension to add. Repeatable."),
+    ] = None,
+    directory: Annotated[
+        str | None,
+        typer.Option(
+            "--directory", help="Folder to render into. Default: ~/workbenches/<name>."
+        ),
+    ] = None,
+    local_build: Annotated[
+        str | None,
+        typer.Option(
+            "--local-build",
+            help="Build the image from this Dev Fortress checkout instead of pulling.",
+        ),
+    ] = None,
+    force: Annotated[
+        bool, typer.Option("--force", help="Overwrite an existing workbench file.")
+    ] = False,
+) -> None:
+    """Write a workbench file and render its folder.
+
+    The file lands in ~/.config/dev-container-fortress/workbenches/<name>.toml,
+    where it can be edited by hand or kept in dotfiles.
+    """
+    toml_path = workbench_config_dir() / f"{name}.toml"
+    if toml_path.exists() and not force:
+        console.print(
+            f"[red]workbench already exists:[/red] {toml_path}; edit it, or pass "
+            "--force to overwrite",
+            highlight=False,
+            soft_wrap=True,
+        )
+        raise typer.Exit(code=1)
+    option_names = _workspace_option_names(_resolve_bootstrap_options(options))
+    try:
+        definition = WorkbenchDefinition(
+            name=name,
+            directory=_cli_path_setting(directory),
+            profile=profile,
+            local_build=_cli_path_setting(local_build),
+            options=list(option_names),
+            mounts=mount or [],
+            extensions=extension or [],
+            repos=repo or [],
+        )
+    except ValueError as error:
+        console.print(
+            f"[red]invalid workbench:[/red] {error}", highlight=False, soft_wrap=True
+        )
+        raise typer.Exit(code=1) from error
+    toml_path.parent.mkdir(parents=True, exist_ok=True)
+    toml_path.write_text(workbench_toml(definition), encoding="utf-8")
+    console.print(f"wrote {toml_path}", highlight=False, soft_wrap=True)
+    if not _render_workbench_file(toml_path, check=False):
+        raise typer.Exit(code=1)
+    folder = workbench_directory(definition, toml_path)
+    console.print(
+        "next:\n"
+        f"  ft workbench clone {name}\n"
+        f"  code {folder}            # then Reopen in Container\n"
+        f"  devcontainer up --workspace-folder {folder}   # or terminal mode",
+        highlight=False,
+        soft_wrap=True,
+    )
+
+
+@workbench_app.command("render")
+def workbench_render(
+    workbench: Annotated[
+        str | None,
+        typer.Argument(help="Workbench name or TOML path. Default: every workbench."),
+    ] = None,
+    check: Annotated[
+        bool,
+        typer.Option(
+            "--check", help="Write nothing; fail when a rendered file is stale."
+        ),
+    ] = False,
+) -> None:
+    """Regenerate a workbench folder's devcontainer and workspace files."""
+    results = [
+        _render_workbench_file(path, check=check)
+        for path in _workbench_files(workbench)
+    ]
+    if not all(results):
+        raise typer.Exit(code=1)
+
+
+@workbench_app.command("clone")
+def workbench_clone(
+    workbench: Annotated[
+        str | None,
+        typer.Argument(help="Workbench name or TOML path. Default: every workbench."),
+    ] = None,
+) -> None:
+    """Clone a workbench's repos that are missing from its repos/ folder.
+
+    Clones run on the host with its Git credentials; existing folders are left
+    alone.
+    """
+    failed = False
+    for toml_path in _workbench_files(workbench):
+        try:
+            definition = load_workbench(toml_path)
+        except (OSError, ValueError) as error:
+            console.print(f"[red]{error}[/red]", highlight=False, soft_wrap=True)
+            failed = True
             continue
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-        console.print(f"wrote {path.relative_to(repo_root)}", highlight=False)
-    console.print("devcontainer definitions are up to date")
+        repos_dir = workbench_directory(definition, toml_path) / "repos"
+        repos_dir.mkdir(parents=True, exist_ok=True)
+        for url in definition.repos:
+            destination = repos_dir / repo_dir_name(url)
+            if destination.exists():
+                console.print(
+                    f"present: {destination}", highlight=False, soft_wrap=True
+                )
+                continue
+            result = _run_streaming_command(["git", "clone", url, str(destination)])
+            if result.returncode != 0:
+                console.print(
+                    f"[red]clone failed:[/red] {url}", highlight=False, soft_wrap=True
+                )
+                failed = True
+    if failed:
+        raise typer.Exit(code=1)
+
+
+@workbench_app.command("list")
+def workbench_list() -> None:
+    """List saved workbenches with their folder, profile, and repos."""
+    paths = sorted(workbench_config_dir().glob("*.toml"))
+    if not paths:
+        console.print(f"no workbenches in {workbench_config_dir()}", highlight=False)
+        return
+    table = Table("name", "folder", "profile", "options", "repos")
+    for toml_path in paths:
+        try:
+            definition = load_workbench(toml_path)
+        except (OSError, ValueError) as error:
+            table.add_row(
+                toml_path.stem, f"[red]{escape(str(error))}[/red]", "", "", ""
+            )
+            continue
+        table.add_row(
+            definition.name,
+            str(workbench_directory(definition, toml_path)),
+            definition.profile + (" (local build)" if definition.local_build else ""),
+            ", ".join(definition.options) or "none",
+            str(len(definition.repos)),
+        )
+    console.print(table)
 
 
 @options_app.command("pick")

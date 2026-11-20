@@ -241,3 +241,6 @@ override.tf.json
 infra/**/terraform.tfvars
 infra/**/*.auto.tfvars.json
 infra/aws-disposable-ubuntu/capacity-presets/last.json
+
+# Clones made by `ft workbench clone` in the example workbench.
+/examples/workbench/repos/

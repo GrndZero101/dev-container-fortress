@@ -1,0 +1,81 @@
+{
+  "name": "example workbench",
+  "image": "ghcr.io/grndzero101/dev-container-fortress:ubuntu",
+  "remoteUser": "vscode",
+  "containerUser": "vscode",
+  "containerEnv": {
+    "DEV_CONTAINER_FORTRESS_OPTIONS": "claude-code",
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+  },
+  "mounts": [
+    {
+      "source": "dev-fortress-wb-example-state",
+      "target": "/home/vscode/.local/state",
+      "type": "volume"
+    },
+    {
+      "source": "dev-fortress-wb-example-zoxide",
+      "target": "/home/vscode/.local/share/zoxide",
+      "type": "volume"
+    },
+    {
+      "source": "dev-fortress-wb-example-atuin",
+      "target": "/home/vscode/.local/share/atuin",
+      "type": "volume"
+    },
+    {
+      "source": "dev-fortress-wb-example-cache",
+      "target": "/home/vscode/.cache",
+      "type": "volume"
+    },
+    {
+      "source": "dev-fortress-wb-example-gh",
+      "target": "/home/vscode/.config/gh",
+      "type": "volume"
+    },
+    {
+      "source": "dev-fortress-wb-example-glab",
+      "target": "/home/vscode/.config/glab-cli",
+      "type": "volume"
+    },
+    {
+      "source": "dev-fortress-wb-example-aws",
+      "target": "/home/vscode/.aws",
+      "type": "volume"
+    },
+    {
+      "source": "dev-fortress-wb-example-azure",
+      "target": "/home/vscode/.azure",
+      "type": "volume"
+    },
+    {
+      "source": "dev-fortress-wb-example-claude",
+      "target": "/home/vscode/.claude",
+      "type": "volume"
+    },
+    {
+      "source": "dev-fortress-wb-example-claude-versions",
+      "target": "/home/vscode/.local/share/claude",
+      "type": "volume"
+    },
+    {
+      "source": "dev-fortress-wb-example-brew",
+      "target": "/home/linuxbrew/.linuxbrew",
+      "type": "volume"
+    }
+  ],
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh"
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-azuretools.vscode-docker",
+        "hashicorp.terraform",
+        "tamasfe.even-better-toml"
+      ]
+    }
+  },
+  "postStartCommand": "ft-brew-floor && ft-ensure-claude-code"
+}

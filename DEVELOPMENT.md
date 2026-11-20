@@ -30,16 +30,16 @@ For active development, prefer a sibling-checkout layout:
   shell-config/
 ```
 
-For VS Code devcontainer work across multiple repos, prefer the thin
-`tboss-workspace` orchestrator layout:
+For VS Code devcontainer work across multiple repos, use a workbench (see the
+[workbench usage guide](docs/workbench-usage.md)). To change the Dev Fortress
+image from inside one, set `local_build = "repos/dev-container-fortress"`:
 
 ```text
-tboss-workspace/
+~/workbenches/<name>/
   .devcontainer/
   repos/
     dev-container-fortress/
     shell-config/
-    minecraft-docker/
 ```
 
 This matters because:
@@ -51,7 +51,7 @@ This matters because:
 - it keeps the source you are editing separate from any installed
   `~/.config/shell-config` checkout that host bootstrap may manage
 
-`tboss-workspace` is the VS Code composition layer. Dev Fortress remains the
+The workbench is the VS Code composition layer. Dev Fortress remains the
 toolchain image and `ft` provider.
 
 Operator installs and host bootstrap may still populate

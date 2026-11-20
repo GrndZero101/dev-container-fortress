@@ -1,0 +1,14 @@
+# Dev Fortress workbench. Edit it, then run `ft workbench render` to
+# regenerate its folder; see docs/workbench-usage.md in dev-container-fortress.
+name = "example"
+directory = "."
+profile = "ubuntu-base"
+# local_build = "~/src/dev-container-fortress"
+trust = "full"
+options = ["claude-code"]
+mounts = []
+extensions = []
+repos = [
+  "https://github.com/GrndZero101/dev-container-fortress.git",
+  "https://github.com/GrndZero101/shell-config.git",
+]

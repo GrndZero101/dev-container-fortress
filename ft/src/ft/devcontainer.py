@@ -23,7 +23,7 @@ from ft.container_runtime import (
     PERSISTED_MOUNT_PATHS,
     START_STEPS,
 )
-from ft.container_targets import CONTAINER_TARGETS, ContainerTarget
+from ft.container_targets import CONTAINER_TARGETS
 from ft.options import OPTIONS_ENV
 
 PUBLISHED_IMAGE_REPO = "ghcr.io/grndzero101/dev-container-fortress"
@@ -120,7 +120,7 @@ def dockerfile_arg_defaults(dockerfile: Path) -> dict[str, str]:
     return defaults
 
 
-def _build_args(dockerfile: Path) -> dict[str, str]:
+def build_args(dockerfile: Path) -> dict[str, str]:
     """Return the forwarded build arguments for one Dockerfile.
 
     A default that holds ``:`` cannot survive ``${localEnv:...}``, so it is
@@ -146,41 +146,90 @@ def _build_args(dockerfile: Path) -> dict[str, str]:
     return args
 
 
-def _mounts(target: ContainerTarget) -> list[dict[str, str]]:
-    """Return the named-volume mounts for one target.
-
-    Every option's mounts are included, because a static definition cannot
-    branch on the selection; an unused volume costs nothing.
+def mount_paths(
+    *,
+    homebrew: bool,
+    option_names: tuple[str, ...],
+    extra: tuple[str, ...] = (),
+) -> dict[str, str]:
+    """Return the persisted mounts of one definition, in render order.
 
     Args:
-        target: The container target.
+        homebrew: Whether the target's userland comes from Homebrew.
+        option_names: The options whose mounts to include.
+        extra: Further persisted mount names, such as a profile's.
 
     Returns:
-        Mount entries keyed per definition by ``${devcontainerId}``.
+        Mount names mapped to container paths; ``brew`` is the Homebrew
+        prefix.
     """
     names = list(DEVCONTAINER_MOUNTS)
-    for option_mounts in OPTION_MOUNTS.values():
-        names.extend(name for name in option_mounts if name not in names)
+    names.extend(name for name in extra if name not in names)
+    for option_name in option_names:
+        names.extend(name for name in OPTION_MOUNTS[option_name] if name not in names)
+    if homebrew:
+        names.extend(name for name in HOMEBREW_TOOL_MOUNTS if name not in names)
     paths = {name: PERSISTED_MOUNT_PATHS[name] for name in names}
-    if target.homebrew:
-        paths.update(
-            (name, PERSISTED_MOUNT_PATHS[name]) for name in HOMEBREW_TOOL_MOUNTS
-        )
+    if homebrew:
         paths["brew"] = HOMEBREW_PREFIX
+    return paths
+
+
+def volume_mounts(paths: dict[str, str], source: str) -> list[dict[str, str]]:
+    """Return named-volume mount entries.
+
+    Args:
+        paths: Mount names mapped to container paths.
+        source: The volume name pattern, with ``{name}`` for the mount name.
+
+    Returns:
+        ``devcontainer.json`` mount entries.
+    """
     return [
-        {
-            "source": f"dev-fortress-{name}-${{devcontainerId}}",
-            "target": path,
-            "type": "volume",
-        }
+        {"source": source.format(name=name), "target": path, "type": "volume"}
         for name, path in paths.items()
     ]
+
+
+def vscode_customizations(extra_extensions: tuple[str, ...] = ()) -> dict[str, object]:
+    """Return the VS Code customizations every definition carries.
+
+    Args:
+        extra_extensions: Extensions to add after the defaults.
+
+    Returns:
+        The ``customizations`` mapping.
+    """
+    extensions = list(VSCODE_EXTENSIONS)
+    extensions.extend(name for name in extra_extensions if name not in extensions)
+    return {
+        "vscode": {
+            "settings": {"terminal.integrated.defaultProfile.linux": "zsh"},
+            "extensions": extensions,
+        }
+    }
+
+
+def to_json(content: dict[str, object]) -> str:
+    """Return a rendered mapping as committed JSON text.
+
+    Args:
+        content: The mapping to serialise.
+
+    Returns:
+        Two-space indented JSON with a trailing newline.
+    """
+    return json.dumps(content, indent=2) + "\n"
 
 
 def render_definition(
     definition: DevcontainerDefinition, repo_root: Path
 ) -> dict[str, object]:
     """Return one devcontainer definition as a JSON-ready mapping.
+
+    Every option's mounts and environment are included, because a static
+    definition cannot read the selection; an unused volume costs nothing, and
+    option-gated start steps check ``DEV_CONTAINER_FORTRESS_OPTIONS`` instead.
 
     Args:
         definition: The definition to render.
@@ -209,21 +258,17 @@ def render_definition(
         content["build"] = {
             "dockerfile": f"../../containers/{target.name}/Dockerfile",
             "context": "../..",
-            "args": _build_args(repo_root / "containers" / target.name / "Dockerfile"),
+            "args": build_args(repo_root / "containers" / target.name / "Dockerfile"),
         }
     content["remoteUser"] = "vscode"
     content["containerUser"] = "vscode"
     content["containerEnv"] = {OPTIONS_ENV: local_env(OPTIONS_ENV)}
     for option_env in OPTION_ENV.values():
         content["containerEnv"].update(option_env)
-    content["mounts"] = _mounts(target)
+    paths = mount_paths(homebrew=target.homebrew, option_names=tuple(OPTION_MOUNTS))
+    content["mounts"] = volume_mounts(paths, "dev-fortress-{name}-${{devcontainerId}}")
     if not definition.volume_flow:
-        content["customizations"] = {
-            "vscode": {
-                "settings": {"terminal.integrated.defaultProfile.linux": "zsh"},
-                "extensions": list(VSCODE_EXTENSIONS),
-            }
-        }
+        content["customizations"] = vscode_customizations()
         if not target.homebrew:
             content["postCreateCommand"] = (
                 f"ft plan --manifest {DOWNLOADER_MANIFEST} --target {target.name}"
@@ -246,12 +291,41 @@ def render_all(repo_root: Path) -> dict[Path, str]:
         Absolute output paths mapped to their file text.
     """
     return {
-        repo_root / definition.path: json.dumps(
-            render_definition(definition, repo_root), indent=2
-        )
-        + "\n"
+        repo_root / definition.path: to_json(render_definition(definition, repo_root))
         for definition in DEFINITIONS
     }
+
+
+def stale_files(files: dict[Path, str]) -> list[Path]:
+    """Return the rendered files whose copy on disk is missing or different.
+
+    Args:
+        files: Output paths mapped to their rendered text.
+
+    Returns:
+        The stale paths, in render order.
+    """
+    return [
+        path
+        for path, text in files.items()
+        if not path.is_file() or path.read_text(encoding="utf-8") != text
+    ]
+
+
+def write_files(files: dict[Path, str]) -> list[Path]:
+    """Write the rendered files that are stale, creating parent directories.
+
+    Args:
+        files: Output paths mapped to their rendered text.
+
+    Returns:
+        The paths written.
+    """
+    written = stale_files(files)
+    for path in written:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(files[path], encoding="utf-8")
+    return written
 
 
 def stale_definitions(repo_root: Path) -> list[Path]:
@@ -263,8 +337,4 @@ def stale_definitions(repo_root: Path) -> list[Path]:
     Returns:
         Paths that are missing or out of date, in render order.
     """
-    stale = []
-    for path, text in render_all(repo_root).items():
-        if not path.is_file() or path.read_text(encoding="utf-8") != text:
-            stale.append(path)
-    return stale
+    return stale_files(render_all(repo_root))

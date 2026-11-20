@@ -159,6 +159,11 @@ Use:
   HTTPS pushes through them, since `~/.gitconfig` does not persist
 - generated definitions: `ft devcontainer render` writes every
   `devcontainer.json`, and its `--check` runs in pre-commit and CI
+- workbenches for multi-repo work: a user-owned TOML file under
+  `${XDG_CONFIG_HOME}/dev-container-fortress/workbenches/` from which
+  `ft workbench render` writes a devcontainer folder, using the same runtime
+  table and a workspace profile for the image. There is no `ft workbench up`:
+  VS Code and the devcontainer CLI run it, so no third runtime is added
 
 ### One definition, two runtimes
 

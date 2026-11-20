@@ -145,6 +145,9 @@ That means they should:
 - The floor comes before the `shell-config` build args and `COPY ft`, so a
   devcontainer build and an `ft workspace build` with default settings share
   it, and an `ft` change that leaves the floor list alone keeps it cached.
+- Only `ft-brew-floor` and `/etc/gitconfig` are copied in before the floor.
+  The other `containers/common/` helpers come after it, so editing one
+  rebuilds in seconds instead of re-running the floor.
 
 ## Tool Installation Contract
 
@@ -192,6 +195,7 @@ That means they should:
 
 - `.devcontainer/` should remain a thin wrapper around the container target.
 - Every `devcontainer.json` is rendered by `ft devcontainer render` from the runtime table that `ft workspace` also reads (`ft/src/ft/container_runtime.py`) and from the target Dockerfile's build-arg defaults. Edit the data, not the JSON; `--check` in pre-commit and CI enforces it. The architecture doc records why the two runtimes stay separate.
+- Workbench definitions are rendered the same way by `ft workbench render`, from a user-owned TOML file under `${XDG_CONFIG_HOME}/dev-container-fortress/workbenches/`. Their volumes are named `dev-fortress-wb-<name>-<mount>` rather than keyed by `${devcontainerId}`, so they survive moving the folder; their mounts are the profile's persisted mounts plus the shared devcontainer set, the selected options' mounts, and any extra `mounts`. `examples/workbench/` is the checked-in reference, kept current by pre-commit.
 - A `${localEnv:VAR:default}` default must not contain `:`, because the devcontainer CLI cuts it there. The renderer refuses one; a build arg whose Dockerfile default holds a colon is forwarded without a default and the image's installer falls back.
 - The repository may expose multiple devcontainer definitions when it supports multiple container targets.
 - The current standard definitions are `.devcontainer/ubuntu/devcontainer.json`, `.devcontainer/alpine/devcontainer.json`, and `.devcontainer/arch/devcontainer.json`.

@@ -39,7 +39,6 @@ Tooling policy follows the same split:
 | Project | Role |
 | --- | --- |
 | [`shell-config`](https://github.com/GrndZero101/shell-config) | Shell UX, profile behavior, and interactive environment shaping consumed by Dev Fortress |
-| `tboss-workspace` | Thin VS Code devcontainer orchestrator that consumes published Dev Fortress images for multi-repo daily-driver work |
 
 ## Two Paths
 
@@ -121,19 +120,18 @@ ft workspace up ubuntu-full
 ft workspace enter ubuntu-full
 ```
 
-For VS Code-first multi-repo work, use the sibling `tboss-workspace` scaffold:
+For VS Code-first multi-repo work on your own repos, create a workbench: one
+TOML file under `~/.config/dev-container-fortress/workbenches/`, from which
+`ft` renders a devcontainer folder and clones the repos into it:
 
-```text
-tboss-workspace/
-  .devcontainer/
-  repos/
-    dev-container-fortress/
-    shell-config/
+```sh
+ft workbench init mybench --profile ubuntu-full --options claude-code \
+  --repo https://github.com/you/first-repo.git \
+  --repo https://github.com/you/second-repo.git
+ft workbench clone mybench
 ```
 
-That scaffold consumes `ghcr.io/grndzero101/dev-container-fortress:ubuntu-full`
-by default and keeps Dev Fortress image publishing separate from workspace
-composition.
+See the [workbench usage guide](docs/workbench-usage.md).
 
 ```sh
 ft container build ubuntu \
@@ -172,6 +170,7 @@ ft container build ubuntu \
 | `containers/` | Disposable target implementation | Use for build/runtime contracts |
 | `.devcontainer/` | VS Code integration | Thin wrapper over the matching container target, rendered by `ft devcontainer render` |
 | `devcontainer/volume/` | Devcontainer CLI terminal mode | Clones code into a named volume on the published image |
+| `ft workbench` | Multi-repo devcontainers for your own repos | Define one TOML file; `ft` renders the folder and clones the repos |
 
 ## :world_map: Target Matrix
 
@@ -186,6 +185,7 @@ ft container build ubuntu \
 | Ubuntu workstation | Supported, one-liner | [Quickstart](docs/quickstart.md) |
 | WSL workstation | Supported, one-liner on WSL2 Ubuntu | [Quickstart](docs/quickstart.md) |
 | VS Code devcontainers | Supported | [Devcontainer Usage](docs/devcontainer-usage.md) |
+| Workbenches (multi-repo devcontainers) | New | [Workbench Usage](docs/workbench-usage.md) |
 
 ## :compass: Documentation Map
 
@@ -202,6 +202,7 @@ ft container build ubuntu \
 | [docs/secrets-management.md](docs/secrets-management.md) | Operators | First-pass GPG and `pass` secrets baseline for workspace profiles |
 | [docs/backup-restore.md](docs/backup-restore.md) | Operators | General `rustic`-oriented backup and restore direction |
 | [docs/devcontainer-usage.md](docs/devcontainer-usage.md) | Operators | VS Code devcontainer usage |
+| [docs/workbench-usage.md](docs/workbench-usage.md) | Operators | Multi-repo workbenches for your own repos |
 | [docs/architecture.md](docs/architecture.md) | Maintainers | Layering and control-plane direction |
 | [docs/container-standards.md](docs/container-standards.md) | Maintainers | Container runtime/build contract |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Maintainers | Milestone ordering and strategic direction |
@@ -218,6 +219,7 @@ ft container build ubuntu \
 | `infra/` | Terraform-owned infrastructure layer for disposable and future repeatable host targets |
 | `.devcontainer/` | VS Code wrappers for container targets |
 | `devcontainer/` | Devcontainer CLI definitions that VS Code should not offer on reopen |
+| `examples/workbench/` | A rendered reference workbench, kept current by pre-commit |
 | `docs/` | Usage guides, contracts, roadmap, and milestone drafts |
 
 ## :dart: Design Direction

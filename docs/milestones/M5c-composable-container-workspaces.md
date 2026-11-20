@@ -513,8 +513,8 @@ These are accepted risks, documented rather than solved:
 
 ### M5c-7 Fold `tboss-workspace` into a generic workbench
 
-- [ ] Problem: the multi-repo devcontainer lives in a separate repo, tied to one operator's repos, paths, and state names, and its mounts predate this branch
-- [ ] Scope: `workbench.toml`; a workbench target for `ft devcontainer render` that writes `devcontainer.json`, the `.code-workspace`, and the `repos/` `.gitignore`; `ft workbench clone`; `examples/workbench/` kept current by `--check`; the `local-build` setting; and docs that replace `tboss-workspace`'s `README.md` and `TESTING.md`
+- [x] Problem: the multi-repo devcontainer lives in a separate repo, tied to one operator's repos, paths, and state names, and its mounts predate this branch
+- [x] Scope: a user-owned workbench TOML file under `${XDG_CONFIG_HOME}/dev-container-fortress/workbenches/`; `ft workbench init`, `render` (with `--check`), `clone`, and `list`, which write `devcontainer.json` and the `.code-workspace` into the workbench folder; `examples/workbench/` kept current by pre-commit; the `local_build` setting; and `docs/workbench-usage.md` replacing `tboss-workspace`'s `README.md` and `TESTING.md` (no `repos/` `.gitignore`: the folder is generated output, not a repo)
 - [ ] Acceptance: a fresh user builds a workbench for two of their own repos from the docs alone, opens it in VS Code and in CLI terminal mode, and logs in and pushes; `tboss-workspace` is archived with a pointer; the `M5a` open note about its persisted state is closed
 - [x] Depends on: `M5c-5` (the renderer)
 
@@ -549,7 +549,7 @@ These are accepted risks, documented rather than solved:
 ## Open Questions
 
 - [ ] Does a workbench need Docker inside it, and if so, which option: Docker-in-Docker, rootless, or Sysbox?
-- [ ] Where does each user's own workbench live: a small private repo, or only a local `workbench.toml`?
+- [x] Where does each user's own workbench live: a small private repo, or only a local `workbench.toml`? A local file under `${XDG_CONFIG_HOME}/dev-container-fortress/workbenches/<name>.toml`, which dotfiles can carry; the rendered folder is regenerable
 - [ ] Which stable SSH agent socket path should CLI terminal mode mount on Linux and on WSL2 hosts?
 
 ## Branch and Merge Plan
@@ -802,8 +802,53 @@ Found on the way:
   devcontainer CLI names the image after the workspace folder,
   `vsc-<folder>-<hash>`, not after the definition. Building Arch and Alpine
   from the same checkout at once overwrote each other's tag, which most likely
-  made one Arch replace take 174 s and reinstall the floor; run one at a time,
-  it took 15 s. Building any definition also retags the image that another
-  definition's existing container was built from. Containers keep their own
-  image, and the CLI rebuilds from cache when it creates a container, so this
-  only bites when builds run in parallel. Worth remembering for the workbench.
+  only bites when builds run in parallel. Building any definition also retags
+  the image that another definition's existing container was built from;
+  containers keep their own image, and the CLI rebuilds from cache when it
+  creates a container. Correction, made during `M5c-7`: the 174 s Arch
+  replace seen here was not this race. The helper fix above landed mid-run,
+  and every `containers/common/` helper was copied in before the Homebrew
+  floor, so the edit rebuilt the floor. `M5c-7` moved the helpers after it.
+
+M5c-7 built on 2026-11-20. The operator chose a local workbench file over a
+private repo per workbench, with `ft` writing it, so dotfiles can carry it
+later. A workbench is
+`${XDG_CONFIG_HOME}/dev-container-fortress/workbenches/<name>.toml` (name,
+directory, `ft workspace` profile, optional `local_build`, trust, options,
+extra mounts, extensions, repos). `ft workbench init` writes it and renders
+`~/workbenches/<name>/` (`.devcontainer/devcontainer.json` and
+`<name>.code-workspace`); `render`, `clone`, and `list` complete the set. The
+profile supplies the published image, or for a local build the tool-layer
+and release build args, plus its persisted mounts. Volumes are named
+`dev-fortress-wb-<name>-<mount>` rather than keyed by `${devcontainerId}`, so
+they survive moving or re-rendering the folder. Because the selection is in
+the file, the definition mounts only the selected options' volumes, sets
+`DEV_CONTAINER_FORTRESS_OPTIONS` literally, and runs `ft-ensure-claude-code`
+without `--if-selected`. A relative `local_build` resolves against the
+workbench folder, so `repos/dev-container-fortress` builds from a clone; build
+paths inside the folder stay relative, others are absolute.
+`examples/workbench/` is the rendered reference, checked by a pre-commit hook.
+
+Verified on amd64 WSL2 in terminal mode, with a sandbox
+`XDG_CONFIG_HOME` and a `local_build` of this branch:
+
+| Check | Result |
+| --- | --- |
+| `ft workbench init` with two repos, `claude-code`, `--profile ubuntu-base` | TOML written; folder rendered; `render --check` clean |
+| `ft workbench clone` | both repos cloned on the host into `repos/` |
+| `devcontainer up --workspace-folder <folder>` | 192 s including a floor rebuild; floor present, Claude Code 2.1.329 installed |
+| Inside | `/workspaces/<name>` with both repos; `gh` works; `DEV_CONTAINER_FORTRESS_OPTIONS=claude-code`; no Docker socket and no `/mnt/c` |
+| Volumes | eleven `dev-fortress-wb-<name>-*` volumes: the profile's mounts, `brew`, and the two Claude Code paths |
+| `up --remove-existing-container` after a state marker and `brew install hello` | marker, `hello`, and Claude Code 2.1.329 all kept |
+
+Found on the way: every `containers/common/` helper was copied in before the
+Homebrew floor on Ubuntu and Arch, so any helper edit rebuilt the floor (about
+3 minutes). Only `ft-brew-floor` and `/etc/gitconfig` now precede it, and the
+rest use `COPY --chmod=0755` after it. A rebuild after a helper edit now takes
+11 s with the floor cached.
+
+Still open for the acceptance: a fresh user following
+`docs/workbench-usage.md` cold, the VS Code path, a real login and push from
+inside a workbench, and archiving `tboss-workspace` with a pointer (an
+operator action). Deferred to the always-on workbench work: persisting
+`~/.vscode-server` and `"shutdownAction": "none"`.
