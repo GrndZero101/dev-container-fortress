@@ -172,8 +172,11 @@ jobs:
       - name: Smoke test image
         run: |
           # err_exit makes every check count, not just the last command. The
-          # Homebrew targets install their floor first, as a cold workspace does.
-          docker run --rm dev-container-fortress:${{ matrix.name }}-smoke zsh -lc '
+          # Homebrew targets install their floor first, as a cold workspace does,
+          # into a named volume that the next step reuses like a replaced
+          # workspace container.
+          docker run --rm -v smoke-brew:/home/linuxbrew/.linuxbrew \
+            dev-container-fortress:${{ matrix.name }}-smoke zsh -lc '
             setopt err_exit
             if [[ -x /usr/local/bin/ft-brew-floor ]]; then
               ft-brew-floor
@@ -199,7 +202,10 @@ jobs:
       - name: Smoke test workspace layer commands
         if: startsWith(matrix.name, 'ubuntu-full')
         run: |
-          docker run --rm dev-container-fortress:${{ matrix.name }}-smoke zsh -lc '
+          # aws comes from the Homebrew floor, which the previous step installed
+          # into the shared volume.
+          docker run --rm -v smoke-brew:/home/linuxbrew/.linuxbrew \
+            dev-container-fortress:${{ matrix.name }}-smoke zsh -lc '
             setopt err_exit
             aws --version
             gpg --version
