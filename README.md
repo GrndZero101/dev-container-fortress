@@ -96,7 +96,7 @@ To work on Dev Fortress itself, see [DEVELOPMENT.md](DEVELOPMENT.md).
 | [Roadmap](docs/project/ROADMAP.md) | Milestone ordering and current direction |
 | [Milestones](docs/project/milestones/README.md) | Milestone workflow and working drafts |
 | [Target validation](docs/project/target-validation.md) | Runbook for validating the container and EC2 targets |
-| [TODO.md](TODO.md) | The short "up next" queue |
+| [TODO.md](TODO.md) | The open-work board, generated from the `tp` task store in `.plan/` |
 | [AGENTS.md](AGENTS.md) | Conventions for coding agents and contributors |
 
 Component READMEs sit beside the code they describe: [`ansible/`](ansible/README.md),

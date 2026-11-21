@@ -1,5 +1,13 @@
 # Milestone Drafts
 
+> [!IMPORTANT]
+> Open work is tracked in `tp` (taskplan, state in `.plan/`), not in these
+> files. Run `tp status`, or read the generated [`TODO.md`](../../../TODO.md).
+> These files hold each milestone's design, scope, and history; their
+> checkboxes are no longer updated. The workflow below is the earlier one,
+> kept while the `tp` workflow is being proven; `AGENTS.md` has the current
+> rules.
+
 This directory is the working planning surface for Dev Fortress milestones.
 
 Use these files as:
