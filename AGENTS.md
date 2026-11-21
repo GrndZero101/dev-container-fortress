@@ -176,7 +176,7 @@
 * Treat `docs/project/ROADMAP.md` as the strategic roadmap and milestone ordering document.
 * Treat `tp` (taskplan, state in `.plan/`) as the source of truth for open work: tasks, status, dependencies, acceptance criteria, and progress notes. Start with `tp status` and `tp next`, and read a task with `tp show ID` instead of opening a milestone file.
 * Each `tp` milestone carries its roadmap ID in the title, for example `M5f: ...`. Operator-only tasks and decisions are kept `blocked` with a reason; the operator unblocks them.
-* The root `TODO.md` is generated. Never edit it by hand; after changing the store, run `tp export board --no-notes --no-timestamp -o TODO.md` and commit it with `.plan/`.
+* The root `TODO.md` is a generated view for people. Never edit it by hand and do not read it to find work; use `tp`. The `todo-render` pre-commit hook re-renders it when the store changes, so commit the updated file with `.plan/`.
 * Treat `docs/project/milestones/` as design background and history. Do not track progress with checkboxes there; record progress with `tp note` and new work with `tp add`.
 * For a new milestone, write the objective, exit criteria, and non-goals in a milestone file, then create the milestone and its tasks in `tp` with a verify command for each task.
 * Work on `tp` tasks on the milestone branch, never on `main`: `tp start ID`, commit, then `tp done ID --commit-head`. Close the `tp` milestone when its pull request is ready to squash-merge.

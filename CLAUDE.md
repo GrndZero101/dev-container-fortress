@@ -12,8 +12,11 @@ This repo tracks work with `tp` (see .claude/skills/taskplan). Never keep plans 
 - Record decisions and dead ends with `tp note ID "..."`.
 - If stuck after 2 attempts: `tp block ID --reason "..."` and move to `tp next`.
 - Never edit .plan/*.jsonl by hand.
-- Never work tasks on `main`: use the milestone branch (see AGENTS.md, Planning Workflow).
-- `TODO.md` is generated: after changing the store, run
-  `tp export board --no-notes --no-timestamp -o TODO.md` and commit it with `.plan/`.
-- Tasks blocked as operator tasks or decisions are the user's; do not unblock them yourself.
 <!-- taskplan:end -->
+
+## Repo rules for tp
+
+- Get tasks from `tp` (`tp next`, `tp show ID`, `tp list`), never by reading `TODO.md` or the
+  milestone files. `TODO.md` is a generated view for people; a pre-commit hook re-renders it.
+- Never work tasks on `main`: use the milestone branch (see AGENTS.md, Planning Workflow).
+- Tasks blocked as operator tasks or decisions are the user's; do not unblock them yourself.
