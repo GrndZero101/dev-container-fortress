@@ -8,19 +8,42 @@ records the result.
 
 ## Up Next
 
-1. **`M5e` baseline run:** on a fresh bare-metal Ubuntu install, follow the
-   [developer path](DEVELOPMENT.md#rocket-zero-to-hero-developer-path) from the
-   top, timing each step, through a workbench opened in VS Code with a login
-   and push from inside. Record the times and every snag in the
-   [M5e file](docs/project/milestones/M5e-developer-workstation.md). Wait for the
-   `main` CI run from the `M5c` merge to publish the images first.
-2. **`M5f`:** workbench guardrails and credentials, then Claude Code bypass
+Read this section first when resuming, as a person or an agent.
+
+**State on 2026-11-21:** `main` is the only branch, at the `M6b` squash merge
+(`0c5ba0c`, PR #8). Every earlier milestone branch is merged and deleted, so
+create a fresh branch from `main` for whatever comes next.
+
+1. **Check the `main` CI run for `0c5ba0c`:** it was still running at handoff
+   and publishes the images to GHCR, which the baseline run below needs.
+   `gh run list --branch main --limit 1` shows the result.
+2. **`M5e` baseline run, doubling as the `M6b` read-through:** on a fresh
+   bare-metal Ubuntu install, follow [`README.md`](README.md) to the
+   [quickstart](docs/quickstart.md) and the
+   [developer path](DEVELOPMENT.md#rocket-zero-to-hero-developer-path),
+   timing each step, through a workbench opened in VS Code with a login and
+   push from inside. Record times and snags in the
+   [M5e file](docs/project/milestones/M5e-developer-workstation.md), and note
+   any step that sends the reader back to an earlier document in the
+   [M6b file](docs/project/milestones/M6b-documentation-consolidation.md).
+   Branch: `feat/m0005e-developer-workstation`, recreated from `main`.
+3. **`M6b` command examples:** add a short paragraph and an example to the
+   docstrings of the main `ft host`, `ft workspace`, `ft container`, and
+   `ft workbench` commands, then regenerate
+   [`docs/reference/cli.md`](docs/reference/cli.md). This and item 2 are the
+   two open exit criteria in the
+   [M6b file](docs/project/milestones/M6b-documentation-consolidation.md);
+   close the milestone there and in the roadmap when both are done.
+4. **`M5f`:** workbench guardrails and credentials, then Claude Code bypass
    mode; see the [M5f file](docs/project/milestones/M5f-agent-workbench-guardrails.md).
-3. **`M5e`:** developer mode for `shell-config`, macOS host mode, and a
+5. **`M5e`:** developer mode for `shell-config`, macOS host mode, and a
    shorter developer path, shaped by the baseline run.
-4. **`M6b`:** finish the documentation consolidation: richer command
-   docstrings for the generated CLI reference, and a fresh-host read-through;
-   see the [M6b file](docs/project/milestones/M6b-documentation-consolidation.md).
+
+Later, with the `v0.1.0` release: a documentation site (Zensical on GitHub
+Pages), drafted in the
+[M6b file](docs/project/milestones/M6b-documentation-consolidation.md), and a
+revision of the superseded
+[release plan](docs/project/initial-release-and-ghcr-images.md).
 
 ## Parked
 
