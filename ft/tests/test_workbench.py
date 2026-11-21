@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from ft.cli import _load_workspace_profile_manifest, app
+from ft.devcontainer import browser_bridge_settings
 from ft.workbench import (
     WorkbenchDefinition,
     guardrail_violations,
@@ -106,13 +107,27 @@ def test_render_uses_profile_mounts_and_selected_options(tmp_path: Path) -> None
     assert "dev-fortress-wb-wb-cache" in sources
     assert "dev-fortress-wb-wb-brew" in sources
     assert not any("claude" in source for source in sources)
-    assert content["containerEnv"] == {"DEV_CONTAINER_FORTRESS_OPTIONS": ""}
+    assert content["containerEnv"]["DEV_CONTAINER_FORTRESS_OPTIONS"] == ""
+    assert "CLAUDE_CONFIG_DIR" not in content["containerEnv"]
     assert content["postStartCommand"] == "ft-brew-floor"
 
     selected = definition.model_copy(update={"options": ["claude-code"]})
     content = _render(selected, tmp_path / "wb.toml")
     assert content["containerEnv"]["CLAUDE_CONFIG_DIR"] == "/home/vscode/.claude"
     assert content["postStartCommand"] == "ft-brew-floor && ft-ensure-claude-code"
+
+
+def test_render_wires_the_browser_bridge_within_the_guardrails(
+    tmp_path: Path,
+) -> None:
+    """A workbench gets the browser bridge for CLI terminal mode."""
+    content = _render(WorkbenchDefinition(name="wb"), tmp_path / "wb.toml")
+    bridge = browser_bridge_settings()
+    assert content["initializeCommand"] == bridge["initializeCommand"]
+    assert bridge["mount"] in content["mounts"]
+    for name, value in bridge["containerEnv"].items():
+        assert content["containerEnv"][name] == value
+    assert guardrail_violations(content) == []
 
 
 def test_render_local_build_adds_layers_relative_to_the_definition(

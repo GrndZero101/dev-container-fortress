@@ -9,6 +9,7 @@ import pytest
 from ft.cli import app
 from ft.container_runtime import HOMEBREW_PREFIX, PERSISTED_MOUNT_PATHS
 from ft.devcontainer import (
+    BROWSER_BRIDGE_HOST_DIR,
     DEFINITIONS,
     dockerfile_arg_defaults,
     local_env,
@@ -16,6 +17,7 @@ from ft.devcontainer import (
     render_definition,
     stale_definitions,
 )
+from ft.workbench import guardrail_violations
 from typer.testing import CliRunner
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -108,6 +110,36 @@ def test_mounts_and_start_steps_follow_the_shared_table(
     assert steps[-1] == "ft-ensure-claude-code --if-selected"
     assert ("ft-brew-floor" in steps) is homebrew
     assert ("postCreateCommand" in content) is not homebrew
+
+
+@pytest.mark.parametrize("definition", DEFINITIONS, ids=lambda d: d.path)
+def test_every_definition_wires_the_browser_bridge(definition) -> None:
+    """Each definition starts the host broker and mounts its socket folder."""
+    content = render_definition(definition, REPO_ROOT)
+    command = content["initializeCommand"]
+    assert command.startswith(f'mkdir -p "{BROWSER_BRIDGE_HOST_DIR}" && ')
+    assert f'ft devcontainer browser-bridge "{BROWSER_BRIDGE_HOST_DIR}"' in command
+    assert {
+        "source": BROWSER_BRIDGE_HOST_DIR,
+        "target": "/tmp/dev-fortress-host-services",
+        "type": "bind",
+    } in content["mounts"]
+    environment = content["containerEnv"]
+    assert environment["BROWSER"] == "/usr/local/bin/ft-host-browser-open"
+    assert environment["GH_BROWSER"] == "/usr/local/bin/ft-host-browser-open"
+    assert environment["DEV_FORTRESS_HOST_BROWSER_SOCKET"] == (
+        "/tmp/dev-fortress-host-services/browser-open.sock"
+    )
+    assert guardrail_violations(content) == []
+
+
+@pytest.mark.parametrize("target", ["alpine", "arch", "ubuntu"])
+def test_every_image_ships_the_browser_helper(target: str) -> None:
+    """BROWSER points at a helper that each target's image installs."""
+    dockerfile = (REPO_ROOT / "containers" / target / "Dockerfile").read_text(
+        encoding="utf-8"
+    )
+    assert "/usr/local/bin/ft-host-browser-open" in dockerfile
 
 
 def test_volume_flow_image_default_survives_substitution() -> None:

@@ -26,6 +26,7 @@ from rich.live import Live
 from rich.markup import escape
 from rich.table import Table
 
+from ft import browser_bridge
 from ft.container_runtime import (
     HOMEBREW_PREFIX,
     OPTION_ENV,
@@ -924,7 +925,7 @@ def _workspace_wsl_init_path() -> Path:
 
 def _workspace_host_browser_open_command() -> str:
     """Return the in-container helper used to reach the host browser."""
-    return "/usr/local/bin/ft-host-browser-open"
+    return browser_bridge.CONTAINER_OPEN_COMMAND
 
 
 def _workspace_host_browser_bridge_dir(profile_name: str) -> Path:
@@ -934,12 +935,12 @@ def _workspace_host_browser_bridge_dir(profile_name: str) -> Path:
 
 def _workspace_container_host_browser_bridge_dir() -> str:
     """Return the in-container directory used for host browser bridge mounts."""
-    return "/tmp/dev-fortress-host-services"
+    return browser_bridge.CONTAINER_BRIDGE_DIR
 
 
 def _workspace_container_host_browser_socket() -> str:
     """Return the in-container Unix socket path for host browser bridge traffic."""
-    return f"{_workspace_container_host_browser_bridge_dir()}/browser-open.sock"
+    return browser_bridge.CONTAINER_SOCKET
 
 
 def _workspace_host_browser_opener_command() -> list[str] | None:
@@ -968,16 +969,31 @@ def _workspace_pid_is_alive(pid: int) -> bool:
 
 def _ensure_workspace_host_browser_bridge(profile_name: str) -> Path | None:
     """Ensure the host-side browser bridge broker is running and return its socket."""
+    return _ensure_host_browser_bridge(_workspace_host_browser_bridge_dir(profile_name))
+
+
+def _ensure_host_browser_bridge(bridge_dir: Path) -> Path | None:
+    """Ensure a browser bridge broker serves ``bridge_dir`` and return its socket.
+
+    Args:
+        bridge_dir: The host directory that holds the socket and the broker's
+            pid and command files; containers bind-mount it.
+
+    Returns:
+        The socket path, or None when the host has no browser opener or the
+        broker did not start.
+    """
     opener_command = _workspace_host_browser_opener_command()
     if opener_command is None:
         return None
 
-    bridge_dir = _workspace_host_browser_bridge_dir(profile_name)
     bridge_dir.mkdir(parents=True, exist_ok=True)
-    socket_path = bridge_dir / "browser-open.sock"
+    socket_path = bridge_dir / browser_bridge.SOCKET_NAME
     pid_path = bridge_dir / "browser-open.pid"
     command_path = bridge_dir / "browser-open.command"
-    opener_signature = json.dumps(opener_command)
+    opener_signature = json.dumps(
+        {"bridge": browser_bridge.BRIDGE_VERSION, "opener": opener_command}
+    )
 
     if pid_path.is_file():
         try:
@@ -8948,6 +8964,44 @@ def devcontainer_render(
     ):
         raise typer.Exit(code=1)
     console.print("devcontainer definitions are up to date")
+
+
+@devcontainer_app.command("browser-bridge")
+def devcontainer_browser_bridge(
+    directory: Annotated[
+        Path,
+        typer.Argument(
+            help="Host folder for the socket; the devcontainer bind-mounts it."
+        ),
+    ],
+) -> None:
+    """Start the host browser bridge that devcontainers open links through.
+
+    The rendered devcontainers run this from initializeCommand, on the host,
+    before the container starts. It is idempotent and never fails the start:
+    on a host with no browser opener it only creates the folder.
+    """
+    directory = directory.expanduser()
+    if _workspace_host_browser_opener_command() is None:
+        directory.mkdir(parents=True, exist_ok=True)
+        typer.echo(
+            "browser bridge not started: no host browser opener found "
+            "(set DEV_FORTRESS_HOST_BROWSER_OPENER or BROWSER)",
+            err=True,
+        )
+        return
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        socket_path = _ensure_host_browser_bridge(directory)
+    except OSError as error:
+        typer.echo(f"browser bridge not started: {error}", err=True)
+        return
+    if socket_path is None:
+        typer.echo(
+            "browser bridge not started: the broker exited; a Unix socket path "
+            f"must stay under 108 bytes: {directory / browser_bridge.SOCKET_NAME}",
+            err=True,
+        )
 
 
 def _apply_rendered_files(

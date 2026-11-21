@@ -1626,6 +1626,7 @@ $ ft devcontainer [OPTIONS] COMMAND [ARGS]...
 **Commands**:
 
 * `render`: Write the devcontainer definitions from...
+* `browser-bridge`: Start the host browser bridge that...
 
 ### `ft devcontainer render`
 
@@ -1643,6 +1644,28 @@ $ ft devcontainer render [OPTIONS]
 **Options**:
 
 * `--check`: Write nothing; fail when a committed definition differs from a fresh render. For pre-commit and CI.
+* `--help`: Show this message and exit.
+
+### `ft devcontainer browser-bridge`
+
+Start the host browser bridge that devcontainers open links through.
+
+The rendered devcontainers run this from initializeCommand, on the host,
+before the container starts. It is idempotent and never fails the start:
+on a host with no browser opener it only creates the folder.
+
+**Usage**:
+
+```console
+$ ft devcontainer browser-bridge [OPTIONS] {directory}
+```
+
+**Arguments**:
+
+* `directory`: Host folder for the socket; the devcontainer bind-mounts it.  [required]
+
+**Options**:
+
 * `--help`: Show this message and exit.
 
 ## `ft workbench`

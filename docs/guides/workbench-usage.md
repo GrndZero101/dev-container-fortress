@@ -205,7 +205,10 @@ the container reach past `repos/`:
   `--network host`
 
 Other sockets, such as an SSH agent, and bind mounts below the home directory
-stay allowed.
+stay allowed. The one such bind mount a workbench carries is the
+[host browser bridge](devcontainer-usage.md#host-browser-bridge) folder, so
+logins in terminal mode open the host browser; the bridge opens only `http`
+and `https` URLs.
 
 - The repos are bind-mounted, so Git hooks written into `repos/*/.git` from
   inside the container run on the host the next time host-side Git touches

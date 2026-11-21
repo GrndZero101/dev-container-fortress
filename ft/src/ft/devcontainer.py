@@ -14,6 +14,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from ft import browser_bridge
 from ft.container_runtime import (
     DEVCONTAINER_MOUNTS,
     HOMEBREW_PREFIX,
@@ -191,6 +192,47 @@ def volume_mounts(paths: dict[str, str], source: str) -> list[dict[str, str]]:
     ]
 
 
+# The host folder that holds the browser bridge socket. One broker serves every
+# devcontainer, so the path is fixed rather than per definition. It sits below
+# home but is not home itself, which the workbench guardrails allow.
+BROWSER_BRIDGE_HOST_DIR = (
+    "${localEnv:HOME}/.local/state/dev-container-fortress/browser-bridge"
+)
+
+
+def browser_bridge_settings() -> dict[str, object]:
+    """Return the settings that give a devcontainer the host browser bridge.
+
+    VS Code opens host browser links only while a window is attached, so CLI
+    terminal mode relies on the bridge. ``initializeCommand`` runs on the host
+    before the container starts: it creates the socket folder, which the bind
+    mount needs, and asks ``ft`` to start the broker. A host without ``ft``, or
+    with an ``ft`` too old to have the command, still starts the container;
+    the helper then falls back to the in-container openers.
+
+    Returns:
+        ``initializeCommand``, the bind mount, and the container environment.
+    """
+    folder = f'"{BROWSER_BRIDGE_HOST_DIR}"'
+    return {
+        "initializeCommand": (
+            f"mkdir -p {folder} && if command -v ft >/dev/null 2>&1; "
+            f"then ft devcontainer browser-bridge {folder} || true; fi"
+        ),
+        "mount": {
+            "source": BROWSER_BRIDGE_HOST_DIR,
+            "target": browser_bridge.CONTAINER_BRIDGE_DIR,
+            "type": "bind",
+        },
+        "containerEnv": {
+            **dict.fromkeys(
+                browser_bridge.BROWSER_ENV_NAMES, browser_bridge.CONTAINER_OPEN_COMMAND
+            ),
+            browser_bridge.SOCKET_ENV: browser_bridge.CONTAINER_SOCKET,
+        },
+    }
+
+
 def vscode_customizations(extra_extensions: tuple[str, ...] = ()) -> dict[str, object]:
     """Return the VS Code customizations every definition carries.
 
@@ -260,13 +302,19 @@ def render_definition(
             "context": "../..",
             "args": build_args(repo_root / "containers" / target.name / "Dockerfile"),
         }
+    bridge = browser_bridge_settings()
+    content["initializeCommand"] = bridge["initializeCommand"]
     content["remoteUser"] = "vscode"
     content["containerUser"] = "vscode"
     content["containerEnv"] = {OPTIONS_ENV: local_env(OPTIONS_ENV)}
     for option_env in OPTION_ENV.values():
         content["containerEnv"].update(option_env)
+    content["containerEnv"].update(bridge["containerEnv"])
     paths = mount_paths(homebrew=target.homebrew, option_names=tuple(OPTION_MOUNTS))
-    content["mounts"] = volume_mounts(paths, "dev-fortress-{name}-${{devcontainerId}}")
+    content["mounts"] = [
+        *volume_mounts(paths, "dev-fortress-{name}-${{devcontainerId}}"),
+        bridge["mount"],
+    ]
     if not definition.volume_flow:
         content["customizations"] = vscode_customizations()
         if not target.homebrew:

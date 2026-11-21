@@ -200,10 +200,11 @@ ft identity --login github   # gh auth login --web, then gh auth setup-git
 ft identity --login gitlab   # glab auth login --device
 ```
 
-Each prints a one-time code and a URL. In VS Code the browser opens on the
-host; in terminal mode, open the URL on the host yourself. `glab`'s device flow
-needs GitLab 17.9 or later; for an older self-managed instance, run
-`glab auth login` and choose a token.
+Each prints a one-time code and a URL, and the browser opens on the host
+through the [host browser bridge](#host-browser-bridge), in VS Code and in
+terminal mode. If it does not open, open the URL on the host yourself.
+`glab`'s device flow needs GitLab 17.9 or later; for an older self-managed
+instance, run `glab auth login` and choose a token.
 
 The image's `/etc/gitconfig` routes HTTPS credentials for `github.com` and
 `gitlab.com` through `gh` and `glab`, so pushes keep working after a rebuild
@@ -216,6 +217,33 @@ checkout with `ft identity --local`.
 > per-host helper, such as the one `gh auth setup-git` writes for
 > `github.com`, clears VS Code's helper for that host, so pushes go through the
 > container's `gh` login. Log in inside the container either way.
+
+## Host Browser Bridge
+
+VS Code opens links on the host only while a window is attached, so the
+devcontainers carry their own way out to the host browser, which terminal mode
+relies on:
+
+- `initializeCommand` runs on the host before the container starts. It creates
+  `~/.local/state/dev-container-fortress/browser-bridge/` and runs
+  `ft devcontainer browser-bridge`, which starts one broker on a Unix socket
+  there, or reuses the one already running. The broker hands each link to the
+  host opener: `DEV_FORTRESS_HOST_BROWSER_OPENER` if set, then `wslview` on
+  WSL2, then `$BROWSER`, then `xdg-open`.
+- The container bind-mounts that folder at `/tmp/dev-fortress-host-services`,
+  and `BROWSER` and `GH_BROWSER` point at `/usr/local/bin/ft-host-browser-open`,
+  which writes the link to the socket.
+
+The broker opens only `http` and `https` URLs with a host. It rejects anything
+else, such as a `file:` path or a custom-scheme link, without running the
+opener, so code in the container cannot use it to launch host programs.
+
+When the host has no `ft`, or no browser opener, the container still starts;
+the helper then falls back to the openers inside the container, and you open
+the URL on the host yourself. Logins that redirect to a `localhost` callback
+reach the host, not the container, so use their device-code option instead.
+On macOS, Docker Desktop does not pass Unix sockets through bind mounts, so
+the bridge does not connect there yet.
 
 ## Optional Claude Code
 

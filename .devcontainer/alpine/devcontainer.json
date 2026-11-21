@@ -13,11 +13,15 @@
       "SHELL_CONFIG_INSTALL_ZINIT": "${localEnv:DEV_CONTAINER_FORTRESS_SHELL_CONFIG_INSTALL_ZINIT:1}"
     }
   },
+  "initializeCommand": "mkdir -p \"${localEnv:HOME}/.local/state/dev-container-fortress/browser-bridge\" && if command -v ft >/dev/null 2>&1; then ft devcontainer browser-bridge \"${localEnv:HOME}/.local/state/dev-container-fortress/browser-bridge\" || true; fi",
   "remoteUser": "vscode",
   "containerUser": "vscode",
   "containerEnv": {
     "DEV_CONTAINER_FORTRESS_OPTIONS": "${localEnv:DEV_CONTAINER_FORTRESS_OPTIONS}",
-    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
+    "BROWSER": "/usr/local/bin/ft-host-browser-open",
+    "GH_BROWSER": "/usr/local/bin/ft-host-browser-open",
+    "DEV_FORTRESS_HOST_BROWSER_SOCKET": "/tmp/dev-fortress-host-services/browser-open.sock"
   },
   "mounts": [
     {
@@ -44,6 +48,11 @@
       "source": "dev-fortress-claude-versions-${devcontainerId}",
       "target": "/home/vscode/.local/share/claude",
       "type": "volume"
+    },
+    {
+      "source": "${localEnv:HOME}/.local/state/dev-container-fortress/browser-bridge",
+      "target": "/tmp/dev-fortress-host-services",
+      "type": "bind"
     }
   ],
   "customizations": {

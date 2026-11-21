@@ -62,6 +62,7 @@ COPY containers/common/install-corporate-ca.sh /usr/local/bin/install-corporate-
 COPY containers/common/install-shell-config.sh /usr/local/bin/install-shell-config
 COPY containers/common/start-test-target.sh /usr/local/bin/start-test-target
 COPY containers/common/ensure-claude-code.sh /usr/local/bin/ft-ensure-claude-code
+COPY --chmod=0755 containers/common/ft-host-browser-open.sh /usr/local/bin/ft-host-browser-open
 
 RUN if getent group ${USERNAME} >/dev/null 2>&1; then \
       delgroup ${USERNAME}; \

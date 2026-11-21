@@ -34,6 +34,7 @@ from ft.container_runtime import (
 )
 from ft.container_targets import CONTAINER_TARGETS
 from ft.devcontainer import (
+    browser_bridge_settings,
     build_args,
     mount_paths,
     to_json,
@@ -531,19 +532,23 @@ def render_workbench(
         content["image"] = profile.published_image
 
     options = tuple(definition.options)
+    bridge = browser_bridge_settings()
+    content["initializeCommand"] = bridge["initializeCommand"]
     content["remoteUser"] = "vscode"
     content["containerUser"] = "vscode"
     environment = {OPTIONS_ENV: ",".join(options)}
     for option_name in options:
         environment.update(OPTION_ENV.get(option_name, {}))
+    environment.update(bridge["containerEnv"])
     content["containerEnv"] = environment
     extra = tuple(profile.persisted_mounts) + tuple(definition.mounts)
     paths = mount_paths(homebrew=target.homebrew, option_names=options, extra=extra)
     # Named after the workbench, not ${devcontainerId}, so moving or
     # re-rendering the folder keeps its state.
-    content["mounts"] = volume_mounts(
-        paths, f"dev-fortress-wb-{definition.name}-{{name}}"
-    )
+    content["mounts"] = [
+        *volume_mounts(paths, f"dev-fortress-wb-{definition.name}-{{name}}"),
+        bridge["mount"],
+    ]
     content["customizations"] = vscode_customizations(tuple(definition.extensions))
     steps = [
         step.command
