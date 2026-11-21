@@ -10,10 +10,10 @@ Use these files as:
 
 Recommended workflow:
 
-1. Keep strategy and milestone ordering in [`docs/ROADMAP.md`](../ROADMAP.md).
+1. Keep strategy and milestone ordering in [`docs/project/ROADMAP.md`](../ROADMAP.md).
 2. Keep one markdown file here for each milestone.
 3. Use markdown checkboxes in the milestone file while work is in flight.
-4. Work on a milestone branch such as `feat/m4-first-real-host-roles`.
+4. Work on a milestone branch such as `feat/m0004-first-real-host-roles`.
 5. Commit freely at verified checkpoints.
 6. When the milestone is stable, open the matching GitHub milestone and issues from the markdown draft.
 7. Squash-merge the milestone branch once exit criteria are met.

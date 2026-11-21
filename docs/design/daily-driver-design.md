@@ -2,34 +2,17 @@
 
 ## Status
 
-This document now reflects the implemented first operator slice plus the
-remaining design direction for follow-on work.
-
-Use it to define the first concrete operator contract for a day-to-day Fortress
-workstation container.
-
-Implemented today:
-
-- repo-owned workspace profile manifest
-- `ft workspace build`
-- `ft workspace up`
-- `ft workspace enter`
-- `ft workspace exec`
-- `ft workspace down`
-- `ft workspace reset`
-- `ft workspace status`
-- `ft workspace doctor`
-- `ft workspace mount-plan`
-- `ft workspace auth doctor`
-- repo-owned workspace tool-layer metadata with explicit `state_only` versus future `image_build` modes
+This is the design record for `ft workspace`. The first slice shipped in
+`M5a`, and every command named below now exists. To use workspaces, read
+[Workspace Usage](../guides/workspace-usage.md) and the
+[`ft workspace` reference](../reference/cli.md#ft-workspace); where they
+differ from this document, they are correct.
 
 Still follow-on work:
 
-- richer profile layering beyond the initial Ubuntu-first base profile
 - stronger auth diagnostics
 - deeper secrets backup and restore automation after the first-pass `pass`
   baseline
-- disposable EC2 workflow proof as a documented end-to-end operator loop
 
 ## Goal
 
@@ -96,7 +79,7 @@ WSL-specific runtime note:
 - when the host is WSL-backed, `ft workspace up` should route browser auth flows through a host-side browser bridge and the container helper at `/usr/local/bin/ft-host-browser-open`
 - explicit `BROWSER` or `GH_BROWSER` values should still win when the operator wants a custom browser command
 
-Recommended future commands once the core path is stable:
+Commands added after the core path was stable:
 
 - `ft workspace validate <profile>`
 - `ft workspace mount-plan <profile> --json`
@@ -306,7 +289,7 @@ Do not broaden support until:
 - `op` CLI behavior is documented
 - `rustic` backup and restore is smoke-tested against a fresh environment
 
-See [Secrets Management](./secrets-management.md) for the current operator
+See [Secrets Management](../guides/secrets-management.md) for the current operator
 contract.
 
 ## Tool Layering Contract
@@ -384,13 +367,15 @@ Recommended internal design rules:
 - support JSON output for mount or auth plans early
 - keep `container` and `workspace` business logic separate
 
-## Open Questions
+## Resolved Questions
 
-- Should workspace profiles live in a repo-owned manifest, user config, or both?
-- Should persisted state defaults live under the operator's home directory or under an explicit workspace root such as `/state/workspace`?
-- Should `ft workspace build` materialize separate Dockerfiles, use build args, or compose profiles from one base Dockerfile?
-- When `shell-config` is not being actively developed, should the workspace mount it read-only, copy it into the image, or omit the mount entirely?
-- Should the first pass support only one workspace instance at a time or allow multiple named instances?
+- Profiles live in the repo-owned manifest,
+  [`ft/workspaces/profiles.toml`](../../ft/workspaces/profiles.toml).
+- Persisted state lives under the operator's Dev Fortress XDG state tree.
+- `ft workspace build` composes profiles from one base Dockerfile through
+  build args.
+- A sibling `shell-config` checkout is mounted when present, and each profile
+  has one named container.
 
 ## Recommendation
 

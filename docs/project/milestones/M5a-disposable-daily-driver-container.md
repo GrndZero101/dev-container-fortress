@@ -45,7 +45,7 @@ Recommended operator surface:
 - add a new `ft workspace ...` group for mounted day-to-day development
 - keep `ft container ...` focused on disposable validation targets
 
-See [daily-driver design](../daily-driver-design.md)
+See [daily-driver design](../../design/daily-driver-design.md)
 for the concrete proposed command contract.
 
 ### Host Versus Container Ownership
@@ -202,7 +202,7 @@ Fixed on 2026-10-18 on `feat/m0005a-disposable-daily-driver-container`:
   managed Python, `ft`, Neovim runtime, and prewarmed zinit plugins. It is
   replaced by an allowlist of narrow mounts: `state` (`${XDG_STATE_HOME}`, which
   holds zsh history), `zoxide`, and `atuin`. The rule now lives in the persisted
-  state contract in `docs/container-standards.md`
+  state contract in `docs/design/container-standards.md`
 - zsh history lives under `${XDG_STATE_HOME}`, so it was never persisted before
 - `ft workspace validate` now runs `ft`, `uv`, `python3.14`, and `nvim` instead
   of trusting `PATH`
@@ -222,7 +222,7 @@ Fixed on 2026-10-18 on `feat/m0005a-disposable-daily-driver-container`:
 
 ### EC2 loop run on 2026-10-18
 
-Followed `docs/ec2-development-loop.md` on a t4g.medium arm64 Spot host in
+Followed `docs/guides/ec2-development-loop.md` on a t4g.medium arm64 Spot host in
 `ap-southeast-1` (tboss-mgmt). This note was written and committed from inside
 the `ubuntu-full` workspace on that host.
 
@@ -274,7 +274,7 @@ the runbook alone passes.
 
 Follow-ups done after the run:
 
-- `docs/ec2-development-loop.md` now covers the workspace Git identity (with the
+- `docs/guides/ec2-development-loop.md` now covers the workspace Git identity (with the
   noreply caveat), the `gh` device-flow login, a GitLab and corporate fallback,
   and the commit, push, and pull round trip
 - the runbook's `~/...` paths never worked through `ft deploy exec`, which
@@ -289,7 +289,7 @@ fresh and brownfield host onramp.
 
 ### EC2 loop rerun on 2026-10-18, runbook only
 
-Followed `docs/ec2-development-loop.md` alone on an m8g.large (Graviton4,
+Followed `docs/guides/ec2-development-loop.md` alone on an m8g.large (Graviton4,
 2 vCPU, 8 GiB) arm64 Spot host. This note was committed from inside the
 `ubuntu-full` workspace on that host.
 
@@ -325,8 +325,7 @@ Open:
 1. The separate `tboss-workspace` devcontainers persist cache and auth paths but
    not `state`, `zoxide`, or `atuin`; aligning them is tracked in that repo's
    `TODO.md`. Superseded by `M5c-7`: workbenches render these mounts from the
-   shared runtime table, and `tboss-workspace` is to be archived in favour of
-   them.
+   shared runtime table, and `tboss-workspace` was deleted on 2026-11-20.
 
 ## Branch and Merge Plan
 

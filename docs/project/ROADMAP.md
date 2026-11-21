@@ -15,7 +15,7 @@ Use it to track:
 
 Do not use this file as the primary home for fine-grained execution tracking.
 Concrete implementation work should live in the matching milestone draft under
-`docs/milestones/`, then be copied into GitHub milestones and issues later when
+`docs/project/milestones/`, then be copied into GitHub milestones and issues later when
 that workflow becomes worth the overhead.
 
 > [!NOTE]
@@ -27,7 +27,7 @@ that workflow becomes worth the overhead.
 Recommended planning model for this repository:
 
 1. Roadmap document for strategy and milestone framing
-2. Milestone draft files under `docs/milestones/`
+2. Milestone draft files under `docs/project/milestones/`
 3. GitHub milestones and issues copied from those drafts when desired
 4. Feature branches for milestone implementation
 5. Squash merge into the main branch once milestone exit criteria are met
@@ -71,7 +71,7 @@ Each milestone should have:
 - one-sentence objective
 - clear exit criteria
 - explicit non-goals
-- a matching markdown file under `docs/milestones/`
+- a matching markdown file under `docs/project/milestones/`
 
 ## Planning Principles
 
@@ -385,7 +385,7 @@ Details:
 
 ### `M5c` Composable Container Workspaces
 
-Status: `done` (agent guardrails moved to `M5f`)
+Status: `done` (squash-merged in PR #7, 2026-11-20; agent guardrails moved to `M5f`)
 
 Objective:
 Make the container targets long-lived, composable development environments by
@@ -419,7 +419,7 @@ Details:
 
 ### `M5e` Zero to Hero: Developer Workstation
 
-Status: `next`, after `M5c`
+Status: `active`
 
 Objective:
 Take a fresh Ubuntu or macOS install to a full DevOps development workstation
@@ -541,6 +541,26 @@ stabilizes. The likely vehicle is a port into the
 template, whose guardrails, hooks, and rules should keep the rewrite
 maintainable. Self-contained modules such as `ft/src/ft/options.py` and
 `ft/src/ft/identity.py` should move across largely unchanged.
+
+### `M6b` Documentation Consolidation
+
+Status: `active`
+
+Objective:
+Give every fact one home, organise `docs/` by reader, and generate the `ft`
+CLI reference from the CLI itself.
+
+Exit criteria:
+
+- install steps, the support matrix, and CLI flags each have one home
+- `docs/` is grouped into guides, reference, design, and project material
+- `docs/reference/cli.md` is generated and guarded by a pre-commit hook
+- a new user reaches a working install without looping between documents
+
+A documentation site is deliberately deferred to the `v0.1.0` release.
+
+Details:
+[M6b draft](milestones/M6b-documentation-consolidation.md)
 
 ### `M7` Local Verification Workflow
 
@@ -756,7 +776,7 @@ When a new milestone begins:
 
 1. write one short objective
 2. define 3-5 exit criteria
-3. create or update the matching milestone file under `docs/milestones/`
+3. create or update the matching milestone file under `docs/project/milestones/`
 4. implement on a feature branch
 5. copy the milestone draft into GitHub when useful
 6. squash merge once the exit criteria are met

@@ -6800,6 +6800,7 @@ def host_import_terraform(
         Path,
         typer.Option(
             "--terraform-dir",
+            show_default="infra/aws-disposable-ubuntu in the checkout",
             file_okay=False,
             dir_okay=True,
             resolve_path=True,
@@ -6855,6 +6856,7 @@ def infra_aws_disposable_ubuntu_plan(
         Path,
         typer.Option(
             "--terraform-dir",
+            show_default="infra/aws-disposable-ubuntu in the checkout",
             file_okay=False,
             dir_okay=True,
             resolve_path=True,
@@ -6865,6 +6867,7 @@ def infra_aws_disposable_ubuntu_plan(
         Path,
         typer.Option(
             "--seed-config",
+            show_default="infra/aws-disposable-ubuntu/hosts.seed.toml in the checkout",
             file_okay=True,
             dir_okay=False,
             resolve_path=True,
@@ -6897,6 +6900,7 @@ def infra_aws_disposable_ubuntu_apply(
         Path,
         typer.Option(
             "--terraform-dir",
+            show_default="infra/aws-disposable-ubuntu in the checkout",
             file_okay=False,
             dir_okay=True,
             resolve_path=True,
@@ -6907,6 +6911,7 @@ def infra_aws_disposable_ubuntu_apply(
         Path,
         typer.Option(
             "--seed-config",
+            show_default="infra/aws-disposable-ubuntu/hosts.seed.toml in the checkout",
             file_okay=True,
             dir_okay=False,
             resolve_path=True,
@@ -7005,6 +7010,7 @@ def infra_aws_disposable_ubuntu_destroy(
         Path,
         typer.Option(
             "--terraform-dir",
+            show_default="infra/aws-disposable-ubuntu in the checkout",
             file_okay=False,
             dir_okay=True,
             resolve_path=True,
@@ -7015,6 +7021,7 @@ def infra_aws_disposable_ubuntu_destroy(
         Path,
         typer.Option(
             "--seed-config",
+            show_default="infra/aws-disposable-ubuntu/hosts.seed.toml in the checkout",
             file_okay=True,
             dir_okay=False,
             resolve_path=True,
@@ -7719,6 +7726,7 @@ def infra_aws_disposable_ubuntu_capacity_select(
         Path,
         typer.Option(
             "--tfvars-path",
+            show_default="infra/aws-disposable-ubuntu/capacity.auto.tfvars.json in the checkout",
             dir_okay=False,
             resolve_path=True,
             help="Terraform auto tfvars path to write when --write-tfvars is enabled.",

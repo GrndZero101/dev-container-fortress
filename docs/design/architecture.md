@@ -143,7 +143,7 @@ Homebrew is the preferred path for steady-state tooling on hosts and on the
 glibc container targets. For container targets, the base image package manager
 stays acceptable for GPG-class substrate.
 
-See [Container Standards](./container-standards.md) for the current runtime
+See [Container Standards](container-standards.md) for the current runtime
 contract and design rules that Ubuntu, Alpine, and Arch should follow.
 
 ### Devcontainer target
@@ -154,7 +154,7 @@ Use:
 - VS Code metadata as a thin wrapper
 - a bind mount of the host checkout or a named volume for the code, with a
   recommended default per use case in the
-  [devcontainer usage guide](devcontainer-usage.md#getting-code-in)
+  [devcontainer usage guide](../guides/devcontainer-usage.md#getting-code-in)
 - `gh` and `glab` logins on persisted volumes, with `/etc/gitconfig` routing
   HTTPS pushes through them, since `~/.gitconfig` does not persist
 - generated definitions: `ft devcontainer render` writes every
@@ -168,7 +168,7 @@ Use:
 ### One definition, two runtimes
 
 `ft workspace` and the devcontainers start the same images from one shared
-definition in [`ft/src/ft/container_runtime.py`](../ft/src/ft/container_runtime.py):
+definition in [`ft/src/ft/container_runtime.py`](../../ft/src/ft/container_runtime.py):
 the persisted mounts and their container paths, which apply to Homebrew
 targets only, the start steps (`ft-brew-floor`, `ft-ensure-claude-code`), and
 each option's mounts and environment. The renderer adds the build-arg defaults
@@ -233,12 +233,11 @@ Recommended top-level shape:
 - `ft devcontainer ...`
 - `ft doctor ...`
 
-The current `plan` and `install` commands should likely become:
-
-- `ft tool plan`
-- `ft tool install`
-
-Short-term compatibility can be preserved while the grouped structure is being introduced.
+The original top-level `plan` and `install` commands are now `ft tool plan`
+and `ft tool install`, with the old names kept as compatibility aliases. The
+command tree as it exists today is in the generated
+[CLI reference](../reference/cli.md); the rest of this section records the
+reasoning behind it.
 
 ### Container Command Group
 

@@ -1,0 +1,281 @@
+# Container Usage
+
+This guide covers the Ubuntu, Alpine, and Arch images: what is in them, and how
+to build, run, and validate them with `ft container ...`.
+
+These are the disposable test targets. To work inside a container day to day,
+use a [workspace](workspace-usage.md) or a [workbench](workbench-usage.md).
+
+- [Container Standards](../design/container-standards.md) is the contract the
+  images follow
+- [containers/README.md](../../containers/README.md) describes how the
+  Dockerfiles are built
+- the [`ft container` reference](../reference/cli.md#ft-container) lists every
+  command and flag
+
+## What the Images Contain
+
+Every image has:
+
+- a non-root `vscode` user with an XDG-style home layout
+- `uv`, the `ft` CLI, and its zsh completion file
+- `shell-config`, cloned and bootstrapped, with the fortress profile active
+- `fzf` from the distro
+
+The toolchain differs by target:
+
+| Target | Userland tools |
+| --- | --- |
+| Ubuntu | The Homebrew tool pool in `/home/linuxbrew/.linuxbrew`, including `gh`, `glab`, `nvim`, `rg`, `starship`, `tenv`, and `zoxide` |
+| Arch (amd64 only) | The same Homebrew tool pool |
+| Alpine | The `ft install` downloader (`atuin`, `bat`, `bats`, `fd`, `glow`, `gum`, `jq`, `lazygit`, `oh-my-posh`, `starship`, `tenv`, `zoxide`), plus `nvim` and `rg` from `apk` |
+
+Alpine keeps the downloader because Homebrew does not support musl, and takes
+`nvim` and `rg` from `apk` because their upstream release assets are not musl
+builds.
+
+Ubuntu and Arch build warm by default: the Homebrew floor is in the image.
+Pass `--build-arg HOMEBREW_FLOOR=cold` for the smaller image CI publishes,
+whose first start installs the floor with `ft-brew-floor` (a few minutes).
+
+On Alpine, `ft install` resolves the current upstream release of each tool by
+default. Pass `--use-manifest-version` only when you want the version pinned in
+the repo instead of a live lookup. Verified downloads are cached under
+`${XDG_CACHE_HOME:-$HOME/.cache}/dev-container-fortress/tools`, and the
+Dockerfile mounts that cache so rebuilds reuse them.
+
+> [!IMPORTANT]
+> The Arch image's pacman packages come from one
+> [Arch Linux Archive](https://archive.archlinux.org/) snapshot set by the
+> `ARCH_ARCHIVE_DATE` build arg, so rebuilds stay reproducible on a rolling
+> release. Override it with `--build-arg ARCH_ARCHIVE_DATE=YYYY/MM/DD`.
+> [!NOTE]
+> Alpine login shells source `/etc/profile`, which resets `PATH` to system
+> directories. The image installs a small `/etc/profile.d` fragment so
+> `${HOME}/.local/bin` stays on `PATH` for `ft`-installed tools.
+
+## The `ft container` Loop
+
+```zsh
+ft container build ubuntu
+ft container up ubuntu
+ft container validate ubuntu
+ft container enter ubuntu
+```
+
+| Command | What it does |
+| --- | --- |
+| `build <target>` | builds the image |
+| `up <target>` | starts the container, replacing any existing one |
+| `refresh <target>` | rebuilds the image and replaces the container |
+| `enter <target>` | opens a shell, starting or creating the container only when needed |
+| `shell <target>` | opens a shell in a container that is already running |
+| `exec <target> -- <command>` | runs one command; `--` protects the command's own flags |
+| `validate <target>` | checks the shell, prompt, `PATH`, and core tools |
+| `status`, `logs <target>` | show Docker status and follow logs |
+| `down <target>`, `reset <target>` | remove the container; `reset` also removes the image |
+
+Targets are `ubuntu`, `alpine`, and `arch`. Most commands also take
+shell-style wildcards and `all`; on arm64 hosts those skip the amd64-only
+`arch` target.
+
+`ft doctor` is the first stop when Docker, the images, or the test containers
+seem out of sync. `ft doctor` and `ft container validate` both take `--json`
+for agents and scripts.
+
+Names are deterministic, so people and agents refer to the same things:
+
+- image tag: `dev-container-fortress:<target>-test`
+- container name: `dev-fortress-<target>-test`
+
+> [!NOTE]
+> `just` recipes such as `just test-build ubuntu` still exist as a thin shim
+> over these commands. Prefer `ft`.
+
+## Disposable SSH Targets
+
+`ft container up <target>` also starts an SSH daemon, so each test container
+doubles as a host target for rehearsing `ft host ...`:
+
+| Target | Host target name | Address |
+| --- | --- | --- |
+| Ubuntu | `dev-fortress-ubuntu` | `127.0.0.1:2222` |
+| Alpine | `dev-fortress-alpine` | `127.0.0.1:2223` |
+| Arch | `dev-fortress-arch` | `127.0.0.1:2224` |
+
+```zsh
+ft host ssh-key dev-fortress-ubuntu
+ft container up ubuntu
+ft host doctor dev-fortress-ubuntu --probe
+ft host bootstrap dev-fortress-ubuntu --check
+ft host bootstrap dev-fortress-ubuntu
+```
+
+Create the key before `up`: when the managed public key exists, startup mounts
+and authorizes it. SSH trust uses a Dev Fortress-managed known-hosts file under
+`${XDG_STATE_HOME:-$HOME/.local/state}/dev-container-fortress/known_hosts/`.
+
+[Workstation Usage](workstation-usage.md) explains host targets, and the
+[target validation runbook](../project/target-validation.md) runs this loop
+across every target.
+
+## Raw Docker Builds
+
+`ft container build` wraps `docker buildx`. To build without `ft`:
+
+```zsh
+docker buildx build --load \
+  -f containers/ubuntu/Dockerfile \
+  -t dev-container-fortress:ubuntu-test \
+  .
+docker run --rm -it dev-container-fortress:ubuntu-test zsh
+```
+
+Substitute `alpine` or `arch` for the other targets. The daily-driver image
+adds the workspace tool layers through build args:
+
+```zsh
+docker buildx build --load \
+  -f containers/ubuntu/Dockerfile \
+  -t dev-container-fortress:ubuntu-full-test \
+  --build-arg WORKSPACE_TOOL_LAYER_GITFORGE=1 \
+  --build-arg WORKSPACE_TOOL_LAYER_SECRETS=1 \
+  --build-arg WORKSPACE_TOOL_LAYER_AWS=1 \
+  .
+```
+
+## Validate the Runtime
+
+Split runtime validation into two passes:
+
+- container baseline validation for the runtime user, XDG layout, and core provisioning
+- fortress shell validation through `fortress-hud`
+
+### Container Baseline Validation
+
+Inside any of the containers:
+
+```zsh
+whoami
+echo $HOME
+echo $XDG_DATA_HOME
+echo $XDG_STATE_HOME
+uv --version
+readlink ~/.zshenv
+cat ${XDG_CONFIG_HOME:-$HOME/.config}/shell-config/active-profile
+command -v csm
+ft-brew-floor
+tenv --version
+```
+
+For the Alpine image, replace `ft-brew-floor` with
+`ft plan --manifest /home/vscode/.local/share/dev-container-fortress/ft/tools/tools.toml --target alpine`.
+
+Expected baseline behavior:
+
+- `whoami` prints `vscode`
+- `HOME` is `/home/vscode`
+- `XDG_STATE_HOME` is `/home/vscode/.local/state`
+- `uv` is available
+- `~/.zshenv` points at the installed `shell-config` selector
+- `csm` is on `PATH`
+- the saved active profile is `zsh-tll-citadel-dev-fortress` unless you changed the build-time default
+- `starship` is installed, so fortress `auto` prompt resolution stays consistent across the targets
+- `ft` can resolve plans for the full enabled tool set
+- `tenv` is already installed and runnable
+
+### Fortress Shell Validation
+
+Inside the same container, validate the active shell profile with:
+
+```zsh
+fortress-hud
+fortress-hud --env
+```
+
+Use this to confirm:
+
+- the active profile is `zsh-tll-citadel-dev-fortress`
+- resolved fortress settings and their sources look correct
+- prompt engine configuration resolved as expected
+- shell-facing tool availability matches the image contents
+
+> [!TIP]
+> Prefer `fortress-hud` for shell and profile validation instead of growing long ad hoc command lists. It gives a more complete runtime view and stays aligned with future fortress feature changes.
+
+## Optional Corporate CA Support
+
+Corporate CA support is opt-in.
+
+Prepare a directory under the repo root that contains one or more PEM-formatted `.crt` files, for example:
+
+```zsh
+mkdir -p .local/certs
+cp /path/to/your-root-ca.crt .local/certs/
+cp /path/to/your-intermediate-ca.crt .local/certs/
+```
+
+Then build with the directory path:
+
+```zsh
+docker buildx build --load   --build-arg CORPORATE_CA_CERT_DIR=.local/certs   -f containers/ubuntu/Dockerfile   -t dev-container-fortress:ubuntu-ca-test   .
+```
+
+The same pattern works for Alpine and Arch.
+
+If `CORPORATE_CA_CERT_DIR` is unset or empty, the CA step is skipped.
+If it is set, the build requires:
+
+- the directory to exist under `.local/`, the only operator path that the
+  repo's `.dockerignore` lets into the build context
+- at least one `.crt` file
+- each `.crt` file to parse as a valid PEM certificate
+
+> [!IMPORTANT]
+> Keep private certificate material under an ignored path such as `.local/certs/` and do not commit it.
+
+## Shell-Config Source Modes
+
+By default, `ft container build` and the raw Dockerfiles clone `shell-config` from GitHub:
+
+```zsh
+ft container build ubuntu
+ft container build ubuntu --shell-config-branch main
+```
+
+The equivalent raw Docker form is:
+
+```zsh
+docker buildx build --load   --build-arg SHELL_CONFIG_SOURCE=github   --build-arg SHELL_CONFIG_REPO_URL=https://github.com/GrndZero101/shell-config.git   --build-arg SHELL_CONFIG_BRANCH=main   -f containers/ubuntu/Dockerfile   -t dev-container-fortress:ubuntu-test   .
+```
+
+To use a repo-local source instead, `ft` can stage a sanitized checkout for you:
+
+```zsh
+ft container build ubuntu \
+  --shell-config-source local \
+  --shell-config-stage-from /absolute/path/to/shell-config
+```
+
+If you want the manual path instead, first stage an existing absolute-path checkout into the repo build context:
+
+```zsh
+zsh ./scripts/stage-shell-config.zsh /absolute/path/to/shell-config
+```
+
+Then build with local mode:
+
+```zsh
+docker buildx build --load   --build-arg SHELL_CONFIG_SOURCE=local   --build-arg SHELL_CONFIG_LOCAL_DIR=.local/sources/shell-config   -f containers/ubuntu/Dockerfile   -t dev-container-fortress:ubuntu-local-shell-config   .
+```
+
+> [!TIP]
+> Docker cannot see a sibling checkout outside the build context directly. The staging helper copies your chosen host checkout into `.local/sources/shell-config` so the build can consume it.
+> [!IMPORTANT]
+> Moving GitHub branch refs are a poor cache key for `docker buildx`. If a GitHub-backed `shell-config` build appears to be one commit behind, prefer either:
+>
+> - `ft container build <target> --shell-config-source local --shell-config-stage-from /absolute/path/to/shell-config`
+> - `ft container build <target> --no-cache`
+> - `docker buildx prune --all`
+>
+> `docker system prune -a` alone may not clear the relevant `buildx` cache.

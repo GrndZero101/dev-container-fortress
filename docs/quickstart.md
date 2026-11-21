@@ -12,7 +12,9 @@ You need:
 
 - Ubuntu or WSL2 Ubuntu. Ubuntu 26.04 LTS is the tested baseline, on amd64 and
   arm64
+
 - a user that can `sudo`
+
 - `curl`, to fetch the installer. Ubuntu Server and WSL2 Ubuntu include it;
   Ubuntu Desktop may not, so install it first if `curl --version` fails:
 
@@ -184,7 +186,7 @@ ft workbench clone mybench
 devcontainer up --workspace-folder ~/workbenches/mybench
 ```
 
-See [Workbench Usage](workbench-usage.md) for the VS Code path and how to
+See [Workbench Usage](guides/workbench-usage.md) for the VS Code path and how to
 rebuild or reshape one.
 
 ## :house: Existing Machines
@@ -246,6 +248,23 @@ faster but amd64 only today.
 > A thin host becomes a full workstation when you re-run the installer without
 > `--mode workspace`. Going the other way removes nothing.
 
+### Manual clone
+
+To read or edit the checkout before anything runs, or on a machine where you
+cannot pipe a script into `sh`, clone and bootstrap by hand:
+
+```sh
+git clone https://github.com/GrndZero101/dev-container-fortress.git
+cd dev-container-fortress
+zsh ./bootstrap.zsh
+```
+
+This is the same result as `--mode cli`, without the native prerequisites: it
+installs `uv`, the pinned Python, `ft`, a user-level Ansible, and the `ft`
+completion file, and changes nothing else on the host. `git`, `zsh`, and
+`curl` must already be present. Converge the machine afterwards with
+`ft host bootstrap localhost -K`, or stay CLI-only.
+
 ## :wrench: Every Override
 
 Pass flags through the pipe with `sh -s --`. Every flag also has an
@@ -301,13 +320,16 @@ More detail: [WSL Bootstrap Notes](wsl-bootstrap.md).
 
 ## :compass: Next Steps
 
-- [Workbench Usage](workbench-usage.md) to compose devcontainers for your own
+- [Workbench Usage](guides/workbench-usage.md) to compose devcontainers for your own
   repos on top of this workstation
-- [Container Usage](container-usage.md) and
-  [Devcontainer Usage](devcontainer-usage.md) for daily-driver containers and
+- [Workspace Usage](guides/workspace-usage.md) for the mounted daily-driver
+  container
+- [Container Usage](guides/container-usage.md) and
+  [Devcontainer Usage](guides/devcontainer-usage.md) for the images and the
   VS Code devcontainers
-- [Workstation Usage](workstation-usage.md) to bootstrap other machines over
+- the [`ft` CLI reference](reference/cli.md) for every command and flag
+- [Workstation Usage](guides/workstation-usage.md) to bootstrap other machines over
   SSH with `ft host ...`
-- [EC2 Development Loop](ec2-development-loop.md) for a disposable cloud
+- [EC2 Development Loop](guides/ec2-development-loop.md) for a disposable cloud
   development host
 - [DEVELOPMENT.md](../DEVELOPMENT.md) to work on Dev Fortress itself

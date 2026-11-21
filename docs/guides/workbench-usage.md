@@ -13,7 +13,7 @@ let you rebuild or reshape it just as quickly. Two layers do that:
 
 | Layer | What it is | Built by | What you keep |
 | --- | --- | --- | --- |
-| Workstation | The host: Docker, `shell-config`, the Homebrew toolchain, and `ft` | The [quickstart](quickstart.md) one-liner | Your option selection, `~/.config/dev-container-fortress/options.toml` |
+| Workstation | The host: Docker, `shell-config`, the Homebrew toolchain, and `ft` | The [quickstart](../quickstart.md) one-liner | Your option selection, `~/.config/dev-container-fortress/options.toml` |
 | Workbench | A container per set of repos, on the same toolchain | `ft workbench` | One TOML file per workbench, under `~/.config/dev-container-fortress/workbenches/` |
 
 Everything else is generated or cloned from those files, so you can delete a
@@ -24,8 +24,8 @@ travels with you.
 
 > [!NOTE]
 > "Workbench" is the multi-repo devcontainer you create for your own repos.
-> "Workspace" is the `ft workspace` profile and runtime used to develop Dev
-> Fortress itself; see the [container usage guide](container-usage.md).
+> "Workspace" is the `ft workspace` daily-driver container that mounts your
+> Dev Fortress checkout; see the [workspace usage guide](workspace-usage.md).
 
 ## Layout
 
@@ -46,7 +46,7 @@ clones, so a new machine needs only the TOML file and three commands.
 
 ## :clipboard: Before You Start
 
-1. **A Dev Fortress workstation.** Run the [quickstart](quickstart.md) in its
+1. **A Dev Fortress workstation.** Run the [quickstart](../quickstart.md) in its
    default `host` mode, then open a new terminal so your user picks up the
    `docker` group. That installs everything a workbench needs on the host:
    `ft`, Docker, Git, `shell-config`, and the Homebrew toolchain, including the
@@ -111,9 +111,9 @@ repos = [
 | --- | --- |
 | `name` | Names the workspace file and the Docker volumes (`dev-fortress-wb-<name>-*`). Lowercase letters, digits, and `-`. |
 | `directory` | Where the folder is rendered. Defaults to `~/workbenches/<name>`; a relative path is relative to the TOML file. |
-| `profile` | An `ft workspace` profile from [`profiles.toml`](../ft/workspaces/profiles.toml). It sets the image, its tool layers, and the persisted mounts. `ubuntu-base` and `ubuntu-full` have published images. |
+| `profile` | An `ft workspace` profile from [`profiles.toml`](../../ft/workspaces/profiles.toml). It sets the image, its tool layers, and the persisted mounts. `ubuntu-base` and `ubuntu-full` have published images. |
 | `local_build` | Build the image from a Dev Fortress checkout instead of pulling the published one. A relative path is relative to the workbench folder, so `repos/dev-container-fortress` builds from a clone. |
-| `trust` | `full`, the only level today. A locked-down `sealed` level is planned in [`M5d`](milestones/M5d-sealed-agent-workbench.md). |
+| `trust` | `full`, the only level today. A locked-down `sealed` level is planned in [`M5d`](../project/milestones/M5d-sealed-agent-workbench.md). |
 | `options` | Optional components installed at container start, such as `claude-code`. Host-only options, such as the tmux profiles, are rejected. |
 | `mounts` | Persisted mounts to add to the profile's, such as `aws` or `gnupg`. |
 | `extensions` | VS Code extensions to add to the defaults. |
@@ -178,8 +178,20 @@ machine.
 > [!WARNING]
 > A `full` workbench protects your host filesystem, not your accounts. Logins
 > you make inside it, and any credentials you mount, are fully usable by
-> anything running there, including an agent. See "Agents in a Full
-> Workbench" in the [M5c milestone](milestones/M5c-composable-container-workspaces.md).
+> anything running there, including an agent.
+
+| Protected by the container | Not protected |
+| --- | --- |
+| The host OS, packages, and services | Anything the mounted or forwarded credentials reach: forges, cloud accounts, and SSH hosts |
+| The host home directory, dotfiles, and host-side tools | The bind-mounted `repos/`: an agent can delete uncommitted work there |
+| Other host checkouts outside `repos/` | The network: the LAN, host services, and cloud metadata are as reachable as from the host |
+| The Windows side of a WSL2 host | Prompt injection: content an agent reads can steer it toward anything in this column |
+
+Running an agent with permission prompts bypassed in a `full` workbench has
+the same account exposure as running it on the host. Enforced guardrails are
+planned in [`M5f`](../project/milestones/M5f-agent-workbench-guardrails.md),
+and a locked-down `sealed` level in
+[`M5d`](../project/milestones/M5d-sealed-agent-workbench.md).
 
 - The repos are bind-mounted, so Git hooks written into `repos/*/.git` from
   inside the container run on the host the next time host-side Git touches

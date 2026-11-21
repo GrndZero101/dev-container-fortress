@@ -51,13 +51,13 @@ separately in [`M5d`](M5d-sealed-agent-workbench.md).
 
 ## Exit Criteria
 
-- [x] The container images install their userland tools through Homebrew, with the same bundle model as the host targets, and the decision is recorded in `docs/architecture.md` and `docs/container-standards.md` (Ubuntu and Arch; Alpine keeps the downloader, recorded as a no-go)
+- [x] The container images install their userland tools through Homebrew, with the same bundle model as the host targets, and the decision is recorded in `docs/design/architecture.md` and `docs/design/container-standards.md` (Ubuntu and Arch; Alpine keeps the downloader, recorded as a no-go)
 - [x] Tools added inside a running container with `brew install` persist across container replacement where that is intended, or the docs state clearly that they do not
 - [x] Claude Code can be selected for every container target through the `M5b` option model, installs through its native installer, and updates itself in place
 - [x] The devcontainer documents and supports one recommended way to get code in, either a bind mount of the host checkout or a clone into a volume, and the other way works as a documented variant
 - [x] A devcontainer CLI terminal mode works end to end: `up`, enter a shell, develop, commit, push, and come back later to the same state
 - [x] `ft workspace` and the devcontainer CLI either share one definition or have a documented reason to differ, so there are no two overlapping container paths
-- [x] A generic workbench ships in Dev Fortress, rendered from the same data as the other devcontainer definitions, with no `tboss` names, repos, or absolute paths (verified in terminal mode; the cold run from the docs is `M5e` verification, and archiving `tboss-workspace` follows the merge)
+- [x] A generic workbench ships in Dev Fortress, rendered from the same data as the other devcontainer definitions, with no `tboss` names, repos, or absolute paths (verified in terminal mode; the cold run from the docs is `M5e` verification; `tboss-workspace` was deleted after the merge)
 - Moved to [`M5f`](M5f-agent-workbench-guardrails.md): what a `full` workbench protects, the filesystem guardrails and `--check`, SSH through forwarded agents, and Claude Code bypass mode with a deny-list hook
 
 ## Non-Goals
@@ -506,7 +506,7 @@ These are accepted risks, documented rather than solved:
 - [x] Problem: `ft workspace` profiles and `.devcontainer/` describe overlapping container setups
 - [x] Scope: spike `ft workspace` driving the devcontainer CLI, compared with generating the devcontainer files from profiles (decision: generate; see the spike results)
 - [x] Scope: add `ft devcontainer render`, which writes the four definitions from the shared mount table and target data, plus `--check` in pre-commit and CI; render build-arg defaults where they hold no `:`
-- [x] Acceptance: one source of truth for mounts, start steps, and environment, with the reasons for two runtimes recorded in `docs/architecture.md`
+- [x] Acceptance: one source of truth for mounts, start steps, and environment, with the reasons for two runtimes recorded in `docs/design/architecture.md`
 
 ### M5c-6 Keep the image cache across commits
 
@@ -517,7 +517,7 @@ These are accepted risks, documented rather than solved:
 ### M5c-7 Fold `tboss-workspace` into a generic workbench
 
 - [x] Problem: the multi-repo devcontainer lives in a separate repo, tied to one operator's repos, paths, and state names, and its mounts predate this branch
-- [x] Scope: a user-owned workbench TOML file under `${XDG_CONFIG_HOME}/dev-container-fortress/workbenches/`; `ft workbench init`, `render` (with `--check`), `clone`, and `list`, which write `devcontainer.json` and the `.code-workspace` into the workbench folder; `examples/workbench/` kept current by pre-commit; the `local_build` setting; and `docs/workbench-usage.md` replacing `tboss-workspace`'s `README.md` and `TESTING.md` (no `repos/` `.gitignore`: the folder is generated output, not a repo)
+- [x] Scope: a user-owned workbench TOML file under `${XDG_CONFIG_HOME}/dev-container-fortress/workbenches/`; `ft workbench init`, `render` (with `--check`), `clone`, and `list`, which write `devcontainer.json` and the `.code-workspace` into the workbench folder; `examples/workbench/` kept current by pre-commit; the `local_build` setting; and `docs/guides/workbench-usage.md` replacing `tboss-workspace`'s `README.md` and `TESTING.md` (no `repos/` `.gitignore`: the folder is generated output, not a repo)
 - [ ] Acceptance: a fresh user builds a workbench for two of their own repos from the docs alone, opens it in VS Code and in CLI terminal mode, and logs in and pushes; `tboss-workspace` is archived with a pointer; the `M5a` open note about its persisted state is closed
 - [x] Depends on: `M5c-5` (the renderer)
 
@@ -548,7 +548,7 @@ deny list).
 - [x] Branch from `main` as `feat/m0005c-composable-container-workspaces`
 - [x] Remaining order: `M5c-7` (workbench); `M5c-8` and `M5c-9` moved to `M5f`
 - [ ] Commit freely at verified checkpoints
-- [ ] Squash merge into `main` once the exit criteria are met
+- [x] Squash merge into `main` (#7, `77d964d`, 2026-11-20)
 
 ## Progress Notes
 
@@ -751,7 +751,7 @@ reads too: the persisted-mount paths, the Homebrew-only mounts, each option's
 mounts and environment, and the start steps, which `ft workspace up` now runs
 from the same list. Build-arg defaults come from the target Dockerfiles. A
 `devcontainer-render` pre-commit hook runs `--check`, so CI enforces it too.
-The reasons for keeping two runtimes are in `docs/architecture.md`.
+The reasons for keeping two runtimes are in `docs/design/architecture.md`.
 
 Found on the way: the volume flow's image,
 `${localEnv:DEV_FORTRESS_IMAGE:ghcr.io/...:ubuntu}`, resolved to the
@@ -838,7 +838,7 @@ rest use `COPY --chmod=0755` after it. A rebuild after a helper edit now takes
 11 s with the floor cached.
 
 Still open for the acceptance: a fresh user following
-`docs/workbench-usage.md` cold, the VS Code path, a real login and push from
+`docs/guides/workbench-usage.md` cold, the VS Code path, a real login and push from
 inside a workbench, and archiving `tboss-workspace` with a pointer (an
 operator action). Deferred to the always-on workbench work: persisting
 `~/.vscode-server` and `"shutdownAction": "none"`.
@@ -855,3 +855,11 @@ workbenches yet. The quickstart gained an optional workbench step, and the
 workbench guide now frames the two layers, workstation and workbench, as
 rebuildable from `~/.config/dev-container-fortress/` alone. The cold run of
 the guide is planned on bare-metal Ubuntu.
+
+Merged on 2026-11-20 as #7 (`77d964d`) after CI passed every image job,
+including the `ubuntu-full` layer smoke tests that a shared Homebrew volume
+fixed. `GrndZero101/tboss-workspace` was then deleted rather than archived:
+the operator was its only user and never used it day to day. It had no
+issues, pull requests, or forks, and its local-only leftovers (a `TODO.md` for
+the `state`, `zoxide`, and `atuin` mounts, and a docs commit removing
+hard-coded paths) are both superseded by workbenches.

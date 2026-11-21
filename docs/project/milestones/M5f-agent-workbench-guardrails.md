@@ -20,7 +20,7 @@ recorded under "Agents in a Full Workbench" in the
 
 ## Exit Criteria
 
-- [ ] What a `full` workbench protects, and what it does not, is recorded in `docs/container-standards.md` and `docs/architecture.md`
+- [ ] What a `full` workbench protects, and what it does not, is recorded in `docs/design/container-standards.md` and `docs/design/architecture.md`
 - [ ] Rendered definitions meet the filesystem guardrails, and `--check` enforces them: no container-runtime socket, no host home or `/mnt/c` mount, no `--privileged`, and no host network
 - [ ] SSH works inside a workbench through a forwarded agent, including the 1Password SSH agent on the host, with no private key files mounted, from VS Code and from CLI terminal mode
 - [ ] Claude Code starts with permission prompts bypassed in a workbench where it is selected, and a deny-list hook blocks the listed catastrophic commands
@@ -35,7 +35,7 @@ recorded under "Agents in a Full Workbench" in the
 ### M5f-1 Filesystem guardrails and credential model (was `M5c-8`)
 
 - [ ] Problem: nothing guarantees that a workbench keeps the host filesystem out of an agent's reach, and SSH and 1Password access inside containers is ad hoc
-- [ ] Scope: the filesystem guardrails, enforced by the renderer and `--check`; `http`/`https`-only validation in `ft.browser_bridge`, then the bridge in the devcontainers for CLI terminal mode; SSH through a forwarded agent in VS Code and CLI terminal mode, including the 1Password agent on Linux and WSL2 hosts; SSH commit signing; `op` through a service-account token; a non-production default `AWS_PROFILE`; and the "what it protects" table recorded in `docs/container-standards.md` and `docs/architecture.md`
+- [ ] Scope: the filesystem guardrails, enforced by the renderer and `--check`; `http`/`https`-only validation in `ft.browser_bridge`, then the bridge in the devcontainers for CLI terminal mode; SSH through a forwarded agent in VS Code and CLI terminal mode, including the 1Password agent on Linux and WSL2 hosts; SSH commit signing; `op` through a service-account token; a non-production default `AWS_PROFILE`; and the "what it protects" table recorded in `docs/design/container-standards.md` and `docs/design/architecture.md`
 - [ ] Acceptance: `--check` fails on a definition with any forbidden mount, socket, privilege, or host network; inside a workbench, `ssh -T git@github.com`, a signed commit, and an `op read` work with no key files present; the browser bridge rejects a non-URL payload
 
 ### M5f-2 Claude Code bypass mode and deny list (was `M5c-9`)

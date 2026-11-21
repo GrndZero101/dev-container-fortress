@@ -52,47 +52,12 @@ starts from reviewed inputs without committing account- or market-specific
 choices. The selector JSON also shows the on-demand comparison price and Spot
 discount percentage when AWS Pricing data is available.
 
-To look for a Graviton Spot host while excluding burstable `t` families:
-
-```zsh
-uv run ft infra aws-disposable-ubuntu capacity select \
-  --market spot \
-  --architecture arm64 \
-  --min-vcpu 2 \
-  --min-memory-gib 8 \
-  --exclude-families 't*'
-```
-
-If `--architecture` is omitted, the selector searches all architectures and all
-families. If `--architecture amd64` is supplied, x86_64 default families are
-used unless `--families` is provided explicitly. All-family searches can be
-large; constrain with `--families` during exploratory runs when speed matters.
-Both `--families` and `--exclude-families` accept comma-separated `fnmatch`
-patterns against EC2 family names, such as `m*,r*` or `t*`.
-
-Use `--sort-by discount` when the selected candidate should be the highest Spot
-discount rather than the default volatility-adjusted score. Pair broad searches
-with ceilings such as `--max-vcpu`, `--max-memory-gib`, `--max-hourly-price`,
-`--max-spot-monthly`, and `--max-on-demand-hourly` to avoid selecting much
-larger shapes or higher monthly Spot costs than intended.
-
-Save repeatable selector criteria with `--save-preset <name>` and reload them
-with `--load-preset <name>`. Explicit CLI flags override loaded values, so a
-saved baseline can be tweaked per run. Successful preset-backed runs and runs
-with explicit selector options update the local `last` preset, which can be
-reloaded with `--last`; plain selections without selector options leave `last`
-unchanged.
-
-The selector caches AWS discovery data in the XDG cache directory by default.
-Use `--refresh-cache` when you want fresh AWS reads or `--no-cache` when you
-want to bypass cached metadata for one run. Recent Spot history cache entries
-are trusted briefly before any incremental refresh is attempted; tune that with
-`--spot-history-fresh-ttl-minutes`.
-
-Interactive runs show selector progress on stderr, including cache hits,
-pricing counts, and Spot history record counts. The JSON result stays on stdout.
-Use `--progress` or `--no-progress` to override the automatic terminal behavior.
-Spot history fetches run concurrently; tune the worker count with `--workers`.
+The selector can also filter by architecture, size, family, and price, sort
+by discount, save presets, and cache AWS lookups. Those options are documented
+once, in
+[Capacity Selection](../../infra/aws-disposable-ubuntu/README.md#capacity-selection),
+and listed in the
+[CLI reference](../reference/cli.md#ft-infra-aws-disposable-ubuntu-capacity-select).
 
 The apply step imports the Terraform-emitted target into the configured
 `hosts.toml` by default. The validation step proves SSH, host bootstrap, and

@@ -37,8 +37,8 @@ As of 2026-10-18 a fresh Ubuntu machine needs about seven manual steps:
 
 The roles behind step 4 are proven on WSL2 Ubuntu as `localhost` and on Ubuntu
 EC2 over SSH (`M5a`), but the onramp around them is manual and spread across
-`README.md`, `docs/workstation-usage.md`, `docs/wsl-bootstrap.md`, and
-`docs/ec2-development-loop.md`.
+`README.md`, `docs/guides/workstation-usage.md`, `docs/wsl-bootstrap.md`, and
+`docs/guides/ec2-development-loop.md`.
 
 ## Exit Criteria
 
@@ -239,7 +239,7 @@ otherwise). The two repos share a small contract:
 ### M5b-8 Consolidate the onramp docs
 
 - [x] Problem: the onramp is spread across four documents
-- [x] Scope: one "Zero to Hero" quickstart covering modes, overrides, identity, and tmux, linked from `README.md`. `docs/quickstart.md`, 2026-10-19; it also covers existing machines, re-runs, testing a branch, WSL2, and troubleshooting. `README.md` keeps only the one-liner, `docs/wsl-bootstrap.md` became WSL-specific notes, and `docs/workstation-usage.md` points to it
+- [x] Scope: one "Zero to Hero" quickstart covering modes, overrides, identity, and tmux, linked from `README.md`. `docs/quickstart.md`, 2026-10-19; it also covers existing machines, re-runs, testing a branch, WSL2, and troubleshooting. `README.md` keeps only the one-liner, `docs/wsl-bootstrap.md` became WSL-specific notes, and `docs/guides/workstation-usage.md` points to it
 - [x] Acceptance: a new user needs only that page to reach a working workstation
 
 ### M5b-9 Install Claude Code on host targets
@@ -296,7 +296,7 @@ Recorded on 2026-10-18:
 Settled when starting the milestone:
 
 - the tmux profiles live in Dev Fortress, with the reason recorded in
-  `AGENTS.md` and `docs/architecture.md`
+  `AGENTS.md` and `docs/design/architecture.md`
 - the default is stock tmux with no config; `minimal`, `full`, and `raidboss`
   are all ported from `dotfiles` and selected with one setting
 - `workspace` mode builds the image locally by default and pulls the published

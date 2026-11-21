@@ -262,7 +262,7 @@ Recommended direction for M7a follow-up:
 - document one smoke-tested restore path for WSL, local Docker, and disposable
   Ubuntu EC2 workspaces
 
-See [Backup and Restore](./backup-restore.md) for the broader operator model.
+See [Backup and Restore](../design/backup-restore.md) for the broader operator model.
 
 ## Commit Signing
 
