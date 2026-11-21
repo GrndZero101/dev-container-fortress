@@ -57,7 +57,7 @@ def test_command_help_has_no_docstring_sections() -> None:
     assert not offenders, "docstring sections in command help: " + ", ".join(offenders)
 
 
-def test_reference_has_no_machine_specific_paths() -> None:
+def test_reference_has_no_absolute_default_paths() -> None:
     """The committed reference renders the same on every machine.
 
     A default built from the checkout or home directory embeds an absolute
@@ -65,5 +65,9 @@ def test_reference_has_no_machine_specific_paths() -> None:
     check. Give such options a ``show_default`` label instead.
     """
     reference = Path(__file__).parents[2] / "docs" / "reference" / "cli.md"
-    text = reference.read_text()
-    assert "/home/" not in text and "/Users/" not in text
+    absolute_defaults = [
+        line for line in reference.read_text().splitlines() if "[default: /" in line
+    ]
+    assert not absolute_defaults, "absolute default paths: " + "; ".join(
+        absolute_defaults
+    )
