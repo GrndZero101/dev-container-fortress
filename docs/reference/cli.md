@@ -538,7 +538,7 @@ $ ft host import-terraform [OPTIONS]
 
 **Options**:
 
-* `--terraform-dir <directory>`: Terraform working directory to read with `terraform output -json`. Defaults to the disposable Ubuntu stack under infra/.  [default: /home/timl/projects/github/GrndZero101/dev-container-fortress/infra/aws-disposable-ubuntu]
+* `--terraform-dir <directory>`: Terraform working directory to read with `terraform output -json`. Defaults to the disposable Ubuntu stack under infra/.  [default: (infra/aws-disposable-ubuntu in the checkout)]
 * `--config <file>`: Optional host target config path. Defaults to FT_HOST_CONFIG or the XDG-managed hosts.toml path.
 * `--json`: Render the import result as structured JSON instead of a table.
 * `--help`: Show this message and exit.
@@ -1150,8 +1150,8 @@ $ ft infra aws-disposable-ubuntu plan [OPTIONS]
 
 **Options**:
 
-* `--terraform-dir <directory>`: Terraform working directory for the disposable Ubuntu stack.  [default: /home/timl/projects/github/GrndZero101/dev-container-fortress/infra/aws-disposable-ubuntu]
-* `--seed-config <file>`: Seed host manifest used to derive the managed SSH key.  [default: /home/timl/projects/github/GrndZero101/dev-container-fortress/infra/aws-disposable-ubuntu/hosts.seed.toml]
+* `--terraform-dir <directory>`: Terraform working directory for the disposable Ubuntu stack.  [default: (infra/aws-disposable-ubuntu in the checkout)]
+* `--seed-config <file>`: Seed host manifest used to derive the managed SSH key.  [default: (infra/aws-disposable-ubuntu/hosts.seed.toml in the checkout)]
 * `--target-name <str>`: Managed SSH key and Terraform host target name to use.  [default: dev-fortress-ec2-dev]
 * `--help`: Show this message and exit.
 
@@ -1167,8 +1167,8 @@ $ ft infra aws-disposable-ubuntu apply [OPTIONS]
 
 **Options**:
 
-* `--terraform-dir <directory>`: Terraform working directory for the disposable Ubuntu stack.  [default: /home/timl/projects/github/GrndZero101/dev-container-fortress/infra/aws-disposable-ubuntu]
-* `--seed-config <file>`: Seed host manifest used to derive the managed SSH key.  [default: /home/timl/projects/github/GrndZero101/dev-container-fortress/infra/aws-disposable-ubuntu/hosts.seed.toml]
+* `--terraform-dir <directory>`: Terraform working directory for the disposable Ubuntu stack.  [default: (infra/aws-disposable-ubuntu in the checkout)]
+* `--seed-config <file>`: Seed host manifest used to derive the managed SSH key.  [default: (infra/aws-disposable-ubuntu/hosts.seed.toml in the checkout)]
 * `--target-name <str>`: Managed SSH key and Terraform host target name to use.  [default: dev-fortress-ec2-dev]
 * `--config <file>`: Optional host target config path. Defaults to FT_HOST_CONFIG or the XDG-managed hosts.toml path.
 * `--auto-import / --no-auto-import`: Import the Terraform host target into hosts.toml after apply.  [default: auto-import]
@@ -1188,8 +1188,8 @@ $ ft infra aws-disposable-ubuntu destroy [OPTIONS]
 
 **Options**:
 
-* `--terraform-dir <directory>`: Terraform working directory for the disposable Ubuntu stack.  [default: /home/timl/projects/github/GrndZero101/dev-container-fortress/infra/aws-disposable-ubuntu]
-* `--seed-config <file>`: Seed host manifest used to derive the managed SSH key.  [default: /home/timl/projects/github/GrndZero101/dev-container-fortress/infra/aws-disposable-ubuntu/hosts.seed.toml]
+* `--terraform-dir <directory>`: Terraform working directory for the disposable Ubuntu stack.  [default: (infra/aws-disposable-ubuntu in the checkout)]
+* `--seed-config <file>`: Seed host manifest used to derive the managed SSH key.  [default: (infra/aws-disposable-ubuntu/hosts.seed.toml in the checkout)]
 * `--target-name <str>`: Managed SSH key and Terraform host target name to use.  [default: dev-fortress-ec2-dev]
 * `--auto-approve`: Pass -auto-approve to terraform destroy.
 * `--help`: Show this message and exit.
@@ -1257,7 +1257,7 @@ $ ft infra aws-disposable-ubuntu capacity select [OPTIONS]
 * `--pricing-cache-ttl-hours <float range>`: TTL for on-demand pricing cache.  [default: 24; x&gt;=0.0]
 * `--progress / --no-progress`: Show selector progress on stderr. Defaults to auto when stderr is a TTY.
 * `--write-tfvars / --no-write-tfvars`: Write Terraform auto tfvars for the selected capacity mode.  [default: write-tfvars]
-* `--tfvars-path <file>`: Terraform auto tfvars path to write when --write-tfvars is enabled.  [default: /home/timl/projects/github/GrndZero101/dev-container-fortress/infra/aws-disposable-ubuntu/capacity.auto.tfvars.json]
+* `--tfvars-path <file>`: Terraform auto tfvars path to write when --write-tfvars is enabled.  [default: (infra/aws-disposable-ubuntu/capacity.auto.tfvars.json in the checkout)]
 * `--help`: Show this message and exit.
 
 ### `ft infra aws-test-fleet`

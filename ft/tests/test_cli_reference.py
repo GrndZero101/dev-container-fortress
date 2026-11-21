@@ -7,6 +7,7 @@ parameter without help text becomes a blank entry in the published reference.
 from __future__ import annotations
 
 from collections.abc import Iterator
+from pathlib import Path
 
 import click
 import typer
@@ -54,3 +55,15 @@ def test_command_help_has_no_docstring_sections() -> None:
         if any(section in (command.help or "") for section in sections)
     ]
     assert not offenders, "docstring sections in command help: " + ", ".join(offenders)
+
+
+def test_reference_has_no_machine_specific_paths() -> None:
+    """The committed reference renders the same on every machine.
+
+    A default built from the checkout or home directory embeds an absolute
+    path, which differs between a workstation and CI and fails the render
+    check. Give such options a ``show_default`` label instead.
+    """
+    reference = Path(__file__).parents[2] / "docs" / "reference" / "cli.md"
+    text = reference.read_text()
+    assert "/home/" not in text and "/Users/" not in text
