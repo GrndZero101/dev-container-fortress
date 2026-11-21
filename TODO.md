@@ -1,10 +1,10 @@
 # Plan board — dev-container-fortress
 
-> 53 tasks · 0 done · 0 doing · 18 blocked
+> 53 tasks · 0 done · 1 doing · 18 blocked
 
 ## M-0001 M6b: Documentation consolidation (0/2)
 
-- [ ] T-0001 Add a paragraph and an example to the main ft command docstrings
+- [ ] T-0001 Add a paragraph and an example to the main ft command docstrings — **doing** · verify: `uv run pytest ft/tests -q -k help_example && uv run pre-commit run cli-reference-render --all-files`
 - [ ] T-0002 Operator: cold timed bare-metal Ubuntu baseline run (M5e baseline and M6b read-through) — blocked: Operator task: needs a person and hardware or accounts an agent session does not have. Unblock and start it when you run it; record results with tp note.
 
 ## M-0002 M5f: Agent workbench guardrails (0/8)
