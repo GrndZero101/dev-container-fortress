@@ -228,6 +228,12 @@ $ ft container [OPTIONS] COMMAND [ARGS]...
 
 Validate shell, prompt, PATH, and core toolchain state for one or more targets.
 
+Runs the checks inside each container and exits non-zero when any check
+fails. --json prints the reports for automation.
+
+For example, `ft container validate all` checks every test container after a
+build.
+
 **Usage**:
 
 ```console
@@ -246,6 +252,12 @@ $ ft container validate [OPTIONS] {target}
 ### `ft container build`
 
 Build one or more disposable container images for local testing.
+
+Each image installs shell-config from GitHub main by default; the
+--shell-config-* options build from another branch or a local checkout.
+
+For example, `ft container build all` builds the Ubuntu, Alpine, and Arch
+images.
 
 **Usage**:
 
@@ -271,6 +283,12 @@ $ ft container build [OPTIONS] {target}
 
 Show Docker status for one or more managed disposable container targets.
 
+Shows each target&#x27;s container, image, and state. With no target, it shows
+every known target.
+
+For example, `ft container status` shows the Ubuntu, Alpine, and Arch test
+containers at a glance.
+
 **Usage**:
 
 ```console
@@ -289,6 +307,11 @@ $ ft container status [OPTIONS] [target]
 
 Start or replace one or more disposable container targets.
 
+Builds a missing image, removes any existing container for the target, and
+starts a fresh one. `ft container enter` keeps an existing container instead.
+
+For example, `ft container up ubuntu` starts a clean Ubuntu test container.
+
 **Usage**:
 
 ```console
@@ -306,6 +329,11 @@ $ ft container up [OPTIONS] {target}
 ### `ft container down`
 
 Stop and remove one or more disposable container targets.
+
+The images stay, so `ft container up` starts again without a build, and
+`ft container reset` removes the images as well.
+
+For example, `ft container down all` removes every test container.
 
 **Usage**:
 
@@ -361,6 +389,13 @@ $ ft container logs [OPTIONS] {target}
 
 Run one command inside one managed disposable container target.
 
+The container must already be running. With no command, it prints the user,
+home directory, and shell-config profile. Put `--` before a command that has
+its own flags.
+
+For example, `ft container exec arch -- uname -a` prints the kernel details
+seen inside the Arch container.
+
 **Usage**:
 
 ```console
@@ -398,6 +433,12 @@ $ ft container shell [OPTIONS] {target}
 
 Rebuild one target image and replace its managed disposable container.
 
+Runs `ft container build` and then `ft container up` for one target, with the
+same shell-config build options.
+
+For example, `ft container refresh ubuntu --no-cache` rebuilds the Ubuntu image
+from scratch and starts a fresh container.
+
 **Usage**:
 
 ```console
@@ -421,6 +462,13 @@ $ ft container refresh [OPTIONS] {target}
 ### `ft container enter`
 
 Ensure one target is ready, then open an interactive shell inside it.
+
+Reuses a running container, starts a stopped one, and creates one only when
+it is missing, so state inside the container survives. `ft container refresh`
+rebuilds and replaces it.
+
+For example, `ft container enter alpine` opens a zsh login shell in the Alpine
+test container.
 
 **Usage**:
 
@@ -469,6 +517,12 @@ $ ft host [OPTIONS] COMMAND [ARGS]...
 ### `ft host list`
 
 List the configured Dev Fortress host targets.
+
+Reads hosts.toml from --config, FT_HOST_CONFIG, or the XDG default, and shows
+each target&#x27;s kind, connection, address, user, and tags.
+
+For example, `ft host list &#x27;dev-fortress-*&#x27;` lists only the targets whose
+names start with dev-fortress-.
 
 **Usage**:
 
@@ -567,6 +621,13 @@ $ ft host ssh-key-path [OPTIONS] {target}
 
 Render or install an OpenSSH config block for one host target.
 
+Prints the block by default. --install writes it to the managed Dev Fortress
+include file, and --ensure-include adds that file to ~/.ssh/config, so ssh and
+VS Code Remote-SSH reach the target by name.
+
+For example, `ft host ssh-config dev-fortress-ubuntu --install --ensure-include`
+lets `ssh dev-fortress-ubuntu` connect.
+
 **Usage**:
 
 ```console
@@ -655,6 +716,12 @@ $ ft host ssh [OPTIONS] [target] [remote_command]...
 
 Inspect host-target readiness before attempting bootstrap.
 
+Checks this machine and each selected target and changes nothing. Add --probe
+to open a short non-interactive SSH connection to each SSH target.
+
+For example, `ft host doctor dev-fortress-ubuntu --probe` checks the Ubuntu
+container target and confirms that it accepts SSH.
+
 **Usage**:
 
 ```console
@@ -677,6 +744,13 @@ $ ft host doctor [OPTIONS] [target]
 
 Run the standard doctor/bootstrap convergence loop for one or more host targets.
 
+Runs four stages per target and stops at the first failure: a doctor check
+with --probe, a bootstrap in check mode, a real bootstrap, and a second
+bootstrap that must report no changes.
+
+For example, `ft host validate dev-fortress-ubuntu` proves that the Ubuntu
+container target converges and stays converged.
+
 **Usage**:
 
 ```console
@@ -698,6 +772,13 @@ $ ft host validate [OPTIONS] [target]
 ### `ft host bootstrap`
 
 Run the thin inventory-driven host bootstrap playbook for one or more targets.
+
+Renders an Ansible inventory from hosts.toml and runs the bootstrap playbook
+on the selected targets. --check previews the changes, and --mode workspace
+stops at the bootstrap floor plus Docker.
+
+For example, `ft host bootstrap localhost --check -K` previews converging this
+machine and prompts for the sudo password first.
 
 **Usage**:
 
@@ -791,6 +872,13 @@ $ ft workspace [OPTIONS] COMMAND [ARGS]...
 
 Build one workspace image from its underlying Ubuntu-first container target.
 
+The image adds the profile&#x27;s tool layers to its base container target. When
+the profile has a published image and you have no local changes,
+`ft workspace pull` is faster.
+
+For example, `ft workspace build ubuntu-full --no-cache` rebuilds the full
+profile without the Docker build cache.
+
 **Usage**:
 
 ```console
@@ -815,6 +903,13 @@ $ ft workspace build [OPTIONS] {profile}
 
 Use the published image for one workspace profile instead of a local build.
 
+Pulls the image that CI publishes from main for this machine&#x27;s architecture
+and tags it as the local workspace image, so `ft workspace up` uses it without
+building.
+
+For example, `ft workspace pull ubuntu-full` fetches the full daily-driver
+image.
+
 **Usage**:
 
 ```console
@@ -833,6 +928,12 @@ $ ft workspace pull [OPTIONS] {profile}
 
 Show Docker status for one or more managed workspace profiles.
 
+Shows each profile&#x27;s base target, container, image, and state. With no
+profile, it shows every profile in the workspace manifest.
+
+For example, `ft workspace status ubuntu-full` shows whether the full workspace
+is built and running.
+
 **Usage**:
 
 ```console
@@ -850,6 +951,13 @@ $ ft workspace status [OPTIONS] [profile]
 ### `ft workspace up`
 
 Start or replace one managed workspace container profile.
+
+Builds the image when it is missing, removes any existing container for the
+profile, and starts a fresh one with the profile&#x27;s host mounts and the
+selected optional components.
+
+For example, `ft workspace up ubuntu-full --options none` starts the full
+workspace without optional components such as Claude Code.
 
 **Usage**:
 
@@ -870,6 +978,11 @@ $ ft workspace up [OPTIONS] {profile}
 ### `ft workspace down`
 
 Stop and remove one managed workspace container profile.
+
+The image and the host mounts stay, so the next `ft workspace up` starts
+without a build. `ft workspace reset` removes the image as well.
+
+For example, `ft workspace down ubuntu-full` stops the full workspace.
 
 **Usage**:
 
@@ -908,6 +1021,13 @@ $ ft workspace reset [OPTIONS] {profile}
 
 Run one command inside one managed workspace container profile.
 
+The workspace must already be running; start it with `ft workspace up`. With
+no command, it prints the user, working directory, and shell-config profile.
+Put `--` before a command that has its own flags.
+
+For example, `ft workspace exec ubuntu-full -- git --version` prints the Git
+version inside the workspace.
+
 **Usage**:
 
 ```console
@@ -926,6 +1046,12 @@ $ ft workspace exec [OPTIONS] {profile} [command]...
 ### `ft workspace enter`
 
 Ensure one workspace is ready, then open an interactive shell inside it.
+
+Runs the same steps as `ft workspace up`, so it builds a missing image and
+replaces an existing container, then opens a zsh login shell.
+
+For example, `ft workspace enter ubuntu-full` opens a shell in the full
+daily-driver workspace.
 
 **Usage**:
 
@@ -966,6 +1092,12 @@ $ ft workspace doctor [OPTIONS] {profile}
 ### `ft workspace validate`
 
 Validate shell, mounts, and layer-specific commands inside one workspace.
+
+Runs the checks for the profile&#x27;s tool layers and exits non-zero when any
+check fails. --json prints the report for automation.
+
+For example, `ft workspace validate ubuntu-full --json` checks the full
+workspace and prints a machine-readable report.
 
 **Usage**:
 
@@ -1541,6 +1673,9 @@ Write a workbench file and render its folder.
 The file lands in ~/.config/dev-container-fortress/workbenches/&lt;name&gt;.toml,
 where it can be edited by hand or kept in dotfiles.
 
+For example, `ft workbench init api --repo https://github.com/example/api.git`
+writes api.toml and renders ~/workbenches/api, ready for `ft workbench clone`.
+
 **Usage**:
 
 ```console
@@ -1567,6 +1702,12 @@ $ ft workbench init [OPTIONS] {name}
 
 Regenerate a workbench folder&#x27;s devcontainer and workspace files.
 
+Run it after editing a workbench file. With no name, it renders every saved
+workbench; --check writes nothing and fails when a file is stale.
+
+For example, `ft workbench render api --check` reports whether the api folder
+still matches api.toml.
+
 **Usage**:
 
 ```console
@@ -1589,6 +1730,9 @@ Clone a workbench&#x27;s repos that are missing from its repos/ folder.
 Clones run on the host with its Git credentials; existing folders are left
 alone.
 
+For example, `ft workbench clone api` clones the api workbench&#x27;s missing
+repos.
+
 **Usage**:
 
 ```console
@@ -1606,6 +1750,11 @@ $ ft workbench clone [OPTIONS] [workbench]
 ### `ft workbench list`
 
 List saved workbenches with their folder, profile, and repos.
+
+Reads every file in ~/.config/dev-container-fortress/workbenches/. A file that
+fails to load shows its error in place of a folder.
+
+For example, `ft workbench list` shows one row per saved workbench.
 
 **Usage**:
 

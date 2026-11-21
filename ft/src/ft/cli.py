@@ -5686,7 +5686,14 @@ def container_validate(
         ),
     ] = False,
 ) -> None:
-    """Validate shell, prompt, PATH, and core toolchain state for one or more targets."""
+    """Validate shell, prompt, PATH, and core toolchain state for one or more targets.
+
+    Runs the checks inside each container and exits non-zero when any check
+    fails. --json prints the reports for automation.
+
+    For example, `ft container validate all` checks every test container after a
+    build.
+    """
     resolved_targets = _resolve_container_targets(target)
     reports: list[dict[str, object]] = []
     overall_success = True
@@ -5788,7 +5795,14 @@ def container_build(
         ),
     ] = False,
 ) -> None:
-    """Build one or more disposable container images for local testing."""
+    """Build one or more disposable container images for local testing.
+
+    Each image installs shell-config from GitHub main by default; the
+    --shell-config-* options build from another branch or a local checkout.
+
+    For example, `ft container build all` builds the Ubuntu, Alpine, and Arch
+    images.
+    """
     resolved_targets = _resolve_container_targets(target)
     overall_success = True
 
@@ -5821,7 +5835,14 @@ def container_status(
         ),
     ] = None,
 ) -> None:
-    """Show Docker status for one or more managed disposable container targets."""
+    """Show Docker status for one or more managed disposable container targets.
+
+    Shows each target's container, image, and state. With no target, it shows
+    every known target.
+
+    For example, `ft container status` shows the Ubuntu, Alpine, and Arch test
+    containers at a glance.
+    """
     resolved_targets = (
         list(KNOWN_CONTAINER_TARGETS)
         if target is None
@@ -5842,7 +5863,13 @@ def container_up(
         ),
     ],
 ) -> None:
-    """Start or replace one or more disposable container targets."""
+    """Start or replace one or more disposable container targets.
+
+    Builds a missing image, removes any existing container for the target, and
+    starts a fresh one. `ft container enter` keeps an existing container instead.
+
+    For example, `ft container up ubuntu` starts a clean Ubuntu test container.
+    """
     resolved_targets = _resolve_container_targets(target)
     overall_success = True
 
@@ -5867,7 +5894,13 @@ def container_down(
         ),
     ],
 ) -> None:
-    """Stop and remove one or more disposable container targets."""
+    """Stop and remove one or more disposable container targets.
+
+    The images stay, so `ft container up` starts again without a build, and
+    `ft container reset` removes the images as well.
+
+    For example, `ft container down all` removes every test container.
+    """
     resolved_targets = _resolve_container_targets(target)
     overall_success = True
 
@@ -5944,7 +5977,15 @@ def container_exec(
         ),
     ] = None,
 ) -> None:
-    """Run one command inside one managed disposable container target."""
+    """Run one command inside one managed disposable container target.
+
+    The container must already be running. With no command, it prints the user,
+    home directory, and shell-config profile. Put `--` before a command that has
+    its own flags.
+
+    For example, `ft container exec arch -- uname -a` prints the kernel details
+    seen inside the Arch container.
+    """
     resolved_target = _resolve_single_container_target(target, command_name="exec")
     raise typer.Exit(
         code=_exec_single_container_target(resolved_target, list(command or []))
@@ -6038,7 +6079,14 @@ def container_refresh(
         ),
     ] = False,
 ) -> None:
-    """Rebuild one target image and replace its managed disposable container."""
+    """Rebuild one target image and replace its managed disposable container.
+
+    Runs `ft container build` and then `ft container up` for one target, with the
+    same shell-config build options.
+
+    For example, `ft container refresh ubuntu --no-cache` rebuilds the Ubuntu image
+    from scratch and starts a fresh container.
+    """
     resolved_target = _resolve_single_container_target(target, command_name="refresh")
     if not _refresh_single_container_target(
         resolved_target,
@@ -6064,7 +6112,15 @@ def container_enter(
         ),
     ],
 ) -> None:
-    """Ensure one target is ready, then open an interactive shell inside it."""
+    """Ensure one target is ready, then open an interactive shell inside it.
+
+    Reuses a running container, starts a stopped one, and creates one only when
+    it is missing, so state inside the container survives. `ft container refresh`
+    rebuilds and replaces it.
+
+    For example, `ft container enter alpine` opens a zsh login shell in the Alpine
+    test container.
+    """
     resolved_target = _resolve_single_container_target(target, command_name="enter")
     raise typer.Exit(code=_enter_single_container_target(resolved_target))
 
@@ -6133,7 +6189,15 @@ def workspace_build(
         ),
     ] = False,
 ) -> None:
-    """Build one workspace image from its underlying Ubuntu-first container target."""
+    """Build one workspace image from its underlying Ubuntu-first container target.
+
+    The image adds the profile's tool layers to its base container target. When
+    the profile has a published image and you have no local changes,
+    `ft workspace pull` is faster.
+
+    For example, `ft workspace build ubuntu-full --no-cache` rebuilds the full
+    profile without the Docker build cache.
+    """
     resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
     if not _build_workspace_profile(
         resolved_profile_name,
@@ -6160,7 +6224,15 @@ def workspace_pull(
         ),
     ],
 ) -> None:
-    """Use the published image for one workspace profile instead of a local build."""
+    """Use the published image for one workspace profile instead of a local build.
+
+    Pulls the image that CI publishes from main for this machine's architecture
+    and tags it as the local workspace image, so `ft workspace up` uses it without
+    building.
+
+    For example, `ft workspace pull ubuntu-full` fetches the full daily-driver
+    image.
+    """
     resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
     if not _pull_workspace_profile(resolved_profile_name, resolved_profile):
         raise typer.Exit(code=1)
@@ -6178,7 +6250,14 @@ def workspace_status(
         ),
     ] = None,
 ) -> None:
-    """Show Docker status for one or more managed workspace profiles."""
+    """Show Docker status for one or more managed workspace profiles.
+
+    Shows each profile's base target, container, image, and state. With no
+    profile, it shows every profile in the workspace manifest.
+
+    For example, `ft workspace status ubuntu-full` shows whether the full workspace
+    is built and running.
+    """
     resolved_profiles = (
         _workspace_profile_names()
         if profile is None
@@ -6222,7 +6301,15 @@ def workspace_up(
         ),
     ] = None,
 ) -> None:
-    """Start or replace one managed workspace container profile."""
+    """Start or replace one managed workspace container profile.
+
+    Builds the image when it is missing, removes any existing container for the
+    profile, and starts a fresh one with the profile's host mounts and the
+    selected optional components.
+
+    For example, `ft workspace up ubuntu-full --options none` starts the full
+    workspace without optional components such as Claude Code.
+    """
     resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
     if not _up_workspace_profile(
         resolved_profile_name,
@@ -6242,7 +6329,13 @@ def workspace_down(
         ),
     ],
 ) -> None:
-    """Stop and remove one managed workspace container profile."""
+    """Stop and remove one managed workspace container profile.
+
+    The image and the host mounts stay, so the next `ft workspace up` starts
+    without a build. `ft workspace reset` removes the image as well.
+
+    For example, `ft workspace down ubuntu-full` stops the full workspace.
+    """
     resolved_profile_name, _ = _resolve_workspace_profile(profile)
     if not _down_workspace_profile(resolved_profile_name):
         raise typer.Exit(code=1)
@@ -6292,7 +6385,15 @@ def workspace_exec(
         ),
     ] = None,
 ) -> None:
-    """Run one command inside one managed workspace container profile."""
+    """Run one command inside one managed workspace container profile.
+
+    The workspace must already be running; start it with `ft workspace up`. With
+    no command, it prints the user, working directory, and shell-config profile.
+    Put `--` before a command that has its own flags.
+
+    For example, `ft workspace exec ubuntu-full -- git --version` prints the Git
+    version inside the workspace.
+    """
     resolved_profile_name, _ = _resolve_workspace_profile(profile)
     raise typer.Exit(
         code=_exec_workspace_profile(resolved_profile_name, list(command or []))
@@ -6334,7 +6435,14 @@ def workspace_enter(
         ),
     ] = None,
 ) -> None:
-    """Ensure one workspace is ready, then open an interactive shell inside it."""
+    """Ensure one workspace is ready, then open an interactive shell inside it.
+
+    Runs the same steps as `ft workspace up`, so it builds a missing image and
+    replaces an existing container, then opens a zsh login shell.
+
+    For example, `ft workspace enter ubuntu-full` opens a shell in the full
+    daily-driver workspace.
+    """
     resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
     raise typer.Exit(
         code=_enter_workspace_profile(
@@ -6417,7 +6525,14 @@ def workspace_validate(
         ),
     ] = False,
 ) -> None:
-    """Validate shell, mounts, and layer-specific commands inside one workspace."""
+    """Validate shell, mounts, and layer-specific commands inside one workspace.
+
+    Runs the checks for the profile's tool layers and exits non-zero when any
+    check fails. --json prints the report for automation.
+
+    For example, `ft workspace validate ubuntu-full --json` checks the full
+    workspace and prints a machine-readable report.
+    """
     resolved_profile_name, resolved_profile = _resolve_workspace_profile(profile)
     report = _validate_workspace_profile(
         resolved_profile_name,
@@ -6689,7 +6804,14 @@ def host_list(
         ),
     ] = False,
 ) -> None:
-    """List the configured Dev Fortress host targets."""
+    """List the configured Dev Fortress host targets.
+
+    Reads hosts.toml from --config, FT_HOST_CONFIG, or the XDG default, and shows
+    each target's kind, connection, address, user, and tags.
+
+    For example, `ft host list 'dev-fortress-*'` lists only the targets whose
+    names start with dev-fortress-.
+    """
     resolved_path, manifest = _load_host_target_manifest(config)
     resolved_targets = (
         manifest.targets if target is None else _resolve_host_targets(target, manifest)
@@ -8313,7 +8435,15 @@ def host_ssh_config(
         ),
     ] = None,
 ) -> None:
-    """Render or install an OpenSSH config block for one host target."""
+    """Render or install an OpenSSH config block for one host target.
+
+    Prints the block by default. --install writes it to the managed Dev Fortress
+    include file, and --ensure-include adds that file to ~/.ssh/config, so ssh and
+    VS Code Remote-SSH reach the target by name.
+
+    For example, `ft host ssh-config dev-fortress-ubuntu --install --ensure-include`
+    lets `ssh dev-fortress-ubuntu` connect.
+    """
     _, manifest = _load_host_target_manifest(config)
     resolved_target = _resolve_single_host_target(
         target, manifest, command_name="ssh-config"
@@ -8546,7 +8676,14 @@ def host_doctor(
         ),
     ] = False,
 ) -> None:
-    """Inspect host-target readiness before attempting bootstrap."""
+    """Inspect host-target readiness before attempting bootstrap.
+
+    Checks this machine and each selected target and changes nothing. Add --probe
+    to open a short non-interactive SSH connection to each SSH target.
+
+    For example, `ft host doctor dev-fortress-ubuntu --probe` checks the Ubuntu
+    container target and confirms that it accepts SSH.
+    """
     resolved_path, manifest = _load_host_target_manifest(config)
     if interactive:
         candidate_targets = (
@@ -8615,7 +8752,15 @@ def host_validate(
         ),
     ] = False,
 ) -> None:
-    """Run the standard doctor/bootstrap convergence loop for one or more host targets."""
+    """Run the standard doctor/bootstrap convergence loop for one or more host targets.
+
+    Runs four stages per target and stops at the first failure: a doctor check
+    with --probe, a bootstrap in check mode, a real bootstrap, and a second
+    bootstrap that must report no changes.
+
+    For example, `ft host validate dev-fortress-ubuntu` proves that the Ubuntu
+    container target converges and stays converged.
+    """
     resolved_path, manifest = _load_host_target_manifest(config)
     if interactive:
         candidate_targets = (
@@ -8719,7 +8864,15 @@ def host_bootstrap(
         ),
     ] = "host",
 ) -> None:
-    """Run the thin inventory-driven host bootstrap playbook for one or more targets."""
+    """Run the thin inventory-driven host bootstrap playbook for one or more targets.
+
+    Renders an Ansible inventory from hosts.toml and runs the bootstrap playbook
+    on the selected targets. --check previews the changes, and --mode workspace
+    stops at the bootstrap floor plus Docker.
+
+    For example, `ft host bootstrap localhost --check -K` previews converging this
+    machine and prompts for the sudo password first.
+    """
     if mode not in HOST_BOOTSTRAP_MODES:
         raise typer.BadParameter(
             f"unknown mode: {mode!r} (expected {' or '.join(HOST_BOOTSTRAP_MODES)})",
@@ -8971,6 +9124,9 @@ def workbench_init(
 
     The file lands in ~/.config/dev-container-fortress/workbenches/<name>.toml,
     where it can be edited by hand or kept in dotfiles.
+
+    For example, `ft workbench init api --repo https://github.com/example/api.git`
+    writes api.toml and renders ~/workbenches/api, ready for `ft workbench clone`.
     """
     toml_path = workbench_config_dir() / f"{name}.toml"
     if toml_path.exists() and not force:
@@ -9027,7 +9183,14 @@ def workbench_render(
         ),
     ] = False,
 ) -> None:
-    """Regenerate a workbench folder's devcontainer and workspace files."""
+    """Regenerate a workbench folder's devcontainer and workspace files.
+
+    Run it after editing a workbench file. With no name, it renders every saved
+    workbench; --check writes nothing and fails when a file is stale.
+
+    For example, `ft workbench render api --check` reports whether the api folder
+    still matches api.toml.
+    """
     results = [
         _render_workbench_file(path, check=check)
         for path in _workbench_files(workbench)
@@ -9047,6 +9210,9 @@ def workbench_clone(
 
     Clones run on the host with its Git credentials; existing folders are left
     alone.
+
+    For example, `ft workbench clone api` clones the api workbench's missing
+    repos.
     """
     failed = False
     for toml_path in _workbench_files(workbench):
@@ -9077,7 +9243,13 @@ def workbench_clone(
 
 @workbench_app.command("list")
 def workbench_list() -> None:
-    """List saved workbenches with their folder, profile, and repos."""
+    """List saved workbenches with their folder, profile, and repos.
+
+    Reads every file in ~/.config/dev-container-fortress/workbenches/. A file that
+    fails to load shows its error in place of a folder.
+
+    For example, `ft workbench list` shows one row per saved workbench.
+    """
     paths = sorted(workbench_config_dir().glob("*.toml"))
     if not paths:
         console.print(f"no workbenches in {workbench_config_dir()}", highlight=False)

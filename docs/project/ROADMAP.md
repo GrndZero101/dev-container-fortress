@@ -544,7 +544,7 @@ maintainable. Self-contained modules such as `ft/src/ft/options.py` and
 
 ### `M6b` Documentation Consolidation
 
-Status: `active`
+Status: `done` (squash-merged in PR #8, command examples followed on 2026-11-21; fresh-host read-through moved to `M5e`)
 
 Objective:
 Give every fact one home, organise `docs/` by reader, and generate the `ft`

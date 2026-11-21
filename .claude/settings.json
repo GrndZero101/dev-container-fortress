@@ -22,6 +22,20 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "tp",
+            "args": [
+              "hook",
+              "stop"
+            ]
+          }
+        ]
+      }
     ]
   }
 }
