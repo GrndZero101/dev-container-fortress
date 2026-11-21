@@ -31,6 +31,14 @@ repos:
         language: system
         files: ^(ft/src/ft/.*\.py|docs/reference/cli\.md)$
         pass_filenames: false
+      # TODO.md is generated from the tp task store in .plan/. Regenerating
+      # it here fails the hook whenever the committed copy is out of date.
+      - id: todo-render
+        name: TODO.md is rendered from tp
+        entry: scripts/tp-export-todo.sh
+        language: system
+        files: ^(\.plan/tasks\.jsonl|TODO\.md)$
+        pass_filenames: false
       # The devcontainer definitions are rendered from ft's runtime data.
       - id: devcontainer-render
         name: devcontainer definitions are rendered

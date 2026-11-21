@@ -14,9 +14,9 @@ Use it to track:
 - ideas that are not yet ready to become implementation work
 
 Do not use this file as the primary home for fine-grained execution tracking.
-Concrete implementation work should live in the matching milestone draft under
-`docs/project/milestones/`, then be copied into GitHub milestones and issues later when
-that workflow becomes worth the overhead.
+Concrete implementation work lives in the `tp` task store (`.plan/`, rendered
+to the root `TODO.md`); the matching milestone draft under
+`docs/project/milestones/` holds the design and scope behind it.
 
 > [!NOTE]
 > Operational truth belongs in the relevant README and usage documents once work

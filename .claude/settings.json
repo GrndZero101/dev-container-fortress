@@ -1,0 +1,27 @@
+{
+  "env": {
+    "TP_JSON": "1",
+    "TP_ACTOR": "claude"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(tp *)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "tp",
+            "args": [
+              "hook",
+              "session-start"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -231,6 +231,8 @@ artifacts/
 *.tfstate.*
 # Saved plans embed a full state snapshot (account IDs, CIDRs, ARNs)
 *.plan
+# The taskplan store is committed with the code; its own .gitignore covers lock and log files
+!.plan/
 *.tfplan
 crash.log
 crash.*.log
