@@ -15,13 +15,22 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.20.0
-    hooks:
-      - id: markdownlint-cli2
-
   - repo: local
     hooks:
+      # Configured in pyproject.toml; also checks that relative links resolve.
+      - id: rumdl
+        name: rumdl markdown lint
+        entry: uv run rumdl check
+        language: system
+        types: [markdown]
+      # docs/reference/cli.md is generated from the Typer app. Regenerating
+      # it here fails the hook whenever the committed copy is out of date.
+      - id: cli-reference-render
+        name: ft CLI reference is rendered
+        entry: uv run typer ft.cli utils docs --name ft --title "ft CLI reference" --output docs/reference/cli.md
+        language: system
+        files: ^(ft/src/ft/.*\.py|docs/reference/cli\.md)$
+        pass_filenames: false
       # The devcontainer definitions are rendered from ft's runtime data.
       - id: devcontainer-render
         name: devcontainer definitions are rendered

@@ -3,10 +3,10 @@
 This directory contains the container-oriented implementation of the developer
 environment.
 
-See [Container Standards](../docs/container-standards.md) for the shared
+See [Container Standards](../docs/design/container-standards.md) for the shared
 runtime contract that container targets should follow.
 
-For user-facing build and run instructions, see [Container Usage](../docs/container-usage.md).
+For user-facing build and run instructions, see [Container Usage](../docs/guides/container-usage.md).
 
 ## Strategy
 
@@ -16,9 +16,8 @@ For user-facing build and run instructions, see [Container Usage](../docs/contai
 - Keep Ubuntu, Alpine, and Arch variants aligned where practical
 - Use a non-root runtime user for day-to-day development inside the container
 
-The downloader now lives as an installable Python package under
-`ft/` with a reusable TOML tool manifest. The first implemented tool
-is `tenv`.
+The downloader is the `ft` Python package under `ft/`, driven by the TOML
+manifest that [`ft/tools/README.md`](../ft/tools/README.md) describes.
 
 ## Current State
 
@@ -42,27 +41,17 @@ The Ubuntu, Alpine, and Arch Dockerfiles now use a shared split bootstrap strate
 - on Alpine, restore user-local bin discovery through `/etc/profile.d` because login shells source `/etc/profile`, which otherwise resets `PATH` to system directories only
 - on Arch, point pacman at one [Arch Linux Archive](https://archive.archlinux.org/) snapshot through the `ARCH_ARCHIVE_DATE` build arg so the rolling release still yields a reproducible package set
 
-The Alpine Dockerfile resolves and installs the downloader-managed tool subset
-through the packaged downloader entrypoint; the Ubuntu and Arch images use
-Homebrew instead. `fzf` still comes from the
-distro package manager today because it is not yet represented in the
-downloader manifest. For downloader-managed tools backed by GitHub releases, the
-container build now resolves the latest upstream release at install time by
-default rather than relying only on the manifest's fallback version field. The
-current active subset now includes `atuin`, `bat`, `bats`, `fd`, `glow`, `gum`,
-`jq`, `lazygit`, `neovim`, `oh-my-posh`, `ripgrep`, `starship`, `tenv`, and
-`zoxide`.
+The Ubuntu and Arch images take their userland tools from the Homebrew floor.
+The Alpine Dockerfile uses the packaged `ft install` downloader instead,
+because Homebrew does not support musl. On Alpine:
 
-`ripgrep` is intentionally hybrid today: Ubuntu gets `rg` from the downloader,
-while Alpine gets the native `apk` package because upstream does not currently
-publish the needed musl `arm64` release artifact.
-
-`neovim` is also hybrid today: Ubuntu gets `nvim` from the downloader, while
-Alpine uses the native `apk` package because the upstream Linux tarballs are
-not musl-targeted.
-
-Arch is glibc-based, so it uses the downloader for both `rg` and `nvim`, the
-same as Ubuntu.
+- the downloader installs `atuin`, `bat`, `bats`, `fd`, `glow`, `gum`, `jq`,
+  `lazygit`, `oh-my-posh`, `starship`, `tenv`, and `zoxide`, resolving the
+  latest upstream release at install time by default rather than the
+  manifest's fallback version
+- `rg` and `nvim` come from `apk`, because upstream publishes no musl build of
+  either that covers `arm64`
+- `fzf` comes from `apk`, because it is not in the downloader manifest
 
 > [!IMPORTANT]
 > The Arch target is amd64 only because the official `archlinux` base image
@@ -77,7 +66,7 @@ The Python tool installer currently provides:
 - archive download and extraction
 - checksum verification from upstream checksum manifests
 - XDG cache reuse for downloaded assets, keyed by tool, target, OS, arch, and resolved version
-- `tenv`, `starship`, `zoxide`, and `atuin` installation for Linux `amd64` and `arm64`
+- installation of every enabled manifest tool for Linux `amd64` and `arm64`
 - target-specific asset selection for Ubuntu, Alpine, and Arch where needed
 
 Planned follow-up work:
@@ -97,70 +86,22 @@ VS Code should see three devcontainer definitions under `.devcontainer/`:
 
 They are generated: run `ft devcontainer render` after changing the shared runtime data or a forwarded Dockerfile build arg. Each stays a thin wrapper over the matching Dockerfile. Ubuntu and Arch run `ft-brew-floor` and the opt-in Claude Code check on every start; Alpine runs a lightweight `ft plan` validation in `postCreate`.
 
-## Local Build
+## Building and Testing
 
-Use Docker Buildx for local validation:
-
-```zsh
-docker buildx build --load -f containers/ubuntu/Dockerfile -t dev-container-fortress:ubuntu-test .
-docker buildx build --load -f containers/alpine/Dockerfile -t dev-container-fortress:alpine-test .
-docker buildx build --load -f containers/arch/Dockerfile -t dev-container-fortress:arch-test .
-```
-
-## Local Human Testing Loop
-
-The repository now includes a deterministic local test harness for disposable
-container validation:
-
-- helper: [`scripts/test-container.zsh`](../scripts/test-container.zsh)
-- task runner front door: [`justfile`](../justfile)
-
-This workflow is meant to support both:
-
-- human validation during day-to-day development
-- future agentic validation using the same stable target names and commands
-
-Current commands cover:
-
-- image build
-- detached container startup
-- status inspection
-- logs
-- non-interactive `exec`
-- interactive shell entry
-- teardown and reset
-- managed SSH key generation and probe flows for the Ubuntu disposable target
-
-The Ubuntu disposable target now starts an SSH daemon on host port `2222` when
-launched through `ft container up ubuntu`. If the managed public key for the
-default host target `dev-fortress-ubuntu` already exists in the Dev Fortress
-state tree, container startup mounts and authorizes it automatically so the
-same target can be exercised through `ft host ...`. Disposable SSH trust now
-flows through a Dev Fortress-managed known-hosts file rather than discarding
-host-key state entirely on every command.
+[Container Usage](../docs/guides/container-usage.md) covers the `ft container`
+loop, the disposable SSH targets, runtime validation, and raw `docker buildx`
+builds. [`scripts/test-container.zsh`](../scripts/test-container.zsh) and the
+[`justfile`](../justfile) remain as thin shims over `ft`.
 
 ## Optional Corporate CA Support
 
-Corporate CA trust is now available as an explicit opt-in for container and devcontainer builds.
-
-To use it with direct Docker builds, place one or more PEM-formatted `.crt` files in a directory under the repo root, for example `.local/certs/`, and pass that repo-relative directory path:
-
-```zsh
-docker buildx build --load \
-  --build-arg CORPORATE_CA_CERT_DIR=.local/certs \
-  -f containers/ubuntu/Dockerfile \
-  -t dev-container-fortress:ubuntu-test .
-```
-
-The same pattern works for Alpine and Arch by swapping the Dockerfile path.
-
-For VS Code devcontainers, export the same repo-relative directory path before you reopen in container:
-
-```zsh
-export DEV_CONTAINER_FORTRESS_CA_CERT_DIR=.local/certs
-```
-
-If the variable is unset or empty, the CA installation step is skipped and the build behaves exactly as before. If the variable is set, the build requires the directory to exist and to contain at least one valid PEM `.crt` file.
+Corporate CA trust is an explicit opt-in for container and devcontainer
+builds, through the `CORPORATE_CA_CERT_DIR` build arg. The steps are in
+[Container Usage](../docs/guides/container-usage.md#optional-corporate-ca-support)
+and, for VS Code, in
+[Devcontainer Usage](../docs/guides/devcontainer-usage.md). If the build arg is
+unset or empty, the CA step is skipped. If it is set, the directory must exist
+and contain at least one valid PEM `.crt` file.
 
 > [!IMPORTANT]
 > This feature is active only when you opt in. Certificates are loaded as individual `.crt` files and copied into the distro trust setup. On Ubuntu this matches Canonical's documented `/usr/local/share/ca-certificates` plus `update-ca-certificates` flow. On Alpine we use the same `update-ca-certificates` integration as an implementation choice based on Alpine examples. On Arch the installer uses the p11-kit anchors directory `/etc/ca-certificates/trust-source/anchors` plus `update-ca-trust`. Keep the directory under `.local/`, such as `.local/certs/`: the repo's `.dockerignore` admits no other operator path into the build context, and `.local/` is not committed.
@@ -184,4 +125,5 @@ Build args:
 > [!NOTE]
 > Runtime shells can still override the selected profile with `SHELL_CONFIG_PROFILE`. The build-time default only determines the saved initial profile and the default exported environment inside the image.
 
-For local-source testing from an existing absolute host path, stage it into the build context with [`scripts/stage-shell-config.zsh`](../scripts/stage-shell-config.zsh).
+How to choose a source mode, including staging a local checkout, is in
+[Container Usage](../docs/guides/container-usage.md#shell-config-source-modes).

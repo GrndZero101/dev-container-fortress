@@ -265,7 +265,7 @@ def workbench_toml(definition: WorkbenchDefinition) -> str:
 
     return (
         "# Dev Fortress workbench. Edit it, then run `ft workbench render` to\n"
-        "# regenerate its folder; see docs/workbench-usage.md in dev-container-fortress.\n"
+        "# regenerate its folder; see docs/guides/workbench-usage.md in dev-container-fortress.\n"
         f"name = {json.dumps(definition.name)}\n"
         + setting("directory", definition.directory, f"~/workbenches/{definition.name}")
         + f"profile = {json.dumps(definition.profile)}\n"

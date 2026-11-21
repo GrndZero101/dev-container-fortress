@@ -26,7 +26,7 @@ carry prompt injection.
 ## Exit Criteria
 
 - [ ] `workbench.toml` accepts `trust = "sealed"`, and `ft workbench` generates a sealed definition from it
-- [ ] The sealed boundary contract (what stays outside) is recorded in `docs/container-standards.md` and `docs/architecture.md`
+- [ ] The sealed boundary contract (what stays outside) is recorded in `docs/design/container-standards.md` and `docs/design/architecture.md`
 - [ ] A sealed workbench passes a start-up boundary check that fails on any forbidden host channel, credential, mount, privilege, or open egress
 - [ ] Default-deny egress with a data-driven allowlist is active in sealed workbenches
 - [ ] Claude Code runs with permission prompts bypassed in sealed workbenches

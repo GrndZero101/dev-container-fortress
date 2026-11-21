@@ -62,6 +62,7 @@ cd path/to/dev-container-fortress
 ```zsh
 uv run ft container build ubuntu
 uv run ft container build alpine
+uv run ft container build arch   # amd64 hosts only
 ```
 
 ## 2. Provision the Disposable EC2 Ubuntu Host
@@ -79,7 +80,7 @@ This wrapper:
 - imports the emitted EC2 target into
   `~/.config/dev-container-fortress/hosts.toml`
 
-## 3. Validate All Three Targets
+## 3. Validate the Targets
 
 Preferred loop:
 
@@ -104,7 +105,7 @@ uv run ft host validate 'dev-fortress-*' --interactive
 The remaining sections below show the expanded command-by-command version of
 the same loop.
 
-## 4. Probe All Three Targets
+## 4. Probe the Targets
 
 ```zsh
 uv run ft host doctor dev-fortress-ubuntu --probe
@@ -112,7 +113,7 @@ uv run ft host doctor dev-fortress-alpine --probe
 uv run ft host doctor dev-fortress-ec2-dev --probe
 ```
 
-## 5. Bootstrap All Three Targets
+## 5. Bootstrap the Targets
 
 ```zsh
 uv run ft host bootstrap dev-fortress-ubuntu

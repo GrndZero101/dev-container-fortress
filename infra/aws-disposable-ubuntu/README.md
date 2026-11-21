@@ -107,16 +107,12 @@ uv run ft infra aws-disposable-ubuntu plan
 uv run ft infra aws-disposable-ubuntu apply
 ```
 
-`ft deploy init` clones or updates the development checkouts on the remote host
-under `~/workspaces/tboss` by default:
+After the host converges, the
+[EC2 Development Loop](../../docs/guides/ec2-development-loop.md) covers
+`ft deploy init`, remote checks, working in a workspace on the host, and
+editor access.
 
-```text
-~/workspaces/tboss/
-  dev-container-fortress/
-  shell-config/
-```
-
-Override the remote parent with `--workspace-parent` when needed.
+## Capacity Selection
 
 When `--architecture` is omitted, the selector considers all supported
 architectures and does not apply a default family allow-list. When

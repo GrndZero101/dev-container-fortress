@@ -1,285 +1,121 @@
 # Dev Container Fortress
 
-## Overview
+Dev Fortress provisions developer environments: it takes a fresh Ubuntu or
+WSL2 Ubuntu machine to a working workstation in one command, and builds the
+containers, devcontainers, and multi-repo workbenches that sit on top of it.
 
-`dev-container-fortress` is a developer-environment orchestration repo for:
+It is split into thin layers:
 
-- host bootstrap and provisioning
-- disposable Docker-based test targets
-- VS Code devcontainers
-- a shared operator CLI named `ft`
-
-The project is intentionally split across layers:
-
-- `ft` is the operator surface
-- Ansible handles host orchestration
-- Dockerfiles handle container construction
-- `shell-config` owns shell UX rather than this repo reimplementing it
-
-Tooling policy follows the same split:
-
-- container images should install userland tools through repo-owned Dev Fortress
-  mechanisms such as `ft`, shared installer scripts, and image-managed build
-  logic
-- host targets should converge on Homebrew for steady-state userland tools once
-  the minimal native bootstrap substrate is in place
-- Ansible should orchestrate and validate host state, including Homebrew-backed
-  host tooling, rather than becoming the primary tool source itself
+- `ft` is the operator CLI, for humans and agents
+- Ansible converges hosts
+- Homebrew supplies the steady-state toolchain
+- Dockerfiles build the container images
+- [`shell-config`](https://github.com/GrndZero101/shell-config) owns the shell
+  experience, which this repo consumes rather than reimplements
 
 > [!IMPORTANT]
-> This project is still in active buildout. The container and operator loops
-> and the one-command Ubuntu and WSL2 workstation onramp are useful day to day;
-> other workstation platforms are still in progress.
-> [!NOTE]
-> `just` still exists, but it is now a thin compatibility shim.
-> Treat `ft` as the primary interface.
+> This project is in active buildout. The [support matrix](#support-matrix)
+> below is the one place that records what works today.
 
-## Associated Projects
+## Install
 
-| Project | Role |
-| --- | --- |
-| [`shell-config`](https://github.com/GrndZero101/shell-config) | Shell UX, profile behavior, and interactive environment shaping consumed by Dev Fortress |
-
-## Two Paths
-
-Choose the path that matches your intent:
-
-- `Operator install`: you want a working environment quickly and are happy for
-  Dev Fortress to manage the installed `shell-config` checkout under your XDG
-  config tree
-- `Development install`: you are actively changing `dev-container-fortress`,
-  `shell-config`, or both, and want local clone paths to be the source of truth
-
-For active repository work, prefer the development path.
-
-## Operator Install
-
-On Ubuntu or WSL2 Ubuntu, one command takes a fresh machine to a Dev Fortress
-workstation. You need a user that can `sudo` and `curl` (Ubuntu Desktop may
-need `sudo apt-get install -y curl` first); the installer adds the rest:
+On Ubuntu or WSL2 Ubuntu, with a user that can `sudo`:
 
 ```sh
 cd ~
 curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | sh
 ```
 
-After one `sudo` prompt it installs the native prerequisites, `uv`, and `ft`,
-then converges the machine: Docker, `shell-config` with zsh as the login shell,
-and the Homebrew toolchain. Re-running it is safe, including on a machine you
-already set up by hand.
+After one `sudo` prompt this installs Docker, `shell-config` with zsh as the
+login shell, the Homebrew toolchain, and `ft`. Re-running it is safe, including
+on a machine you set up by hand.
 
-> [!TIP]
-> The [Zero to Hero Quickstart](docs/quickstart.md) is the whole onramp: extras
-> such as Claude Code and the tmux profiles, Git identity, existing machines,
-> the `cli` and `workspace` install modes, every override, and troubleshooting.
+The [quickstart](docs/quickstart.md) is the whole install guide: prerequisites,
+extras such as Claude Code and the tmux profiles, the `cli` and `workspace`
+install modes, every override, WSL2 notes, and troubleshooting.
 
-Dev Fortress and `shell-config` look best with **JetBrainsMono Nerd Font** in
-your terminal; the quickstart shows how to install it on Linux, macOS, and
-Windows for WSL2.
+To work on Dev Fortress itself, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
-On top of the workstation, compose a **workbench** per set of repos: a
-devcontainer described by one TOML file that `ft` renders and clones, so the
-whole setup can be rebuilt on a new machine from a few small files. See
-[Workbench Usage](docs/workbench-usage.md).
+## Support Matrix
 
-### Manual clone fallback
-
-```sh
-git clone https://github.com/GrndZero101/dev-container-fortress.git
-cd dev-container-fortress
-zsh ./bootstrap.zsh
-```
-
-Use the manual path when you want to inspect or edit the checkout before
-running the bootstrap. It sets up `uv`, `ft`, and Ansible only; converge the
-machine afterwards with `ft host bootstrap localhost -K`.
-
-## Development Install
-
-For development, keep both repos cloned explicitly and treat those clones as
-the source of truth:
-
-```text
-<workspace>/
-  dev-container-fortress/
-  shell-config/
-```
-
-Recommended setup: follow the
-[developer path](DEVELOPMENT.md#rocket-zero-to-hero-developer-path), which
-runs the installer from your source folder and clones `shell-config` beside
-it:
-
-```sh
-mkdir -p ~/src && cd ~/src
-curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | sh
-git clone https://github.com/GrndZero101/shell-config.git
-```
-
-Then use the local repos directly:
-
-- run `ft` from the Dev Fortress checkout
-- keep `shell-config` as a sibling checkout so workspace and container flows can
-  see it automatically
-- prefer local-source container and workspace flows over GitHub-backed staging
-
-Recommended development loops:
-
-```sh
-ft workspace doctor ubuntu-full
-ft workspace build ubuntu-full
-ft workspace up ubuntu-full
-ft workspace enter ubuntu-full
-```
-
-For VS Code-first multi-repo work, use a [workbench](docs/workbench-usage.md),
-with `local_build` pointing at your Dev Fortress clone when you are changing
-the image itself.
-
-```sh
-ft container build ubuntu \
-  --shell-config-source local \
-  --shell-config-stage-from /absolute/path/to/shell-config
-```
-
-> [!NOTE]
-> The full contributor workflow lives in
-> [DEVELOPMENT.md](DEVELOPMENT.md).
-
-## Status
-
-| Area | Status | Notes |
+| Target | State | Notes |
 | --- | --- | --- |
-| Local repo bootstrap | Working | `uv`-based local setup is in daily-use shape |
-| `ft` CLI | Working | Main operator surface for container and early host workflows |
-| Ubuntu disposable target | Working | End-to-end Docker, SSH, and Ansible check loop is proven |
-| Alpine disposable target | Working | End-to-end Docker, SSH, and Ansible check loop is proven |
-| Arch disposable target | Working | amd64 only; container loop and a disposable Arch EC2 host verified in `M9a` |
-| VS Code devcontainers | Working | Thin wrappers over the container targets |
-| Workspace daily-driver container | Working | `ft workspace ...` verified locally and on a disposable Ubuntu EC2 host in `M5a`, including amd64 and arm64 images |
-| Host target model | Working foundation | `ft host ...` inventory, key, probe, and bootstrap contract exists |
-| Real host provisioning roles | Working | Ubuntu roles converge WSL2 `localhost` and Ubuntu EC2 hosts; Arch and Alpine base roles exist |
-| Full workstation bootstrap | Working | One command on Ubuntu and WSL2 Ubuntu, safe on existing machines; see the [quickstart](docs/quickstart.md) |
+| Ubuntu workstation, bare metal or WSL2 | Supported | One command; Ubuntu 26.04 LTS on amd64 and arm64 is the tested baseline |
+| macOS workstation | Partial | The installer's `cli` mode only; host mode is planned in `M5e` |
+| Remote Ubuntu host over SSH, including EC2 | Supported | `ft host ...` enrolls, probes, and converges it |
+| Arch host | New | x86_64 only; pacman supplies the toolchain instead of Homebrew |
+| Alpine host | Partial | Base packages, `shell-config`, and zsh as the login shell; no Homebrew toolchain |
+| Ubuntu container | Supported | amd64 and arm64 |
+| Alpine container | Supported | Tools come from the `ft install` downloader, because Homebrew does not support musl |
+| Arch container | Supported | amd64 only |
+| Workspace daily-driver container | Supported | `ft workspace ...`, amd64 and arm64 |
+| VS Code devcontainers | Supported | Thin wrappers over the container targets |
+| Workbenches | New | Multi-repo devcontainers rendered from one TOML file |
 
-## :wrench: Operator Surface
+## Documentation
 
-| Interface | Role | Current guidance |
-| --- | --- | --- |
-| `ft` | Primary human and agent operator surface | Use this first |
-| `ft deploy` | Remote EC2 development-host loop | Use `deploy init` to clone Git checkouts and `deploy exec` for remote commands |
-| `ft infra aws-disposable-ubuntu capacity select` | EC2 capacity selector for the disposable daily-driver host | Use Spot for cost or on-demand for stability before Terraform plan/apply |
-| `just` | Convenience shim | Keep for muscle memory, but do not treat it as the logic home |
-| `ansible/` | Host automation layer | Thin today, expanding during host-role milestones |
-| `containers/` | Disposable target implementation | Use for build/runtime contracts |
-| `.devcontainer/` | VS Code integration | Thin wrapper over the matching container target, rendered by `ft devcontainer render` |
-| `devcontainer/volume/` | Devcontainer CLI terminal mode | Clones code into a named volume on the published image |
-| `ft workbench` | Multi-repo devcontainers for your own repos | Define one TOML file; `ft` renders the folder and clones the repos |
+### Start Here
 
-## :world_map: Target Matrix
+| Document | Purpose |
+| --- | --- |
+| [Quickstart](docs/quickstart.md) | Install a workstation, from prerequisites to a validated machine |
+| [WSL2 notes](docs/wsl-bootstrap.md) | Windows-side setup, systemd, Docker, interop, and Windows SSH |
 
-| Target type | Current state | Primary docs |
-| --- | --- | --- |
-| Ubuntu container | Supported | [Container Usage](docs/container-usage.md) |
-| Alpine container | Supported | [Container Usage](docs/container-usage.md) |
-| Arch container | New, amd64 only | [Container Usage](docs/container-usage.md) |
-| Arch host bootstrap | New, x86_64 only, pacman instead of Homebrew | [Ansible README](ansible/README.md) |
-| Ubuntu disposable SSH host loop | Supported foundation | [Workstation Usage](docs/workstation-usage.md) |
-| macOS workstation | Planned / partial | [Workstation Usage](docs/workstation-usage.md) |
-| Ubuntu workstation | Supported, one-liner | [Quickstart](docs/quickstart.md) |
-| WSL workstation | Supported, one-liner on WSL2 Ubuntu | [Quickstart](docs/quickstart.md) |
-| VS Code devcontainers | Supported | [Devcontainer Usage](docs/devcontainer-usage.md) |
-| Workbenches (multi-repo devcontainers) | New | [Workbench Usage](docs/workbench-usage.md) |
+### Guides
 
-## :compass: Documentation Map
+| Document | Purpose |
+| --- | --- |
+| [Workbenches](docs/guides/workbench-usage.md) | Multi-repo devcontainers for your own repos |
+| [Workspaces](docs/guides/workspace-usage.md) | The mounted daily-driver container, `ft workspace ...` |
+| [Devcontainers](docs/guides/devcontainer-usage.md) | The repo's VS Code devcontainer definitions |
+| [Containers](docs/guides/container-usage.md) | Building, running, and validating the images |
+| [Workstations and remote hosts](docs/guides/workstation-usage.md) | Host targets and bootstrap over SSH |
+| [EC2 development host](docs/guides/ec2-development-loop.md) | A disposable cloud development host |
+| [Secrets](docs/guides/secrets-management.md) | GPG and `pass` in workspace profiles |
 
-| Document | Audience | Purpose |
-| --- | --- | --- |
-| [README.md](README.md) | Everyone | Project overview plus operator-versus-development entry points |
-| [docs/quickstart.md](docs/quickstart.md) | Operators | Zero to Hero: the one-command workstation onramp |
-| [DEVELOPMENT.md](DEVELOPMENT.md) | Contributors | Clone layout, local bootstrap, checks, and iteration loops |
-| [docs/container-usage.md](docs/container-usage.md) | Operators | Docker-based usage and validation |
-| [docs/workstation-usage.md](docs/workstation-usage.md) | Operators | Host targets, remote bootstrap over SSH, and role coverage |
-| [docs/wsl-bootstrap.md](docs/wsl-bootstrap.md) | Operators | WSL2-specific notes: systemd, Docker, interop, and Windows SSH |
-| [docs/target-validation.md](docs/target-validation.md) | Operators | Current three-target validation runbook across Ubuntu, Alpine, and EC2 |
-| [docs/ec2-development-loop.md](docs/ec2-development-loop.md) | Operators | Git-backed EC2 development-host loop |
-| [docs/secrets-management.md](docs/secrets-management.md) | Operators | First-pass GPG and `pass` secrets baseline for workspace profiles |
-| [docs/backup-restore.md](docs/backup-restore.md) | Operators | General `rustic`-oriented backup and restore direction |
-| [docs/devcontainer-usage.md](docs/devcontainer-usage.md) | Operators | VS Code devcontainer usage |
-| [docs/workbench-usage.md](docs/workbench-usage.md) | Operators | Multi-repo workbenches for your own repos |
-| [docs/architecture.md](docs/architecture.md) | Maintainers | Layering and control-plane direction |
-| [docs/container-standards.md](docs/container-standards.md) | Maintainers | Container runtime/build contract |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Maintainers | Milestone ordering and strategic direction |
-| [docs/milestones/README.md](docs/milestones/README.md) | Maintainers | Active milestone workflow and draft format |
+### Reference
 
-## :building_construction: Repository Layout
+| Document | Purpose |
+| --- | --- |
+| [`ft` CLI reference](docs/reference/cli.md) | Every command and flag, generated from the CLI itself |
+
+### Design
+
+| Document | Purpose |
+| --- | --- |
+| [Architecture](docs/design/architecture.md) | Layering, tool selection, and control-plane direction |
+| [Container standards](docs/design/container-standards.md) | The container build and runtime contract |
+| [Daily-driver design](docs/design/daily-driver-design.md) | Design notes behind `ft workspace` |
+| [Backup and restore](docs/design/backup-restore.md) | Direction for `rustic`-based backups |
+
+### Project
+
+| Document | Purpose |
+| --- | --- |
+| [DEVELOPMENT.md](DEVELOPMENT.md) | Contributor setup, checks, CI, and development loops |
+| [Roadmap](docs/project/ROADMAP.md) | Milestone ordering and current direction |
+| [Milestones](docs/project/milestones/README.md) | Milestone workflow and working drafts |
+| [Target validation](docs/project/target-validation.md) | Runbook for validating the container and EC2 targets |
+| [TODO.md](TODO.md) | The short "up next" queue |
+| [AGENTS.md](AGENTS.md) | Conventions for coding agents and contributors |
+
+Component READMEs sit beside the code they describe: [`ansible/`](ansible/README.md),
+[`containers/`](containers/README.md), [`infra/`](infra/README.md), and
+[`ft/tools/`](ft/tools/README.md).
+
+## Repository Layout
 
 | Path | Purpose |
 | --- | --- |
 | `ft/` | Python package for the `ft` CLI, target model, and supporting logic |
-| `ansible/` | Host playbooks, inventory contract, and future roles |
+| `ansible/` | Host playbooks, inventory contract, and roles |
 | `brew/` | Host-side Brew bundle definitions |
 | `containers/` | Ubuntu, Alpine, and Arch container targets plus shared runtime helpers |
-| `infra/` | Terraform-owned infrastructure layer for disposable and future repeatable host targets |
-| `.devcontainer/` | VS Code wrappers for container targets |
+| `infra/` | Terraform stacks for disposable hosts and the test fleet |
+| `.devcontainer/` | VS Code wrappers for the container targets |
 | `devcontainer/` | Devcontainer CLI definitions that VS Code should not offer on reopen |
 | `examples/workbench/` | A rendered reference workbench, kept current by pre-commit |
-| `docs/` | Usage guides, contracts, roadmap, and milestone drafts |
-
-## :dart: Design Direction
-
-- Keep `ft` as the stable operator front door for both humans and agents
-- Keep shell behavior in [`shell-config`](../shell-config/README.md)
-- Prefer explicit, debuggable contracts over magic
-- Prove transport and bootstrap paths before deepening workstation automation
-- Keep the container and host stories aligned where practical without forcing them to be identical
-- Keep container userland tooling repo-owned and image-managed
-- Keep host userland tooling Homebrew-managed after the native bootstrap floor, except on Arch where pacman already covers it
-
-## :zap: Current Working Surface
-
-Working today:
-
-- local workspace bootstrap with `uv`
-- packaged `ft` CLI with grouped `container`, `workspace`, `host`, and `tool` surfaces
-- Ubuntu and Alpine disposable container flows
-- Ubuntu-first mounted workspace flow through `ft workspace ...`
-- VS Code devcontainer wrappers
-- host target inventory, managed SSH keys, public-key enrollment, probe, and thin bootstrap
-- disposable Ubuntu and Alpine end-to-end verification through Docker, SSH, and Ansible bootstrap
-
-In progress:
-
-- first real host provisioning roles
-- clearer shell-config handoff for host targets
-- smoother milestone-level verification workflow
-
-> [!TIP]
-> For active `shell-config` development, prefer
-> `ft container build <target> --shell-config-source local --shell-config-stage-from /absolute/path/to/shell-config`
-> so you are not fighting stale Docker cache from GitHub-backed clones.
-
-## :rocket: Bootstrap Direction
-
-| Flow | Shape today |
-| --- | --- |
-| Local repo bootstrap | `bootstrap.zsh` installs `uv`, syncs the environment, and enables repo-local tooling |
-| Direct host bootstrap | thin host contract with `ft host doctor`, inventory rendering, SSH key workflow, and Ansible bootstrap |
-| Docker build | Dockerfile plus Python/`uv`-driven userland tooling and `shell-config` integration |
-| Devcontainer bootstrap | thin VS Code wrapper over the matching container target |
-
-## :calendar: Current Milestone
-
-[M5c Composable Container Workspaces](docs/milestones/M5c-composable-container-workspaces.md)
-delivered workbenches. Next are
-[M5e Zero to Hero: Developer Workstation](docs/milestones/M5e-developer-workstation.md),
-starting with a timed bare-metal run of the developer path, and
-[M5f Agent Workbench Guardrails](docs/milestones/M5f-agent-workbench-guardrails.md).
-
-Use these planning docs together:
-
-- [docs/ROADMAP.md](docs/ROADMAP.md) for strategy and milestone ordering
-- [docs/milestones/README.md](docs/milestones/README.md) for the execution workflow
-- the active milestone draft under [docs/milestones](docs/milestones)
+| `docs/` | Guides, reference, design notes, roadmap, and milestone drafts |
 
 ## Collaboration Model
 

@@ -4,6 +4,14 @@ This note captures the intended direction for getting `dev-container-fortress`
 to an initial public release and making it usable as the base image for
 multi-repo VS Code workspaces.
 
+> [!WARNING]
+> This plan predates workbenches and is kept as a record. Two parts are
+> superseded: the separate orchestrator repository it describes
+> (`tboss-workspace`, since deleted) is replaced by
+> [`ft workbench`](../guides/workbench-usage.md), and CI already builds,
+> smoke-tests, and publishes the images, including Arch. What remains open is
+> cutting the first `v0.1.0` tag. Revise this plan before acting on it.
+
 ## Goal
 
 Publish reusable Ubuntu, Ubuntu daily-driver, and Alpine Dev Fortress container
@@ -235,8 +243,8 @@ Likely files involved:
 .github/workflows/ci.yml
 containers/ubuntu/Dockerfile
 containers/alpine/Dockerfile
-docs/devcontainer-usage.md
-docs/container-usage.md
+docs/guides/devcontainer-usage.md
+docs/guides/container-usage.md
 README.md
 DEVELOPMENT.md
 ../tboss-workspace/.devcontainer/devcontainer.json

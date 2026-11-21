@@ -1,62 +1,39 @@
 # Development Guide
 
-This guide is for a developer who wants to work on
-`dev-container-fortress`, `shell-config`, or both without losing track of
-which local checkout is actually active.
+This guide is for contributors to `dev-container-fortress`, `shell-config`, or
+both. Installing and using Dev Fortress is covered by the
+[quickstart](docs/quickstart.md) and the guides in the
+[documentation map](README.md#documentation); this page adds only what a
+contributor needs on top.
 
-It focuses on the current high-value loop:
-
-- clone both repos explicitly for development
-- bootstrap the repo locally
-- use `ft` as the primary operator CLI
-- build and validate Ubuntu, Alpine, and Arch (amd64 only) test containers
-- iterate on `shell-config` and container behavior without getting lost in Docker cache surprises
-
-> [!IMPORTANT]
-> `ft` is the primary interface now. `just` still exists, but treat it as a compatibility shim rather than the main developer workflow.
 > [!NOTE]
-> Dev Fortress should increasingly be used to develop and validate itself.
-> When a documented `ft` or bootstrap workflow exists, prefer it over ad hoc
-> manual commands. If a necessary workflow is still too manual or taxing,
-> treat that as a roadmap opportunity rather than a permanent workaround.
+> Use Dev Fortress to develop and validate Dev Fortress. Prefer `ft` and the
+> documented loops over ad hoc commands, and treat a workflow that is still
+> painful as a roadmap opportunity rather than a permanent workaround. `just`
+> remains only as a thin shim over `ft`.
 
 ## :rocket: Zero to Hero: Developer Path
 
-From a fresh Ubuntu install (bare metal, WSL2, or EC2) to a Dev Fortress
-development workstation plus a workbench for agentic development, in under an
-hour and about ten commands. Each step links to the guide that covers it in
-depth. On WSL2, start with the
-[clean start on Windows](docs/wsl-bootstrap.md#checkered_flag-clean-start-on-windows),
-which wraps this path with the Windows-side setup.
+From a fresh Ubuntu install (bare metal, WSL2, or EC2) to a development
+workstation plus a workbench for agentic development.
 
-**1. Prerequisites.** A user that can `sudo`, and `curl`. Ubuntu Desktop may
-lack `curl`:
+**1. Install the workstation.** Follow the [quickstart](docs/quickstart.md),
+with two differences:
 
-```sh
-sudo apt-get update && sudo apt-get install -y curl
-```
+- start from the folder that holds your source trees, such as `~/src`, instead
+  of `~`. The installer's checkout is a normal Git clone, and it is the one
+  you develop in
+- add `--options claude-code`
 
-**2. Workstation and source checkouts.** Run the installer from the folder
-that holds your source trees. It installs Docker, `shell-config`, the Homebrew
-toolchain, and `ft`, and its checkout is a normal Git clone that you develop
-in. Then clone `shell-config` beside it:
+To install a branch that is not merged yet, add `--ref <branch>`; see
+[Testing a branch](docs/quickstart.md#testing-a-branch).
+
+**2. Clone `shell-config` beside it.**
 
 ```sh
-mkdir -p ~/src && cd ~/src
-curl -fsSL https://raw.githubusercontent.com/GrndZero101/dev-container-fortress/main/install.sh | \
-  sh -s -- --options claude-code
+cd ~/src
 git clone https://github.com/GrndZero101/shell-config.git
 ```
-
-This leaves `~/src/dev-container-fortress` and `~/src/shell-config` side by
-side; `--dir` puts the Dev Fortress checkout elsewhere. Details:
-[quickstart](docs/quickstart.md).
-
-> [!TIP]
-> To install a branch that is not merged yet, add `--ref <branch>` to the
-> installer; the checkout then starts on that branch. See
-> [Testing a branch](docs/quickstart.md#testing-a-branch) for fetching the
-> installer itself from a fresh push.
 
 **3. Developer setup.** Open a new terminal, which starts the managed zsh and
 picks up the `docker` group, then:
@@ -65,12 +42,11 @@ picks up the `docker` group, then:
 cd ~/src/dev-container-fortress
 uv run pre-commit install
 ft identity --login github
-brew install --cask font-jetbrains-mono-nerd-font
 ```
 
-The font command is for a Linux or macOS desktop; on WSL2 install the font on
-Windows instead, as [quickstart step 5](docs/quickstart.md) shows, then select
-it in your terminal.
+Set the terminal font as
+[quickstart step 5](docs/quickstart.md#abc-5-set-the-terminal-font-recommended)
+describes.
 
 **4. Agent workbench.** Compose a devcontainer holding the repos you want
 agents to work on:
@@ -86,14 +62,13 @@ code ~/workbenches/devops
 Choose "Reopen in Container", or use terminal mode with
 `devcontainer up --workspace-folder ~/workbenches/devops`. Inside, run
 `ft identity --login github`, then `claude`. Details:
-[workbench usage](docs/workbench-usage.md).
+[workbench usage](docs/guides/workbench-usage.md).
 
 > [!TIP]
 > To run the workbench on an image built from your checkout rather than the
-> published one, for example to try an image change or an unmerged branch,
-> add `--local-build ~/src/dev-container-fortress` to `ft workbench init`, or
-> set `local_build` in the workbench file later. See
-> [Building the Image Locally](docs/workbench-usage.md#building-the-image-locally).
+> published one, add `--local-build ~/src/dev-container-fortress` to
+> `ft workbench init`, or set `local_build` in the workbench file later. See
+> [Building the Image Locally](docs/guides/workbench-usage.md#building-the-image-locally).
 
 The workbench holds its own clones under `repos/`, separate from `~/src`.
 That is deliberate: an agent in the workbench reaches only `repos/`, never your
@@ -103,263 +78,78 @@ container builds, which need the host's Docker.
 > [!IMPORTANT]
 > Your login shell runs the installed `~/.config/shell-config`, not
 > `~/src/shell-config`, and re-running the host bootstrap resets it to `main`.
-> Do not edit it. Try `shell-config` changes in a container or `ft workspace`
-> (see the loops below), which mount the sibling clone. Running the host shell
-> from your clone is planned in
-> [`M5e`](docs/milestones/M5e-developer-workstation.md).
-
-Claude Code in a workbench still asks before each action; bypassing permission
-prompts by default, behind a deny-list hook, is planned in
-[`M5f`](docs/milestones/M5f-agent-workbench-guardrails.md). macOS supports only
-the installer's `cli` mode today (see Manual Setup below); macOS host mode is
-planned in `M5e`.
+> Do not edit it. Try `shell-config` changes in a container or workspace, which
+> mount or stage the sibling clone; see
+> [Shell-Config Changes](#shell-config-changes). Running the host shell from
+> your clone is planned in
+> [`M5e`](docs/project/milestones/M5e-developer-workstation.md).
 
 ## Development Layout
 
-For active development, prefer a sibling-checkout layout:
+Keep both repos as sibling clones and treat them as the source of truth:
 
 ```text
-<workspace>/
+~/src/
   dev-container-fortress/
   shell-config/
 ```
 
-For VS Code devcontainer work across multiple repos, use a workbench (see the
-[workbench usage guide](docs/workbench-usage.md)). To change the Dev Fortress
-image from inside one, set `local_build = "repos/dev-container-fortress"`:
+- `ft workspace ...` mounts a sibling `../shell-config` automatically
+- `ft container build ... --shell-config-source local` stages from it
+- the installed `${XDG_CONFIG_HOME:-$HOME/.config}/shell-config` is runtime
+  state that the host bootstrap manages, not a place to edit
 
-```text
-~/workbenches/<name>/
-  .devcontainer/
-  repos/
-    dev-container-fortress/
-    shell-config/
-```
+## Platforms
 
-This matters because:
+Ubuntu, on bare metal or WSL2, is the supported developer platform; the
+developer path above covers it.
 
-- `ft workspace ...` auto-mounts a sibling `../shell-config` checkout when it
-  exists
-- `ft container build ... --shell-config-source local` is easiest to drive from
-  a real local `shell-config` clone
-- it keeps the source you are editing separate from any installed
-  `~/.config/shell-config` checkout that host bootstrap may manage
+macOS supports only the installer's `cli` mode today, and macOS host mode is
+planned in `M5e`. To contribute from macOS, install `git`, `rsync`, and Docker
+Desktop (`brew install git rsync` and `brew install --cask docker`), confirm
+`docker buildx version` works, then use the
+[manual clone](docs/quickstart.md#manual-clone). That gives you `ft`, the
+tests, and the container loops, without converging the Mac itself.
 
-The workbench is the VS Code composition layer. Dev Fortress remains the
-toolchain image and `ft` provider.
+## Checks
 
-Operator installs and host bootstrap may still populate
-`${XDG_CONFIG_HOME:-$HOME/.config}/shell-config`. Treat that installed checkout
-as runtime state. For development, your sibling clone should be the source of
-truth.
-
-## Supported Developer Platforms
-
-The current recommended developer platforms are:
-
-- macOS with Homebrew and Docker Desktop
-- Ubuntu on bare metal or Ubuntu under WSL2, with Docker CE from Docker's official apt repository
-
-General tool-management rule of thumb:
-
-- Docker images: repo-owned custom installers and `ft`-managed image logic
-- Host userland tools on macOS, Ubuntu, WSL2, and EC2 Ubuntu: Homebrew after
-  the minimal native bootstrap substrate is in place
-- Native package managers remain acceptable for base host prerequisites such as
-  Docker Engine, `git`, `curl`, and similar bootstrap-floor dependencies
-
-## Manual Setup
-
-The developer path above covers Ubuntu and WSL2 Ubuntu. Use this section on
-macOS today, or when you do not want the installer to converge the machine.
-
-Recommended baseline on your workstation:
-
-- `zsh`
-- `git`
-- Docker with `buildx`
-- `curl`
-- `rsync`
-
-You do not need `uv` or a specific Python preinstalled. The repo bootstrap
-will install `uv` if needed and then provision the uv-managed Python that the
-repo-root `.python-version` pins (3.14 today) for the project environment.
-
-### macOS with Homebrew
-
-If you use Homebrew, these commands are a good baseline:
-
-```zsh
-brew install git rsync pre-commit
-brew install --cask docker
-```
-
-Then:
-
-1. start Docker Desktop
-2. wait for Docker to become available
-3. confirm `docker buildx version` works
-
-Useful checks:
-
-```zsh
-docker version
-docker buildx version
-git --version
-rsync --version
-```
-
-> [!TIP]
-> `pre-commit` is optional at the package-manager level because the repo can run it through `uv`, but installing it globally is still convenient for local development.
-
-### Ubuntu or Ubuntu on WSL2
-
-The installer's default `host` mode already installs Docker CE. Follow this
-only if you skipped it. Prefer Docker CE from Docker's official apt repository
-instead of a Homebrew-based Docker install.
-
-Useful baseline packages:
-
-```zsh
-sudo apt update
-sudo apt install -y git rsync curl ca-certificates pre-commit
-```
-
-Then install Docker CE using Docker's standard Ubuntu method:
-
-```zsh
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo \"${UBUNTU_CODENAME:-$VERSION_CODENAME}\") stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
-sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-```
-
-Optional post-install so you can run Docker without `sudo` after a fresh login:
-
-```zsh
-sudo usermod -aG docker "$USER"
-```
-
-Useful checks:
-
-```zsh
-docker version
-docker buildx version
-git --version
-rsync --version
-```
-
-> [!IMPORTANT]
-> Under WSL2, make sure the Docker daemon path you choose is actually reachable from your Ubuntu environment before starting the Dev Fortress loop. The simplest route is usually a normal Docker CE install inside Ubuntu, or a known-good Docker Desktop plus WSL integration setup you already trust.
-
-## Bootstrap Details
-
-The developer path runs the installer. Without it, start from explicit clones
-and the repo bootstrap, which sets up `uv`, `ft`, and Ansible only:
-
-```zsh
-git clone https://github.com/GrndZero101/dev-container-fortress.git
-git clone https://github.com/GrndZero101/shell-config.git
-cd dev-container-fortress
-zsh ./bootstrap.zsh
-```
-
-Converge the machine afterwards with `ft host bootstrap localhost -K`, or
-stay CLI-only.
-
-Pass `--mode cli` (`curl … | sh -s -- --mode cli`) to stop after the `ft`
-install; the default `host` mode also converges the machine with
-`ft host bootstrap localhost`. `--mode workspace` converges only the bootstrap
-floor and Docker, then builds the `ubuntu-full` workspace image.
-
-The Dev Fortress bootstrap will:
-
-1. install `uv` if missing
-2. hand off to `bootstrap.zsh`
-3. provision the uv-managed Python that `.python-version` pins for the project environment
-4. create or refresh the local project environment
-5. install the live `ft` CLI into the user tool path with `uv tool install`
-6. install Ansible into the user tool path with `uv tool install` so the
-   global `ft` can run host commands
-7. install the `ft` completion artifact into the XDG data tree
-
-Optional environment overrides for the installer path:
-
-- `DEV_CONTAINER_FORTRESS_MODE` to choose `host` (default) or `cli`
-- `DEV_CONTAINER_FORTRESS_DIR` to change the checkout destination
-- `DEV_CONTAINER_FORTRESS_REF` to pin a branch, tag, or commit
-- `DEV_CONTAINER_FORTRESS_REPO` to use an alternate repository URL
-
-Manual clone fallback for Dev Fortress only:
-
-```zsh
-git clone https://github.com/GrndZero101/dev-container-fortress.git
-cd dev-container-fortress
-zsh ./bootstrap.zsh
-```
-
-This will:
-
-1. install `uv` if missing
-2. provision the uv-managed Python that `.python-version` pins for the local project
-3. create or refresh the local `.venv`
-4. install Python dependencies for local development
-5. install the live `ft` CLI into the user tool path from the local checkout
-6. install Ansible into the user tool path with `uv tool install` so the
-   global `ft` can run host commands
-7. install the `ft` zsh completion artifact into the XDG data tree
-
-After bootstrap, open a fresh shell if you want the new completion loaded cleanly.
-
-## Core Developer Commands
-
-Use `ft` directly:
-
-```zsh
-uv run ft --help
-uv run ft doctor
-uv run ft container --help
-uv run ft completion path zsh
-```
-
-Once the repo is bootstrapped and your shell is picking up the installed tooling, the shorter form should also work:
-
-```zsh
-ft doctor
-ft container status
-```
-
-## Baseline Local Checks
-
-Run these after a fresh checkout or after significant CLI changes:
+Run these before pushing:
 
 ```zsh
 uv run ruff check ft
 uv run pytest ft/tests
 uv run pre-commit run --all-files
-pre-commit run markdownlint-cli2 --all-files
 ```
 
-To install the hooks locally:
+`uv run pre-commit install` runs the hooks on every commit. They are:
+
+- file hygiene: YAML and JSON syntax, merge markers, trailing whitespace, and
+  final newlines
+- `ruff` lint and format for Python
+- `rumdl` for Markdown, configured in `pyproject.toml`. It also checks that
+  relative links between documents resolve
+- render checks, which fail when a generated file is out of date: the
+  [`ft` CLI reference](docs/reference/cli.md), the `.devcontainer/`
+  definitions, and the example workbench
+- `ansible-playbook --syntax-check` and `ansible-lint` for `ansible/`
+- `zsh -n`, `sh -n`, and `bash -n` syntax checks for the repo's shell
+  entrypoints
+
+### The CLI Reference
+
+[`docs/reference/cli.md`](docs/reference/cli.md) is generated from the Typer
+app, so the CLI documents itself: a command's docstring becomes its
+description, and each `help=` string becomes the entry for that argument or
+option. Never edit the file by hand. After changing a command, regenerate it:
 
 ```zsh
-uv run pre-commit install
+uv run typer ft.cli utils docs --name ft --title "ft CLI reference" \
+  --output docs/reference/cli.md
 ```
 
-The current baseline keeps the hooks intentionally light:
-
-- file hygiene checks for YAML, JSON, merge markers, trailing whitespace, and EOF handling
-- `markdownlint-cli2` for repo Markdown, aligned with the VS Code markdownlint ecosystem
-- `ANSIBLE_CONFIG="$PWD/ansible/ansible.cfg" ansible-playbook --syntax-check`
-  for the repo-owned host playbook
-- `ansible-lint` for the Ansible tree under `ansible/`
-- `ruff` lint and format for Python
-- `zsh -n` syntax checks for repo-owned Zsh entrypoints under `scripts/` and
-  `infra/`, plus `bootstrap.zsh`
-- `sh -n` syntax checks for `install.sh` and the POSIX helpers under
-  `containers/common/`
+The pre-commit hook does the same and fails when the committed copy is stale.
+`ft/tests/test_cli_reference.py` fails when a command, argument, or option has
+no help text.
 
 ### Continuous Integration
 
@@ -383,203 +173,14 @@ values together and let the branch CI run prove the move.
 > CI does not replace the local `ft` loops. It cannot run `ft host validate`
 > or cloud-host checks, so keep running those locally for risky changes.
 
-## Workspace Daily-Driver Loop
+## Development Loops
 
-The repo now also includes an Ubuntu-first daily-driver container path for
-mounted development work.
+The guides describe each surface; these are the loops a contributor repeats.
 
-Start with:
+### Image and Container Changes
 
-```zsh
-ft workspace doctor ubuntu-base
-ft workspace build ubuntu-base
-ft workspace up ubuntu-base
-ft workspace enter ubuntu-base
-```
-
-This path is intentionally different from the disposable target loop:
-
-- `ft container ...` is for validation targets and parity testing
-- `ft workspace ...` is for live mounted day-to-day development
-
-Current first-pass behavior:
-
-- the workspace bind-mounts the live `dev-container-fortress` checkout
-- it bind-mounts a sibling `../shell-config` checkout automatically when present
-- it persists a small state set for cache, share, GitHub CLI, GitLab CLI, AWS, and Azure paths under the Dev Fortress XDG state tree
-- on WSL-backed hosts, it mounts `C:\Windows\System32` read-only into the container and defaults browser-based auth flows to the built-in host browser helper unless `BROWSER` or `GH_BROWSER` is already set
-
-Current auth limitation to keep in mind:
-
-- browser launch from the workspace container is supported
-- localhost callback OAuth is not guaranteed in plain Docker workspaces
-- for tools such as AWS CLI SSO, prefer device-code flows in workspace
-  containers, for example `aws sso login --use-device-code`
-- native hosts can keep their normal localhost callback flows
-
-Use `ft workspace exec ubuntu-base -- zsh -lc 'pwd'` for one-off commands and
-`ft workspace reset ubuntu-base` when you want to remove both the container and
-its tagged image cleanly.
-
-For auth-oriented runtime checks, use:
-
-```zsh
-ft workspace auth doctor ubuntu-gitforge
-ft workspace auth validate ubuntu-gitforge
-```
-
-If you want the most feature-complete current workspace for day-to-day use and
-cross-layer validation, prefer:
-
-```zsh
-ft workspace doctor ubuntu-full
-ft workspace build ubuntu-full
-ft workspace up ubuntu-full
-ft workspace auth validate ubuntu-full
-ft workspace enter ubuntu-full
-```
-
-## Preferred Container Development Loop
-
-### Quick Orientation
-
-Start with:
-
-```zsh
-ft doctor
-ft container status
-```
-
-### Build, Start, Validate
-
-Ubuntu:
-
-```zsh
-ft container build ubuntu
-ft container up ubuntu
-ft container validate ubuntu
-ft container shell ubuntu
-```
-
-Alpine:
-
-```zsh
-ft container build alpine
-ft container up alpine
-ft container validate alpine
-ft container shell alpine
-```
-
-Arch (amd64 hosts only):
-
-```zsh
-ft container build arch
-ft container up arch
-ft container validate arch
-ft container shell arch
-```
-
-### Faster Convenience Commands
-
-For the most common human loops:
-
-```zsh
-ft container refresh ubuntu
-ft container enter ubuntu
-```
-
-Meaning:
-
-- `refresh` rebuilds the image and replaces the container
-- `enter` reuses the running container, starting or creating it only when
-  needed, then opens an interactive shell
-
-### Useful Inspection Commands
-
-```zsh
-ft container logs ubuntu
-ft container exec ubuntu -- printenv TERM
-ft container exec ubuntu -- zsh -lc 'echo $TERM'
-ft container down ubuntu
-ft container reset ubuntu
-```
-
-> [!TIP]
-> Use `--` with `ft container exec` whenever the inner command has its own flags.
-
-## Shell-Config Development Loop
-
-If you are actively changing `shell-config`, prefer your local clone instead of
-an installed checkout or a moving GitHub branch.
-
-Recommended assumptions:
-
-- your development clone lives at `../shell-config`
-- workspace flows should mount that clone directly
-- container builds should stage from that clone directly
-- if host bootstrap has already installed `~/.config/shell-config`, do not
-  assume that checkout reflects your in-progress branch work
-
-The mounted workspace path is the easiest truthful loop:
-
-```zsh
-ft workspace doctor ubuntu-full
-ft workspace build ubuntu-full
-ft workspace up ubuntu-full
-ft workspace enter ubuntu-full
-```
-
-Then verify the mounted checkout:
-
-```zsh
-ft workspace exec ubuntu-full -- zsh -lc 'test -d /workspace/shell-config && echo shell-config-mounted'
-```
-
-For Docker image builds, prefer a repo-local build source instead of a moving GitHub branch.
-
-Recommended:
-
-```zsh
-ft container build ubuntu \
-  --shell-config-source local \
-  --shell-config-stage-from ../shell-config
-```
-
-This stages a sanitized local `shell-config` checkout into the Docker build context automatically.
-
-Use the same pattern for Alpine:
-
-```zsh
-ft container build alpine \
-  --shell-config-source local \
-  --shell-config-stage-from ../shell-config
-```
-
-### GitHub-Backed Builds
-
-If you want to test the remote-consumer path instead:
-
-```zsh
-ft container build ubuntu \
-  --shell-config-source github \
-  --shell-config-branch feature-ohmyposh_disble_transient_prompt
-```
-
-> [!WARNING]
-> Moving Git branches are a weak cache key for `docker buildx`. A branch-based build can appear to be one commit behind even after `docker system prune -a`.
-
-If that happens, use one of:
-
-```zsh
-ft container build ubuntu --no-cache
-docker buildx prune --all
-```
-
-For active `shell-config` work, local mode is the more truthful and less frustrating loop.
-
-## Regression and Parity Loop
-
-When changing shell startup, prompt behavior, tool installation, or Dockerfiles, use this repeatable pass:
+After changing a Dockerfile, shell startup, or tool installation, rebuild and
+validate every target you touched:
 
 ```zsh
 ft container refresh ubuntu
@@ -592,63 +193,81 @@ ft doctor
 ft container status
 ```
 
-For deeper shell checks inside each container:
+Arch works the same way on amd64 hosts. `refresh` rebuilds the image and
+replaces the container. For a closer look, `ft container enter <target>` opens
+a shell; run `fortress-hud` there and confirm that:
+
+- the active profile is `zsh-tll-citadel-dev-fortress`
+- the prompt engine resolved as expected
+- `starship`, `atuin`, `zoxide`, and `fzf` are available
+- `${HOME}/.local/bin` is on `PATH`
+- Ubuntu, Alpine, and Arch remain at parity unless a difference is intentional
+
+The [container usage guide](docs/guides/container-usage.md) covers the rest of
+the `ft container` loop, the disposable SSH targets, and corporate CA builds.
+
+### Shell-Config Changes
+
+Test `shell-config` changes from your sibling clone, never from the installed
+checkout or a moving GitHub branch.
+
+A workspace mounts the clone live, which is the quickest loop:
 
 ```zsh
-fortress-hud
-fortress-hud --env
-printf '%s\n' ${PATH//:/ }
+ft workspace build ubuntu-full
+ft workspace up ubuntu-full
+ft workspace exec ubuntu-full -- zsh -lc 'test -d /workspace/shell-config && echo shell-config-mounted'
+ft workspace enter ubuntu-full
 ```
 
-Key things to confirm:
+To prove an image build with your changes, stage the clone into the build:
 
-- active profile is `zsh-tll-citadel-dev-fortress`
-- `prompt_engine_resolved` matches expectations
-- `starship`, `atuin`, `zoxide`, and `fzf` are available
-- `${HOME}/.local/bin` is present on `PATH`
-- Ubuntu, Alpine, and Arch remain at functional parity unless a difference is intentional
+```zsh
+ft container build ubuntu \
+  --shell-config-source local \
+  --shell-config-stage-from ../shell-config
+```
 
-## JSON and Agentic-Friendly Loops
+[Shell-Config Source Modes](docs/guides/container-usage.md#shell-config-source-modes)
+covers GitHub-backed builds and the `buildx` cache caveat that comes with
+them. The [workspace usage guide](docs/guides/workspace-usage.md) covers the
+workspace itself.
 
-For machine-readable checks:
+### Host Role Changes
+
+Converge and validate `localhost`, or a disposable host, as the
+[workstation usage guide](docs/guides/workstation-usage.md) and
+[target validation runbook](docs/project/target-validation.md) describe:
+
+```zsh
+ft host bootstrap localhost --check -K
+ft host validate localhost -K
+```
+
+### Machine-Readable Output
+
+Agents and scripts should read structured results rather than tables:
 
 ```zsh
 ft doctor --json
-ft doctor --json 'u*'
 ft container validate --json ubuntu
-ft container validate --json 'alp*'
 ```
-
-These are the preferred surfaces for future agentic operators and automation layers.
 
 ## Completion
 
-The installed `ft` completion artifact lives under:
-
-```zsh
-${XDG_DATA_HOME:-$HOME/.local/share}/dev-container-fortress/completions/zsh/_ft
-```
-
-To refresh it manually after CLI changes:
+Bootstrap installs the `ft` zsh completion file to
+`${XDG_DATA_HOME:-$HOME/.local/share}/dev-container-fortress/completions/zsh/_ft`.
+After adding or renaming commands, refresh it and open a new shell:
 
 ```zsh
 uv run ft completion install zsh
 ```
 
-If completion feels broken:
+## Where to Look Next
 
-1. reinstall the artifact
-2. open a fresh shell
-3. confirm the external completion artifact exists
-4. confirm your active shell is loading the fortress profile you expect
-
-## Where To Look Next
-
-For related details:
-
-- [README.md](README.md)
-- [docs/container-usage.md](docs/container-usage.md)
-- [docs/workstation-usage.md](docs/workstation-usage.md)
-- [docs/architecture.md](docs/architecture.md)
-- [docs/ROADMAP.md](docs/ROADMAP.md)
-- [docs/milestones/README.md](docs/milestones/README.md)
+- [Architecture](docs/design/architecture.md) for layering and tool selection
+- [Container standards](docs/design/container-standards.md) for the image
+  contract
+- [Roadmap](docs/project/ROADMAP.md) and the
+  [milestone workflow](docs/project/milestones/README.md) for planning
+- [AGENTS.md](AGENTS.md) for coding and documentation conventions

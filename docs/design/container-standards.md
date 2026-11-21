@@ -55,8 +55,10 @@ That means they should:
 - The image owns `$XDG_DATA_HOME`. It holds the `uv` tools and managed Python
   (including `ft`), the `ft` source and completions, the Neovim runtime, and
   prewarmed zinit plugins.
+
 - Never mount over `$XDG_DATA_HOME` or `$HOME/.local` as a whole. A mount hides
   the image content underneath it and leaves `$HOME/.local/bin` links dangling.
+
 - Persist runtime state through a short allowlist of narrow paths instead:
 
   | Name | Container path | Holds |
@@ -72,23 +74,29 @@ That means they should:
 
 - `ft workspace` bind-mounts these from host-owned XDG state directories. The
   devcontainer definitions use named Docker volumes for the same paths.
+
 - The `brew` path is always a named Docker volume, in `ft workspace`
   (`dev-fortress-brew-<profile>`) as well as in the devcontainers, because only
   a named volume seeds from the image. It is never shared between workspaces.
   `ft workspace reset --brew` removes it, so the next start re-seeds it.
+
 - `ft workspace` mounts the `claude` paths only when the `claude-code` option
   is selected. The devcontainers always mount them, since they cannot read the
   host's option selection.
+
 - Optional components install at container start, not at image build, so one
   published image serves every selection. `ft-ensure-claude-code` runs the
   native installer once, then relinks the highest persisted version into the
   image-owned `$HOME/.local/bin` after a container is replaced. It orders by
   version, not modification time, because `claude update` to a version that is
   already on disk does not rewrite it.
+
 - The images pre-create each path with runtime-user ownership so a fresh named
   volume inherits it instead of mounting as root.
+
 - Add a new persisted path only when it holds runtime state that is worth keeping
   across container replacement, and add it to both consumers.
+
 - `~/.gitconfig` is not persisted. On the glibc targets, `/etc/gitconfig`
   (with `GIT_CONFIG_SYSTEM` pointing at it, since Homebrew's `git` otherwise
   reads its system config from the prefix) sends
@@ -225,7 +233,7 @@ The Ubuntu image currently implements this contract by:
 - creating a non-root `vscode` user
 - using XDG-style home-directory layout
 - installing `ft` as a `uv` tool
-- installing `tenv` through `ft`
+- installing the tool-pool Homebrew floor, which includes `tenv`
 - installing the first-pass secrets layer's GPG substrate through Ubuntu
   packages when that optional layer is enabled
 
@@ -238,7 +246,8 @@ The Alpine image should follow the same contract as Ubuntu by:
 - creating a non-root `vscode` user
 - using XDG-style home-directory layout
 - installing `ft` as a `uv` tool
-- installing `tenv` through `ft`
+- installing the downloader-managed tool set, including `tenv`, through
+  `ft install`, because Homebrew does not support musl
 
 ## Current Arch Reference
 
@@ -249,7 +258,7 @@ The Arch image follows the same contract as Ubuntu by:
 - creating a non-root `vscode` user
 - using XDG-style home-directory layout
 - installing `ft` as a `uv` tool
-- installing the managed tool set, including `rg` and `nvim`, through `ft`
+- installing the tool-pool Homebrew floor, the same as Ubuntu
 - installing the optional gitforge, secrets, and AWS layers from the official
   Arch repositories so pacman verifies package signatures
 

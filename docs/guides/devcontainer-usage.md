@@ -10,9 +10,9 @@ around the published image and keeps the repos under `repos/`.
 
 The repository currently provides three devcontainer definitions:
 
-- [`.devcontainer/ubuntu/devcontainer.json`](../.devcontainer/ubuntu/devcontainer.json)
-- [`.devcontainer/alpine/devcontainer.json`](../.devcontainer/alpine/devcontainer.json)
-- [`.devcontainer/arch/devcontainer.json`](../.devcontainer/arch/devcontainer.json) (amd64 hosts only)
+- [`.devcontainer/ubuntu/devcontainer.json`](../../.devcontainer/ubuntu/devcontainer.json)
+- [`.devcontainer/alpine/devcontainer.json`](../../.devcontainer/alpine/devcontainer.json)
+- [`.devcontainer/arch/devcontainer.json`](../../.devcontainer/arch/devcontainer.json) (amd64 hosts only)
 
 Each is a thin wrapper over the matching Dockerfile in `containers/`.
 
@@ -180,7 +180,7 @@ after the host folder because the devcontainer CLI does not expand
 > The image owns the rest of `~/.local/share`, including `uv`, the managed
 > Python, and `ft`. Do not add a mount over `~/.local/share` or `~/.local`; it
 > hides those installs and breaks `ft`. See the persisted state contract in
-> [container standards](container-standards.md#persisted-state-contract).
+> [container standards](../design/container-standards.md#persisted-state-contract).
 
 To start from clean state, remove the volumes after closing the container:
 
@@ -276,7 +276,7 @@ Arch: run the Ubuntu checks.
 
 Corporate CA support is opt-in for devcontainer builds.
 
-Prepare a repo-local directory that contains one or more PEM-formatted `.crt` files, for example `.local/certs/`, then export:
+Prepare a repo-local directory that contains one or more PEM-formatted `.crt` files, for example `.local/certs/`, as [Container Usage](container-usage.md#optional-corporate-ca-support) describes, then export:
 
 ```zsh
 export DEV_CONTAINER_FORTRESS_CA_CERT_DIR=.local/certs

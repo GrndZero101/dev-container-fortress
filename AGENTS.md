@@ -29,6 +29,7 @@
 * Prefer simple typed data structures and straightforward parsing over framework-driven designs.
 * If introducing a new Python dependency, document why it is needed in the relevant README or architecture docs when the reason is not obvious.
 * all functions/classes/modules should have docstrings as we may want to document with Sphinx in the future. Should be in **google** style.
+* The `ft` CLI documents itself. A Typer command's docstring is its description in `--help` and in the generated `docs/reference/cli.md`, and every argument and option needs a `help=` string. Write a command's docstring for an operator, add examples there when they help, and leave out `Args:`, `Returns:`, and `Raises:` sections, which would be printed verbatim; `help=` documents the parameters. Helper functions keep full Google-style docstrings. Regenerate `docs/reference/cli.md` after changing a command; never edit it by hand.
 
 # Python Packages
 
@@ -49,16 +50,27 @@
 
 * Use `UV` for Python project bootstrapping, package management and anything it can handle natively.
 * Use `ruff` for linting. Configuration should be defined in `pyproject.toml`
-* Use `rumdl` for markdown linting and formatting. Configuration should be defined in `pyproject.toml`
+* Use `rumdl` for markdown linting and formatting. Configuration should be defined in `pyproject.toml`. It runs as a pre-commit hook and also checks that relative links resolve.
 
 # Markdown Documents
 
 * Use GitHub or GitLab admonition callouts where they improve clarity, especially for caveats, platform differences, and carve-outs.
 * Use supported emoticons sparingly when they improve scanability without adding noise.
+* Give every fact one home and link to it from everywhere else. In particular:
+  * install and bootstrap steps live in `docs/quickstart.md`
+  * the support matrix lives in `README.md`
+  * `ft` commands and flags live in the generated `docs/reference/cli.md`; guides show the workflow and link to the reference rather than restating flags
+* Place a new document by its reader:
+  * `docs/guides/` for task-oriented usage
+  * `docs/reference/` for generated or lookup material
+  * `docs/design/` for contracts, rationale, and design records
+  * `docs/project/` for the roadmap, milestones, and runbooks for maintainers
+* Keep status and roadmap statements out of guides. Say what works now, and link to the roadmap for what is planned.
+* Do not link user-facing docs to milestone files for required reading; move the content into the guide.
 * Keep top-level documentation high-level and architectural.
 * Keep component documentation operational and close to the relevant directory when practical.
-* Update `docs/architecture.md` whenever layering, orchestration boundaries, or tool-selection strategy materially changes.
-* Update `docs/container-standards.md` whenever significant container design choices change. Examples: XDG layout, runtime user model, bootstrap strategy, privilege model, or container tool-install contract.
+* Update `docs/design/architecture.md` whenever layering, orchestration boundaries, or tool-selection strategy materially changes.
+* Update `docs/design/container-standards.md` whenever significant container design choices change. Examples: XDG layout, runtime user model, bootstrap strategy, privilege model, or container tool-install contract.
 * Update component README files when setup steps, supported targets, inputs, or outputs change.
 * Update user-facing usage docs under `docs/` whenever features, supported flows, setup steps, or caveats change. Keep workstation, container, and devcontainer instructions in sync with the real implementation.
 
@@ -110,7 +122,7 @@
 * Prefer deterministic downloads, pinned versions, and checksum verification for externally fetched tools.
   * Exception: `uv` itself deliberately tracks the latest release in container images. Do not pin it unless a regression forces a temporary pin.
 * Keep image size and build complexity in mind, but do not sacrifice auditability for minor optimizations.
-* Treat `docs/container-standards.md` as the operational contract for container targets and keep it in sync with significant design changes.
+* Treat `docs/design/container-standards.md` as the operational contract for container targets and keep it in sync with significant design changes.
 
 # Devcontainer Guidance
 
@@ -157,14 +169,14 @@
 * Prefer using Dev Fortress itself to develop and validate Dev Fortress whenever the capability already exists.
 * Prefer `ft`, the documented bootstrap flow, and the documented verification loops over ad hoc manual commands when the operator surface is ready.
 * If a workflow is painful when using the repo's own tools, treat that pain as product feedback instead of normalizing the workaround.
-* If a capability does not exist and the manual path is noticeably taxing, suggest that gap as an opportunity to create or extend a milestone in `docs/ROADMAP.md`.
+* If a capability does not exist and the manual path is noticeably taxing, suggest that gap as an opportunity to create or extend a milestone in `docs/project/ROADMAP.md`.
 
 # Planning Workflow
 
-* Treat `docs/ROADMAP.md` as the strategic roadmap and milestone ordering document.
-* Treat `docs/milestones/` as the working planning surface for milestone drafts, issue slices, and checkbox progress.
+* Treat `docs/project/ROADMAP.md` as the strategic roadmap and milestone ordering document.
+* Treat `docs/project/milestones/` as the working planning surface for milestone drafts, issue slices, and checkbox progress.
 * Treat the root `TODO.md` as the short "up next" queue: a few one-line items that link into milestone files. Update it when the next action changes, and keep detail in the milestone file rather than duplicating it.
-* Keep one markdown file per milestone under `docs/milestones/`, and update it as work advances.
+* Keep one markdown file per milestone under `docs/project/milestones/`, and update it as work advances.
 * Use milestone files as the copy/paste source for later GitHub milestones and issues.
 * Name milestone branches after a zero-padded sortable milestone ID and outcome, for example `feat/m0003a-installer-onramp` or `feat/m0004-first-real-host-roles`.
 * Keep the sortable branch ID mapped directly from the roadmap milestone ID, for example `M3a` -> `m0003a` and `M7a` -> `m0007a`.

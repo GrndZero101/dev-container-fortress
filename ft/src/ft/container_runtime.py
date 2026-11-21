@@ -4,7 +4,7 @@ Dev Fortress starts containers two ways: ``ft workspace`` runs them with
 ``docker run``, and VS Code or the devcontainer CLI runs the definitions that
 ``ft devcontainer render`` writes. Both read this module, so a persisted
 mount, a start step, or an option's environment is declared once. See
-``docs/architecture.md`` for why the two runtimes stay separate.
+``docs/design/architecture.md`` for why the two runtimes stay separate.
 """
 
 from __future__ import annotations

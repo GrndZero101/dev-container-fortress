@@ -20,16 +20,16 @@ adds is the Windows side around it:
    machine without WSL (then reboot), list the releases with
    `wsl --list --online`, and install one with `wsl --install -d <name>`, for
    example the newest Ubuntu LTS. Create your Linux user when it opens.
-2. **Inside the distro,** from `~`, follow the
-   [developer path](../DEVELOPMENT.md#rocket-zero-to-hero-developer-path), or
-   the [quickstart](quickstart.md) for an operator workstation. Skip the font
-   command there; the font belongs on Windows.
+2. **Inside the distro,** from `~`, follow the [quickstart](quickstart.md).
+   Skip its font command; the font belongs on Windows. To work on Dev Fortress
+   itself, the [developer path](../DEVELOPMENT.md#rocket-zero-to-hero-developer-path)
+   adds a few steps on top of the same install.
 3. **On Windows,** install JetBrainsMono Nerd Font as
    [quickstart step 5](quickstart.md#abc-5-set-the-terminal-font-recommended)
    describes, and select it in the Windows Terminal profile for the distro.
 4. **VS Code on Windows,** with the WSL and Dev Containers extensions. Add the
    `dev.containers.executeInWSL` settings from the
-   [devcontainer usage guide](devcontainer-usage.md), and keep Docker
+   [devcontainer usage guide](guides/devcontainer-usage.md), and keep Docker
    Desktop's WSL integration off for this distro, so devcontainers use the
    distro's Docker CE.
 5. **Open a workbench** from a distro terminal with

@@ -1,5 +1,5 @@
 # Dev Fortress workbench. Edit it, then run `ft workbench render` to
-# regenerate its folder; see docs/workbench-usage.md in dev-container-fortress.
+# regenerate its folder; see docs/guides/workbench-usage.md in dev-container-fortress.
 name = "example"
 directory = "."
 profile = "ubuntu-base"

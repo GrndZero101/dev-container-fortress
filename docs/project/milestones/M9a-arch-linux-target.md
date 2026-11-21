@@ -26,7 +26,7 @@ bootstrap path. Arch should slot into the same `ft container ...`,
 - [x] Unsupported combinations, starting with Arch on arm64, fail clearly with an actionable message
 - [x] A matching `.devcontainer/arch/devcontainer.json` exists as a thin wrapper over the container target
 - [x] The Arch image is part of the CI build, smoke-test, and publish matrix
-- [x] User-facing docs, `docs/container-standards.md`, and `docs/architecture.md` describe Arch truthfully
+- [x] User-facing docs, `docs/design/container-standards.md`, and `docs/design/architecture.md` describe Arch truthfully
 
 ## Non-Goals
 
@@ -65,7 +65,7 @@ On hosts, most Homebrew-managed tools already exist in the official `extra`
 repository. Running linuxbrew on top of pacman adds a second package manager
 for little gain, so Arch hosts should use pacman for the steady-state
 toolchain. This is a documented exception to the "hosts converge on Homebrew"
-rule and should be recorded in `docs/architecture.md`.
+rule and should be recorded in `docs/design/architecture.md`.
 
 ### Centralize Target Metadata First
 
@@ -129,7 +129,7 @@ clear message rather than failing deep inside a build.
 ### M9a-8 Update documentation
 
 - [x] Problem: roughly fifteen docs enumerate supported targets and would become inaccurate
-- [x] Scope: update `README.md`, `containers/README.md`, `ansible/README.md`, `docs/container-standards.md`, `docs/architecture.md`, usage docs, and the roadmap
+- [x] Scope: update `README.md`, `containers/README.md`, `ansible/README.md`, `docs/design/container-standards.md`, `docs/design/architecture.md`, usage docs, and the roadmap
 - [x] Acceptance: every doc that lists supported targets includes Arch with its amd64-only and no-Homebrew caveats
 
 ## Verification Notes
