@@ -1,11 +1,11 @@
 # Plan board — dev-container-fortress
 
-> 53 tasks · 0 done · 1 doing · 18 blocked
+> 54 tasks · 1 done · 1 doing · 18 blocked
 
-## M-0001 M6b: Documentation consolidation (0/2)
+## M-0001 M6b: Documentation consolidation (1/1) — doing
 
-- [ ] T-0001 Add a paragraph and an example to the main ft command docstrings — **doing** · verify: `uv run pytest ft/tests -q -k help_example && uv run pre-commit run cli-reference-render --all-files`
-- [ ] T-0002 Operator: cold timed bare-metal Ubuntu baseline run (M5e baseline and M6b read-through) — blocked: Operator task: needs a person and hardware or accounts an agent session does not have. Unblock and start it when you run it; record results with tp note.
+- [x] T-0001 Add a paragraph and an example to the main ft command docstrings — done 2026-11-21, 4a6bc18
+- [x] ~~T-0002 Operator: cold timed bare-metal Ubuntu baseline run (M5e baseline and M6b read-through)~~ — cancelled
 
 ## M-0002 M5f: Agent workbench guardrails (0/8)
 
@@ -18,12 +18,13 @@
 - [ ] T-0009 Decide: does a workbench need Docker inside it (Docker-in-Docker, rootless, or Sysbox)? — blocked: Operator decision: record the choice with tp note, then close or unblock.
 - [ ] T-0010 Operator: in-workbench agent checks and a multi-hour bypass-mode Claude Code task delivered as a PR — blocked: Operator task: needs a person and hardware or accounts an agent session does not have. Unblock and start it when you run it; record results with tp note.
 
-## M-0003 M5e: Zero to Hero developer workstation (0/4)
+## M-0003 M5e: Zero to Hero developer workstation (0/5)
 
 - [ ] T-0011 M5e-1: Developer mode for shell-config — waiting on T-0002
 - [ ] T-0012 M5e-2: macOS host mode in the installer — waiting on T-0002
 - [ ] T-0013 M5e-3: Shorten the developer path to at most four commands — waiting on T-0011
 - [ ] T-0014 Operator: M5e closing runs (bare-metal Ubuntu and Apple silicon macOS cold and timed, WSL2 regression, shell-config branch lived in for a day) — blocked: Operator task: needs a person and hardware or accounts an agent session does not have. Unblock and start it when you run it; record results with tp note.
+- [ ] T-0043 Operator: cold timed bare-metal Ubuntu baseline run (M5e baseline and docs read-through) — blocked: Operator task: needs a person and hardware or accounts an agent session does not have. Unblock and start it when you run it; record results with tp note.
 
 ## M-0004 M6: Operator CLI maturity (0/4)
 
@@ -79,7 +80,6 @@
 
 ## Blockers
 
-- T-0002: Operator task: needs a person and hardware or accounts an agent session does not have. Unblock and start it when you run it; record results with tp note.
 - T-0009: Operator decision: record the choice with tp note, then close or unblock.
 - T-0010: Operator task: needs a person and hardware or accounts an agent session does not have. Unblock and start it when you run it; record results with tp note.
 - T-0014: Operator task: needs a person and hardware or accounts an agent session does not have. Unblock and start it when you run it; record results with tp note.
@@ -97,3 +97,4 @@
 - T-0039: Operator task: needs a person and hardware or accounts an agent session does not have. Unblock and start it when you run it; record results with tp note.
 - T-0040: Operator task: needs a person and hardware or accounts an agent session does not have. Unblock and start it when you run it; record results with tp note.
 - T-0041: Operator task: needs a person and hardware or accounts an agent session does not have. Unblock and start it when you run it; record results with tp note.
+- T-0043: Operator task: needs a person and hardware or accounts an agent session does not have. Unblock and start it when you run it; record results with tp note.
