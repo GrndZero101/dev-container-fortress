@@ -59,6 +59,7 @@ adds workbenches. What is still manual for a developer:
 ## Verification Notes
 
 - [ ] Bare-metal Ubuntu desktop, cold, timed
+- [ ] The baseline run also checks the `M6b` read-through: no step sends the reader back to an earlier document
 - [ ] Fresh macOS on Apple silicon, cold, timed
 - [ ] WSL2 Ubuntu, as a regression check
 - [ ] A `shell-config` branch lived in as the login shell for a day
