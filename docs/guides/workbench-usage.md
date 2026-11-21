@@ -125,7 +125,8 @@ container. `ft workbench list` shows what you have.
 
 > [!IMPORTANT]
 > Do not edit the generated `devcontainer.json` or `.code-workspace`; the next
-> render overwrites them. `ft workbench render mybench --check` reports drift.
+> render overwrites them. `ft workbench render mybench --check` reports drift,
+> and names any filesystem guardrail a hand edit breaks (see Caveats).
 
 ## What Persists
 
@@ -188,10 +189,23 @@ machine.
 | The Windows side of a WSL2 host | Prompt injection: content an agent reads can steer it toward anything in this column |
 
 Running an agent with permission prompts bypassed in a `full` workbench has
-the same account exposure as running it on the host. Enforced guardrails are
-planned in [`M5f`](../project/milestones/M5f-agent-workbench-guardrails.md),
-and a locked-down `sealed` level in
+the same account exposure as running it on the host. A locked-down `sealed`
+level is planned in
 [`M5d`](../project/milestones/M5d-sealed-agent-workbench.md).
+
+The filesystem side is enforced. `ft workbench render` refuses to write, and
+`ft workbench render --check` fails on, a `devcontainer.json` that would let
+the container reach past `repos/`:
+
+- a container-runtime socket (`docker.sock`, `podman.sock`, `containerd.sock`),
+  which amounts to root on the host
+- a bind mount of the host home directory, `/`, or a Windows drive such as
+  `/mnt/c`
+- `--privileged`, added capabilities (`--cap-add`, `capAdd`), or
+  `--network host`
+
+Other sockets, such as an SSH agent, and bind mounts below the home directory
+stay allowed.
 
 - The repos are bind-mounted, so Git hooks written into `repos/*/.git` from
   inside the container run on the host the next time host-side Git touches

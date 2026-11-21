@@ -91,6 +91,7 @@ from ft.workbench import (
     WorkbenchDefinition,
     load_workbench,
     render_workbench,
+    rendered_guardrail_violations,
     repo_dir_name,
     workbench_config_dir,
     workbench_directory,
@@ -9021,12 +9022,21 @@ def _render_workbench_file(toml_path: Path, *, check: bool) -> bool:
         )
         return False
     directory = workbench_directory(definition, toml_path)
+    # A hand-edited definition can break a guardrail that the renderer never
+    # would, so --check inspects the file on disk as well as comparing it.
+    violations = rendered_guardrail_violations(directory) if check else []
+    for violation in violations:
+        console.print(
+            f"[red]guardrail:[/red] {violation}", highlight=False, soft_wrap=True
+        )
     if not _apply_rendered_files(
         files,
         check=check,
         base=directory,
         fix_hint=f"run `ft workbench render {toml_path}`",
     ):
+        return False
+    if violations:
         return False
     console.print(
         f"workbench {definition.name}: {directory}", highlight=False, soft_wrap=True
@@ -9186,7 +9196,8 @@ def workbench_render(
     """Regenerate a workbench folder's devcontainer and workspace files.
 
     Run it after editing a workbench file. With no name, it renders every saved
-    workbench; --check writes nothing and fails when a file is stale.
+    workbench. --check writes nothing and fails when a file is stale or breaks a
+    filesystem guardrail, such as a Docker socket or host home mount.
 
     For example, `ft workbench render api --check` reports whether the api folder
     still matches api.toml.

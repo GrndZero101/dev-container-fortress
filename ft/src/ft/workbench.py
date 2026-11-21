@@ -46,6 +46,21 @@ from ft.options import OPTIONS_ENV, parse_option_names
 DEFAULT_PROFILE = "ubuntu-base"
 WORKBENCH_NAME_PATTERN = r"^[a-z0-9][a-z0-9-]*$"
 
+# Sockets that hand the container the host's container runtime, and with it
+# root on the host. Other sockets, such as an SSH agent, stay allowed.
+RUNTIME_SOCKET_NAMES = frozenset(
+    {"docker.sock", "podman.sock", "containerd.sock", "crio.sock", "dockershim.sock"}
+)
+# Spellings of the host home directory in a mount source. Devcontainers often
+# join two, as ``${localEnv:HOME}${localEnv:USERPROFILE}``, for Linux and Windows.
+HOST_HOME_TOKENS = re.compile(
+    r"\$\{localEnv:(HOME|USERPROFILE)\}|\$\{HOME\}|\$HOME\b|^~(?=/|$)"
+)
+HOST_HOME_PATTERN = re.compile(r"^(/home/[^/]+|/Users/[^/]+|/root)$")
+WINDOWS_DRIVE_PATTERN = re.compile(r"^(/mnt/[a-zA-Z]|[a-zA-Z]:)([/\\]|$)")
+# runArgs flags whose value follows as ``--flag value`` or ``--flag=value``.
+RUN_ARG_VALUE_FLAGS = frozenset({"-v", "--volume", "--mount", "--network", "--net"})
+
 
 def workbench_config_dir() -> Path:
     """Return the directory that holds the user's workbench definitions.
@@ -278,6 +293,183 @@ def workbench_toml(definition: WorkbenchDefinition) -> str:
     )
 
 
+def _mount_fields(spec: str) -> dict[str, str]:
+    """Parse a ``key=value,...`` mount string, as Docker and devcontainers use.
+
+    Args:
+        spec: The mount string, such as ``source=/a,target=/b,type=bind``.
+
+    Returns:
+        Keys mapped to values, with ``src`` and ``dst`` folded into
+        ``source`` and ``target``.
+    """
+    aliases = {"src": "source", "dst": "target", "destination": "target"}
+    fields: dict[str, str] = {}
+    for part in spec.split(","):
+        key, _, value = part.partition("=")
+        key = key.strip().lower()
+        fields[aliases.get(key, key)] = value.strip()
+    return fields
+
+
+def _bind_source(mount: object) -> str | None:
+    """Return the host path a mount binds, or None for a volume or tmpfs.
+
+    Args:
+        mount: A ``devcontainer.json`` mount: an object or a mount string.
+
+    Returns:
+        The bind source, or None when the mount does not bind a host path.
+    """
+    if isinstance(mount, dict):
+        fields = {str(key).lower(): str(value) for key, value in mount.items()}
+    elif isinstance(mount, str):
+        fields = _mount_fields(mount)
+    else:
+        return None
+    if fields.get("type", "bind") != "bind":
+        return None
+    return fields.get("source") or None
+
+
+def _volume_source(spec: str) -> str | None:
+    """Return the host path a ``-v`` value binds, or None for a named volume.
+
+    Args:
+        spec: A ``-v``/``--volume`` value: ``source:target[:options]``.
+
+    Returns:
+        The source when it is a path rather than a volume name.
+    """
+    source = spec.split(":", 1)[0]
+    if source.startswith(("/", "~", "$", ".")) or WINDOWS_DRIVE_PATTERN.match(spec):
+        return source
+    return None
+
+
+def _source_violation(source: str) -> str | None:
+    """Return why a bind source breaks a guardrail, or None when it is allowed.
+
+    Args:
+        source: A host path from a bind mount.
+
+    Returns:
+        The reason, or None.
+    """
+    path = source.replace("\\", "/").rstrip("/") or "/"
+    if path.rsplit("/", 1)[-1] in RUNTIME_SOCKET_NAMES:
+        return f"mounts a container-runtime socket: {source}"
+    if path == "/":
+        return "mounts the host root filesystem: /"
+    if WINDOWS_DRIVE_PATTERN.match(path):
+        return f"mounts a Windows drive: {source}"
+    home = str(Path.home())
+    if (
+        not HOST_HOME_TOKENS.sub("", path).strip("/")
+        or path == home
+        or HOST_HOME_PATTERN.match(path)
+    ):
+        return f"mounts the host home directory: {source}"
+    return None
+
+
+def _run_arg_pairs(run_args: list[object]) -> list[tuple[str, str | None]]:
+    """Split ``runArgs`` into flags with their values.
+
+    Args:
+        run_args: The ``runArgs`` list.
+
+    Returns:
+        ``(flag, value)`` pairs; ``value`` is None for a flag that takes none.
+    """
+    pairs: list[tuple[str, str | None]] = []
+    items = [str(item) for item in run_args]
+    index = 0
+    while index < len(items):
+        flag, equals, value = items[index].partition("=")
+        if equals:
+            pairs.append((flag, value))
+        elif flag in RUN_ARG_VALUE_FLAGS and index + 1 < len(items):
+            index += 1
+            pairs.append((flag, items[index]))
+        else:
+            pairs.append((flag, None))
+        index += 1
+    return pairs
+
+
+def guardrail_violations(content: dict[str, object]) -> list[str]:
+    """Return the filesystem guardrails a devcontainer definition breaks.
+
+    A ``full`` workbench keeps the host filesystem out of the container's
+    reach, so its definition must not mount a container-runtime socket, the
+    host home directory, the host root, or a Windows drive, and must not run
+    privileged, add capabilities, or join the host network.
+
+    Args:
+        content: A parsed ``devcontainer.json``.
+
+    Returns:
+        One reason per violation; empty when the definition is allowed.
+    """
+    sources: list[str] = []
+    mounts = content.get("mounts")
+    for mount in mounts if isinstance(mounts, list) else []:
+        source = _bind_source(mount)
+        if source:
+            sources.append(source)
+    workspace_mount = content.get("workspaceMount")
+    if isinstance(workspace_mount, str):
+        source = _bind_source(workspace_mount)
+        if source:
+            sources.append(source)
+
+    violations: list[str] = []
+    if content.get("privileged") is True:
+        violations.append("runs privileged: privileged is true")
+    if content.get("capAdd"):
+        violations.append(f"adds capabilities: capAdd {content['capAdd']}")
+    run_args = content.get("runArgs")
+    for flag, value in _run_arg_pairs(run_args if isinstance(run_args, list) else []):
+        if flag == "--privileged" and value in (None, "true"):
+            violations.append("runs privileged: --privileged")
+        elif flag == "--cap-add":
+            violations.append(f"adds capabilities: --cap-add {value}")
+        elif flag in ("--network", "--net") and value == "host":
+            violations.append(f"joins the host network: {flag} host")
+        elif flag in ("-v", "--volume") and value:
+            source = _volume_source(value)
+            if source:
+                sources.append(source)
+        elif flag == "--mount" and value:
+            source = _bind_source(value)
+            if source:
+                sources.append(source)
+    for source in sources:
+        reason = _source_violation(source)
+        if reason:
+            violations.append(reason)
+    return violations
+
+
+def rendered_guardrail_violations(directory: Path) -> list[str]:
+    """Check the ``devcontainer.json`` already written in a workbench folder.
+
+    Args:
+        directory: The workbench folder.
+
+    Returns:
+        The guardrails the file on disk breaks; empty when it is missing or
+        is not plain JSON, which the stale check reports instead.
+    """
+    path = directory / ".devcontainer" / "devcontainer.json"
+    try:
+        content = json.loads(path.read_text(encoding="utf-8"))
+    except OSError, ValueError:
+        return []
+    return guardrail_violations(content) if isinstance(content, dict) else []
+
+
 def render_workbench(
     definition: WorkbenchDefinition,
     toml_path: Path,
@@ -295,8 +487,9 @@ def render_workbench(
 
     Raises:
         ValueError: For an unknown profile, a profile with no published image
-            and no ``local_build``, or a ``local_build`` checkout without the
-            target's Dockerfile.
+            and no ``local_build``, a ``local_build`` checkout without the
+            target's Dockerfile, or a definition that breaks a filesystem
+            guardrail (see :func:`guardrail_violations`).
     """
     if definition.profile not in profiles.profiles:
         known = ", ".join(sorted(profiles.profiles))
@@ -360,6 +553,9 @@ def render_workbench(
     ]
     if steps:
         content["postStartCommand"] = " && ".join(steps)
+    violations = guardrail_violations(content)
+    if violations:
+        raise ValueError("workbench guardrails: " + "; ".join(violations))
 
     workspace = {
         "folders": [{"path": "."}]

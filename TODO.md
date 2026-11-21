@@ -1,6 +1,6 @@
 # Plan board — dev-container-fortress
 
-> 54 tasks · 2 done · 0 doing · 18 blocked
+> 54 tasks · 2 done · 1 doing · 18 blocked
 
 ## M-0001 M6b: Documentation consolidation (1/1) — done
 
@@ -9,7 +9,7 @@
 
 ## M-0002 M5f: Agent workbench guardrails (0/8)
 
-- [ ] T-0003 M5f-1a: Enforce workbench filesystem guardrails in the renderer and --check
+- [ ] T-0003 M5f-1a: Enforce workbench filesystem guardrails in the renderer and --check — **doing** · verify: `uv run pytest ft/tests/test_workbench.py -q -k guardrail`
 - [ ] T-0004 M5f-1b: URL-only validation in ft.browser_bridge, then the bridge in the devcontainers for CLI terminal mode
 - [ ] T-0005 M5f-1c: SSH through a forwarded agent in VS Code and CLI terminal mode, with SSH commit signing — waiting on T-0003
 - [ ] T-0006 M5f-1d: op through a service-account token and a non-production default AWS_PROFILE in workbenches — waiting on T-0003

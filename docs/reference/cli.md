@@ -1703,7 +1703,8 @@ $ ft workbench init [OPTIONS] {name}
 Regenerate a workbench folder&#x27;s devcontainer and workspace files.
 
 Run it after editing a workbench file. With no name, it renders every saved
-workbench; --check writes nothing and fails when a file is stale.
+workbench. --check writes nothing and fails when a file is stale or breaks a
+filesystem guardrail, such as a Docker socket or host home mount.
 
 For example, `ft workbench render api --check` reports whether the api folder
 still matches api.toml.

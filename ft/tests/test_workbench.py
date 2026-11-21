@@ -11,6 +11,7 @@ import pytest
 from ft.cli import _load_workspace_profile_manifest, app
 from ft.workbench import (
     WorkbenchDefinition,
+    guardrail_violations,
     load_workbench,
     render_workbench,
     repo_dir_name,
@@ -161,6 +162,137 @@ def test_render_rejects_unbuildable_definitions(
 
 def test_example_workbench_is_rendered() -> None:
     """The checked-in example matches a fresh render."""
+    result = runner.invoke(app, ["workbench", "render", str(EXAMPLE), "--check"])
+    assert result.exit_code == 0, result.output
+
+
+# One forbidden item per case: a devcontainer.json fragment and the reason
+# `render --check` must report for it.
+GUARDRAIL_CASES = {
+    "docker-socket": (
+        {
+            "mounts": [
+                {
+                    "source": "/var/run/docker.sock",
+                    "target": "/var/run/docker.sock",
+                    "type": "bind",
+                }
+            ]
+        },
+        "container-runtime socket",
+    ),
+    "podman-socket-string": (
+        {
+            "mounts": [
+                "source=/run/user/1000/podman/podman.sock,"
+                "target=/run/podman/podman.sock,type=bind"
+            ]
+        },
+        "container-runtime socket",
+    ),
+    "docker-socket-run-arg": (
+        {"runArgs": ["-v", "/var/run/docker.sock:/var/run/docker.sock"]},
+        "container-runtime socket",
+    ),
+    "host-home": (
+        {"mounts": ["source=${localEnv:HOME},target=/host,type=bind"]},
+        "host home directory",
+    ),
+    "host-home-cross-platform": (
+        {
+            "mounts": [
+                "source=${localEnv:HOME}${localEnv:USERPROFILE},target=/host,type=bind"
+            ]
+        },
+        "host home directory",
+    ),
+    "host-home-path": (
+        {"runArgs": ["--mount", "type=bind,src=/home/someone,dst=/host"]},
+        "host home directory",
+    ),
+    "host-root": (
+        {"mounts": [{"source": "/", "target": "/host", "type": "bind"}]},
+        "host root filesystem",
+    ),
+    "windows-drive": (
+        {"mounts": ["source=/mnt/c,target=/c,type=bind"]},
+        "Windows drive",
+    ),
+    "windows-drive-workspace-mount": (
+        {"workspaceMount": "source=/mnt/c/Users/me,target=/workspace,type=bind"},
+        "Windows drive",
+    ),
+    "privileged-run-arg": ({"runArgs": ["--privileged"]}, "runs privileged"),
+    "privileged-property": ({"privileged": True}, "runs privileged"),
+    "cap-add-run-arg": ({"runArgs": ["--cap-add=SYS_ADMIN"]}, "adds capabilities"),
+    "cap-add-property": ({"capAdd": ["SYS_PTRACE"]}, "adds capabilities"),
+    "host-network": ({"runArgs": ["--network=host"]}, "host network"),
+    "host-network-net": ({"runArgs": ["--net", "host"]}, "host network"),
+}
+
+
+@pytest.mark.parametrize(
+    ("fragment", "reason"), GUARDRAIL_CASES.values(), ids=GUARDRAIL_CASES.keys()
+)
+def test_render_check_fails_on_guardrail_breach(
+    tmp_path: Path, fragment: dict[str, object], reason: str
+) -> None:
+    """`render --check` names each forbidden socket, mount, privilege, or network."""
+    folder = tmp_path / "example"
+    shutil.copytree(EXAMPLE.parent, folder)
+    devcontainer = folder / ".devcontainer" / "devcontainer.json"
+    content = json.loads(devcontainer.read_text(encoding="utf-8"))
+    for key, value in fragment.items():
+        if key == "mounts":
+            content["mounts"] = [*content["mounts"], *value]
+        else:
+            content[key] = value
+    devcontainer.write_text(json.dumps(content), encoding="utf-8")
+
+    result = runner.invoke(
+        app, ["workbench", "render", str(folder / "example.toml"), "--check"]
+    )
+    assert result.exit_code == 1
+    guardrail_lines = [
+        line for line in result.output.splitlines() if line.startswith("guardrail:")
+    ]
+    assert any(reason in line for line in guardrail_lines), result.output
+
+
+def test_guardrail_allows_volumes_repo_binds_and_other_sockets() -> None:
+    """Named volumes, binds below home, other sockets, and bridge networks pass."""
+    content = {
+        "mounts": [
+            {"source": "dev-fortress-wb-x-cache", "target": "/c", "type": "volume"},
+            "source=${localEnv:SSH_AUTH_SOCK},target=/ssh-agent,type=bind",
+            "source=/home/someone/.1password/agent.sock,target=/a.sock,type=bind",
+            {"source": "/home/someone/src/repo", "target": "/r", "type": "bind"},
+        ],
+        "runArgs": ["--network=bridge", "-v", "named:/data", "--init"],
+        "privileged": False,
+    }
+    assert guardrail_violations(content) == []
+
+
+def test_render_refuses_a_guardrail_breach(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The renderer refuses to emit a definition that breaks a guardrail."""
+    monkeypatch.setattr(
+        "ft.workbench.volume_mounts",
+        lambda paths, source: [
+            {"source": "/var/run/docker.sock", "target": "/s", "type": "bind"}
+        ],
+    )
+    with pytest.raises(ValueError, match="workbench guardrails: .*runtime socket"):
+        _render(WorkbenchDefinition(name="wb"), tmp_path / "wb.toml")
+
+
+def test_example_workbench_passes_guardrail_check() -> None:
+    """The shipped example renders clean and passes `render --check`."""
+    devcontainer = EXAMPLE.parent / ".devcontainer" / "devcontainer.json"
+    content = json.loads(devcontainer.read_text(encoding="utf-8"))
+    assert guardrail_violations(content) == []
     result = runner.invoke(app, ["workbench", "render", str(EXAMPLE), "--check"])
     assert result.exit_code == 0, result.output
 
