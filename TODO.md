@@ -1,20 +1,20 @@
 # Plan board — dev-container-fortress
 
-> 54 tasks · 2 done · 1 doing · 18 blocked
+> 54 tasks · 3 done · 0 doing · 18 blocked
 
 ## M-0001 M6b: Documentation consolidation (1/1) — done
 
 - [x] T-0001 Add a paragraph and an example to the main ft command docstrings — done 2026-11-21, 4a6bc18
 - [x] ~~T-0002 Operator: cold timed bare-metal Ubuntu baseline run (M5e baseline and M6b read-through)~~ — cancelled
 
-## M-0002 M5f: Agent workbench guardrails (0/8)
+## M-0002 M5f: Agent workbench guardrails (1/8)
 
-- [ ] T-0003 M5f-1a: Enforce workbench filesystem guardrails in the renderer and --check — **doing** · verify: `uv run pytest ft/tests/test_workbench.py -q -k guardrail`
+- [x] T-0003 M5f-1a: Enforce workbench filesystem guardrails in the renderer and --check — done 2026-11-21, 4026db1
 - [ ] T-0004 M5f-1b: URL-only validation in ft.browser_bridge, then the bridge in the devcontainers for CLI terminal mode
-- [ ] T-0005 M5f-1c: SSH through a forwarded agent in VS Code and CLI terminal mode, with SSH commit signing — waiting on T-0003
-- [ ] T-0006 M5f-1d: op through a service-account token and a non-production default AWS_PROFILE in workbenches — waiting on T-0003
-- [ ] T-0007 M5f-1e: Record what a full workbench protects in the container standards and architecture docs — waiting on T-0003, T-0005, T-0006
-- [ ] T-0008 M5f-2: Claude Code bypass mode by default in workbenches, with a PreToolUse deny-list hook — waiting on T-0003
+- [ ] T-0005 M5f-1c: SSH through a forwarded agent in VS Code and CLI terminal mode, with SSH commit signing
+- [ ] T-0006 M5f-1d: op through a service-account token and a non-production default AWS_PROFILE in workbenches
+- [ ] T-0007 M5f-1e: Record what a full workbench protects in the container standards and architecture docs — waiting on T-0005, T-0006
+- [ ] T-0008 M5f-2: Claude Code bypass mode by default in workbenches, with a PreToolUse deny-list hook
 - [ ] T-0009 Decide: does a workbench need Docker inside it (Docker-in-Docker, rootless, or Sysbox)? — blocked: Operator decision: record the choice with tp note, then close or unblock.
 - [ ] T-0010 Operator: in-workbench agent checks and a multi-hour bypass-mode Claude Code task delivered as a PR — blocked: Operator task: needs a person and hardware or accounts an agent session does not have. Unblock and start it when you run it; record results with tp note.
 
