@@ -1,8 +1,8 @@
 # Plan board — dev-container-fortress
 
-> 54 tasks · 1 done · 1 doing · 18 blocked
+> 54 tasks · 2 done · 0 doing · 18 blocked
 
-## M-0001 M6b: Documentation consolidation (1/1) — doing
+## M-0001 M6b: Documentation consolidation (1/1) — done
 
 - [x] T-0001 Add a paragraph and an example to the main ft command docstrings — done 2026-11-21, 4a6bc18
 - [x] ~~T-0002 Operator: cold timed bare-metal Ubuntu baseline run (M5e baseline and M6b read-through)~~ — cancelled

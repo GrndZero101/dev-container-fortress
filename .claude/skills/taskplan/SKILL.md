@@ -43,6 +43,7 @@ object: `{"ok": true, "data": ...}` or `{"ok": false, "error": {"code", "message
 - Deterministic: no network, no sleeps, no dependence on the order tests run in.
 - Exit 0 must mean the acceptance criteria hold. A command that always passes is a lie.
 - A milestone's verify runs the full gate, e.g. `uv run pytest -q && prek run --all-files`.
+  A milestone is never started: once its children are closed, `tp done M-ID` closes it from todo.
 - Never weaken a verify command to get a task closed. If it is wrong, fix it with
   `tp edit ID --verify "..."` and say why in a note.
 
@@ -94,6 +95,7 @@ tasks:
 | `tp show ID` | one task in full, with notes and the last verify result |
 | `tp list --status todo --ready` | filtered list |
 | `tp add "Title" --verify "CMD" --accept "..." --parent M-0001 --dep T-0003` | add a task |
+| `tp edit ID --parent M-0002` | move a task to another milestone, keeping its id and history |
 | `tp check` | dangling dependencies, cycles, schema errors |
 | `tp export plan -o PLAN.md` | regenerate the human-readable plan |
 | `tp log --task ID` | audit trail |

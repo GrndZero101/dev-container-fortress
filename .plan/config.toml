@@ -6,3 +6,5 @@ verify_shell = "bash"
 require_verify = true
 allow_skip_verify = true
 max_stop_blocks = 5
+board_file = "TODO.md"
+board_notes = "none"
